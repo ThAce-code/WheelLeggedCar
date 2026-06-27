@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <project>
     <fileVersion>4</fileVersion>
     <configuration>
@@ -2194,9 +2194,120 @@
     </configuration>
     <group>
         <name>code</name>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.c</name>
-        </file>
+        <group>
+            <name>app</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_config.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_types.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_state.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_state.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_safety.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_safety.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_scheduler.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_scheduler.h</name>
+            </file>
+        </group>
+        <group>
+            <name>sensor</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_imu.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_imu.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_camera.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_camera.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_encoder.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_encoder.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.h</name>
+            </file>
+        </group>
+        <group>
+            <name>estimate_perception</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\estimator.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\estimator.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\perception.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\perception.h</name>
+            </file>
+        </group>
+        <group>
+            <name>control</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_chassis.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_chassis.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_leg.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_leg.h</name>
+            </file>
+        </group>
+        <group>
+            <name>actuator</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_motor.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_motor.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_servo.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_servo.h</name>
+            </file>
+        </group>
+        <group>
+            <name>telemetry</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\telemetry.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\telemetry.h</name>
+            </file>
+        </group>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>

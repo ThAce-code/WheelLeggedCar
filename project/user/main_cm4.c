@@ -34,7 +34,8 @@
 ********************************************************************************************************************/
 
 #include "zf_common_headfile.h"
-#include "lsm6dsv16x_test.h"
+#include "app.h"
+#include "app_config.h"
 
 // 打开新的工程或者工程移动了位置务必执行以下操作
 // 第一步 关闭上面所有打开的文件
@@ -44,36 +45,21 @@
 
 int main(void)
 {
-    uint8 id = 0;
-    uint16 timeout = 0;
-    uint8 led_count = 0;
+    uint8 app_result;
+    uint32 now_ms;
+    uint32 led_last_ms = 0;
 
     clock_init(SYSTEM_CLOCK_160M);      // 时钟配置及系统初始化<务必保留>
-    
+
     debug_init();                       // 调试串口初始化
-    
+
     // LED 初始化：P23.7 推挽输出，默认高电平（低电平点亮，初始熄灭）
     gpio_init(P23_7, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    
-    // 初始化 SPI3 与 CS 引脚
-    lsm6dsv16x_spi_init();
-    
-    // 循环读取 WHO_AM_I，验证 SPI 通信是否正常
-    while(timeout < 30)
+
+    app_result = app_init();
+    if(0U != app_result)
     {
-        id = lsm6dsv16x_read_reg(LSM6DSV_WHO_AM_I);
-        if(id == LSM6DSV_ID)
-        {
-            break;
-        }
-        system_delay_ms(100);
-        timeout++;
-    }
-    
-    // WHO_AM_I 读取失败，快速闪烁 LED 提示硬件异常
-    if(id != LSM6DSV_ID)
-    {
-        printf("LSM6DSV16X not found, check wiring!\r\n");
+        printf("app init failed, err=%d\r\n", app_result);
         while(1)
         {
             gpio_low(P23_7);            // LED 点亮
@@ -82,30 +68,19 @@ int main(void)
             system_delay_ms(100);
         }
     }
-    
-    // 初始化 IMU：使能加速度计和陀螺仪
-    if(lsm6dsv16x_init())
-    {
-        printf("LSM6DSV16X init failed!\r\n");
-        while(1);
-    }
-    if(lsm6dsv16x_sflp_init())
-    {
-        printf("LSM6DSV16X SFLP init failed!\r\n");
-        while(1);
-    }
-    
+
+    pit_ms_init(PIT_CH1, APP_TICK_PERIOD_MS);
+
     for(;;)
     {
-        lsm6dsv16x_sflp_update();
-        lsm6dsv16x_vofa_send();
-        
-        if(50 <= ++led_count)
+        app_run_once();
+
+        now_ms = app_get_ms();
+        if(APP_HEARTBEAT_PERIOD_MS <= (now_ms - led_last_ms))
         {
-            led_count = 0;
+            led_last_ms = now_ms;
             gpio_toggle_level(P23_7);
         }
-        system_delay_ms(5);
     }
 }
 

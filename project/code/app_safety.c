@@ -1,0 +1,50 @@
+/*********************************************************************************************************************
+* File: app_safety.c
+* Description: Safety monitor placeholder.
+********************************************************************************************************************/
+
+#include "app_safety.h"
+#include "app_config.h"
+#include "app_state.h"
+#include "sensor_imu.h"
+#include "actuator_motor.h"
+#include "actuator_servo.h"
+
+static uint8 app_safety_fault = APP_FALSE;
+
+static float app_absf(float value)
+{
+    return (0.0f > value) ? -value : value;
+}
+
+void app_safety_init(void)
+{
+    app_safety_fault = APP_FALSE;
+}
+
+void app_safety_update(uint32 now_ms)
+{
+    const imu_state_struct *imu;
+
+    (void)now_ms;
+    imu = sensor_imu_get_state();
+    if((APP_FALSE == imu->healthy) ||
+       (APP_ROLL_LIMIT_DEG < app_absf(imu->roll)) ||
+       (APP_PITCH_LIMIT_DEG < app_absf(imu->pitch)))
+    {
+        app_safety_force_fault();
+    }
+}
+
+uint8 app_safety_is_fault(void)
+{
+    return app_safety_fault;
+}
+
+void app_safety_force_fault(void)
+{
+    app_safety_fault = APP_TRUE;
+    app_state_set(APP_STATE_FAULT);
+    actuator_motor_stop();
+    actuator_servo_disable();
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<BuildDb>
+    <Tool>
+        <Name>linker</Name>
+        <Parent>
+            <Path>D:\smartcar\empty_project\project\iar\Debug_m4\Exe\cyt2bl3.out</Path>
+            <Output>
+                <Path>D:\smartcar\empty_project\project\iar\Debug_m4\List\cyt2bl3.map</Path>
+            </Output>
+        </Parent>
+    </Tool>
+</BuildDb>

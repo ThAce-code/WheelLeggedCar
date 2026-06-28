@@ -89,7 +89,7 @@ typedef struct
 typedef struct
 {
     float angle_deg[4];
-    uint8 enable;
+    uint8 enable[4];
 }servo_cmd_struct;
 
 #endif

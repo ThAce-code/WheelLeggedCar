@@ -1,4 +1,4 @@
-﻿# Project Tree
+# Project Tree
 
 This file records the intended project module tree. Physical source files stay flat under `project/code` to match the SEEKFREE IAR project convention. The IAR project uses virtual groups to show the same structure.
 
@@ -24,7 +24,8 @@ project/code
 |
 |-- control
 |   |-- control_chassis.c / control_chassis.h
-|   `-- control_leg.c / control_leg.h
+|   |-- control_leg.c / control_leg.h
+|   `-- leg_config.c / leg_config.h
 |
 |-- actuator
 |   |-- actuator_motor.c / actuator_motor.h

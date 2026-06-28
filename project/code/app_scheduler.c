@@ -22,6 +22,11 @@
 #include "sensor_imu.h"
 #include "telemetry.h"
 
+#if APP_SCHEDULER_IMU_ONLY
+#include "control_leg.h"
+#include "actuator_servo.h"
+#endif
+
 #if APP_SERVO_TEST_ENABLE
 #include "actuator_servo.h"
 #endif
@@ -87,6 +92,10 @@ void app_scheduler_run_pending(void)
 #if !((APP_SCHEDULER_IMU_ONLY == 1U) && (APP_IMU_USE_INT1 == 1U))
     static uint32 imu_last_ms = 0;
 #endif
+#if APP_SCHEDULER_IMU_ONLY
+    static uint32 leg_test_last_ms = 0;
+    static uint32 servo_test_last_ms = 0;
+#endif
     uint32 now_ms;
 
     if(APP_FALSE == app_scheduler_pending)
@@ -132,6 +141,14 @@ void app_scheduler_run_pending(void)
         actuator_servo_update(now_ms);
     }
 #endif
+    if(APP_TRUE == app_task_elapsed(now_ms, &leg_test_last_ms, APP_LEG_CONTROL_PERIOD_MS))
+    {
+        control_leg_update(now_ms);
+    }
+    if(APP_TRUE == app_task_elapsed(now_ms, &servo_test_last_ms, APP_SERVO_PERIOD_MS))
+    {
+        actuator_servo_update(now_ms);
+    }
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {
         telemetry_update(now_ms);

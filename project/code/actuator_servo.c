@@ -71,13 +71,13 @@ void actuator_servo_init(void)
     {
         actuator_servo_current_angle[i] = APP_SERVO_MID_DEG;
         actuator_servo_cmd.angle_deg[i] = APP_SERVO_MID_DEG;
+        actuator_servo_cmd.enable[i] = APP_FALSE;
         if(APP_TRUE == actuator_servo_is_active(i))
         {
             pwm_init(actuator_servo_pwm_ch[i], APP_SERVO_PWM_FREQ_HZ, mid_duty);
             pwm_set_duty(actuator_servo_pwm_ch[i], 0);
         }
     }
-    actuator_servo_cmd.enable = APP_FALSE;
     actuator_servo_last_update_ms = 0;
 }
 
@@ -88,8 +88,8 @@ void actuator_servo_set_cmd(const servo_cmd_struct *cmd)
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         actuator_servo_cmd.angle_deg[i] = actuator_servo_limit(cmd->angle_deg[i]);
+        actuator_servo_cmd.enable[i] = cmd->enable[i];
     }
-    actuator_servo_cmd.enable = cmd->enable;
 }
 
 void actuator_servo_set_angle(uint8 index, float angle_deg)
@@ -107,11 +107,6 @@ void actuator_servo_update(uint32 now_ms)
     uint32 elapsed_ms;
     float max_step;
 
-    if(APP_FALSE == actuator_servo_cmd.enable)
-    {
-        return;
-    }
-
     elapsed_ms = now_ms - actuator_servo_last_update_ms;
     actuator_servo_last_update_ms = now_ms;
     if((0U == elapsed_ms) || (APP_SERVO_MAX_UPDATE_GAP_MS < elapsed_ms))
@@ -122,6 +117,10 @@ void actuator_servo_update(uint32 now_ms)
 
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
+        if(APP_FALSE == actuator_servo_cmd.enable[i])
+        {
+            continue;
+        }
         actuator_servo_current_angle[i] = actuator_servo_step_to_target(actuator_servo_current_angle[i],
                                                                         actuator_servo_cmd.angle_deg[i],
                                                                         max_step);
@@ -133,9 +132,9 @@ void actuator_servo_enable(void)
 {
     uint8 i;
 
-    actuator_servo_cmd.enable = APP_TRUE;
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
+        actuator_servo_cmd.enable[i] = APP_TRUE;
         actuator_servo_write(i, actuator_servo_current_angle[i]);
     }
 }
@@ -144,9 +143,9 @@ void actuator_servo_disable(void)
 {
     uint8 i;
 
-    actuator_servo_cmd.enable = APP_FALSE;
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
+        actuator_servo_cmd.enable[i] = APP_FALSE;
         if(APP_TRUE == actuator_servo_is_active(i))
         {
             pwm_set_duty(actuator_servo_pwm_ch[i], 0);
@@ -171,4 +170,13 @@ uint32 actuator_servo_angle_to_duty(float angle_deg)
 const servo_cmd_struct *actuator_servo_get_cmd(void)
 {
     return &actuator_servo_cmd;
+}
+
+float actuator_servo_get_current_angle(uint8 index)
+{
+    if(APP_SERVO_COUNT <= index)
+    {
+        return 0.0f;
+    }
+    return actuator_servo_current_angle[index];
 }

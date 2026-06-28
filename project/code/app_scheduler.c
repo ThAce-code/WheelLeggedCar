@@ -80,8 +80,10 @@ void app_scheduler_run_pending(void)
     static uint32 camera_last_ms = 0;
     static uint32 perception_last_ms = 0;
 #endif
-    static uint32 servo_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
+#if !APP_SCHEDULER_IMU_ONLY || APP_SERVO_TEST_ENABLE
+    static uint32 servo_last_ms = 0;
+#endif
 #if !((APP_SCHEDULER_IMU_ONLY == 1U) && (APP_IMU_USE_INT1 == 1U))
     static uint32 imu_last_ms = 0;
 #endif

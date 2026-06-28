@@ -52,6 +52,11 @@ uint8 sensor_imu_init(void)
 
 #if (APP_IMU_USE_INT1 == 1U)
     exti_init(APP_IMU_INT1_PIN, EXTI_TRIGGER_RISING);
+    (void)exti_flag_get(APP_IMU_INT1_PIN);
+    if(GPIO_HIGH == gpio_get_level(APP_IMU_INT1_PIN))
+    {
+        sensor_imu_int1_isr();
+    }
 #endif
 
     return SENSOR_IMU_OK;

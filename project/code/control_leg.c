@@ -15,6 +15,11 @@ static float               control_leg_height_cmd;
 static float               control_leg_pitch_cmd;
 static float               control_leg_roll_cmd;
 
+#if (APP_LEG_VERIFY_ENABLE == 1U)
+static uint32              control_leg_verify_start_ms = 0;
+static uint8               control_leg_verify_active = APP_FALSE;
+#endif
+
 static float control_leg_clamp(float value, float min_val, float max_val)
 {
     if(value < min_val)
@@ -91,6 +96,25 @@ void control_leg_update(uint32 now_ms)
     (void)now_ms;
     config = leg_config_get();
 
+#if (APP_LEG_CALIB_ENABLE == 1U)
+    control_leg_mode = LEG_MODE_MANUAL;
+#endif
+
+#if (APP_LEG_VERIFY_ENABLE == 1U)
+    if(APP_FALSE == control_leg_verify_active)
+    {
+        control_leg_verify_start_ms = now_ms;
+        control_leg_verify_active = APP_TRUE;
+    }
+    if((now_ms - control_leg_verify_start_ms) >= APP_LEG_VERIFY_DELAY_MS)
+    {
+        control_leg_mode = LEG_MODE_ATTITUDE;
+        control_leg_height_cmd = APP_LEG_VERIFY_HEIGHT_CMD;
+        control_leg_pitch_cmd = APP_LEG_VERIFY_PITCH_CMD;
+        control_leg_roll_cmd = APP_LEG_VERIFY_ROLL_CMD;
+    }
+#endif
+
     switch(control_leg_mode)
     {
         case LEG_MODE_MANUAL:
@@ -101,6 +125,12 @@ void control_leg_update(uint32 now_ms)
                                                                        servo_cfg->min_deg,
                                                                        servo_cfg->max_deg);
             }
+#if (APP_LEG_CALIB_ENABLE == 1U)
+            servo_cfg = &config->servo[APP_LEG_CALIB_SERVO_ID];
+            control_leg_manual_angle[APP_LEG_CALIB_SERVO_ID] = control_leg_clamp(servo_cfg->safe_deg + APP_LEG_CALIB_OFFSET_DEG,
+                                                                                  servo_cfg->min_deg,
+                                                                                  servo_cfg->max_deg);
+#endif
             break;
 
         case LEG_MODE_ATTITUDE:
@@ -132,6 +162,18 @@ void control_leg_update(uint32 now_ms)
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         servo_cfg = &config->servo[i];
+#if (APP_LEG_CALIB_ENABLE == 1U)
+        if((i == APP_LEG_CALIB_SERVO_ID) &&
+           (APP_TRUE == control_leg_safe_deg_valid(servo_cfg->safe_deg)) &&
+           (APP_TRUE == control_leg_run_enabled()))
+        {
+            control_leg_servo_cmd.enable[i] = APP_TRUE;
+        }
+        else
+        {
+            control_leg_servo_cmd.enable[i] = APP_FALSE;
+        }
+#else
         if((APP_TRUE == control_leg_servo_is_active(i)) &&
            (APP_TRUE == control_leg_safe_deg_valid(servo_cfg->safe_deg)) &&
            (APP_TRUE == control_leg_run_enabled()))
@@ -142,6 +184,7 @@ void control_leg_update(uint32 now_ms)
         {
             control_leg_servo_cmd.enable[i] = APP_FALSE;
         }
+#endif
     }
 
     actuator_servo_set_cmd(&control_leg_servo_cmd);

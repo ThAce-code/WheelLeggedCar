@@ -49,6 +49,16 @@
 #define APP_SERVO_TEST_MAX_DEG          (120.0f)
 #define APP_SERVO_TEST_PERIOD_MS        (1000U)
 
+#define APP_LEG_CALIB_ENABLE            (0U)
+#define APP_LEG_CALIB_SERVO_ID          LEG_SERVO_FL
+#define APP_LEG_CALIB_OFFSET_DEG        (0.0f)
+
+#define APP_LEG_VERIFY_ENABLE           (1U)
+#define APP_LEG_VERIFY_DELAY_MS         (2000U)
+#define APP_LEG_VERIFY_HEIGHT_CMD       (0.0f)
+#define APP_LEG_VERIFY_PITCH_CMD        (25.0f)
+#define APP_LEG_VERIFY_ROLL_CMD         (0.0f)
+
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3
 #define APP_SERVO1_PWM_CH               TCPWM_CH14_P00_2
 #define APP_SERVO2_PWM_CH               TCPWM_CH06_P02_1

@@ -22,6 +22,5 @@ void control_leg_set_mode(leg_mode_enum mode);
 void control_leg_set_manual_angle(uint8 leg_id, float angle_deg);
 void control_leg_set_body_cmd(float height_cmd, float pitch_cmd, float roll_cmd);
 const servo_cmd_struct *control_leg_get_servo_cmd(void);
-uint8 control_leg_get_safe_ready(void);
 
 #endif

@@ -16,6 +16,5 @@ void actuator_servo_enable(void);
 void actuator_servo_disable(void);
 uint32 actuator_servo_angle_to_duty(float angle_deg);
 const servo_cmd_struct *actuator_servo_get_cmd(void);
-float actuator_servo_get_current_angle(uint8 index);
 
 #endif

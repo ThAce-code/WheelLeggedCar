@@ -21,6 +21,10 @@
 uint8 app_init(void)
 {
     uint8 result = 0;
+#if APP_SERVO_TEST_ENABLE
+    uint8 i;
+    servo_cmd_struct servo_test_cmd;
+#endif
 
     app_state_init();
     app_safety_init();
@@ -39,8 +43,14 @@ uint8 app_init(void)
     if(0U == result)
     {
 #if APP_SERVO_TEST_ENABLE
-        actuator_servo_set_angle(APP_SERVO_TEST_INDEX, APP_SERVO_TEST_MIN_DEG);
-        actuator_servo_enable();
+        for(i = 0; i < APP_SERVO_COUNT; i++)
+        {
+            servo_test_cmd.angle_deg[i] = APP_SERVO_MID_DEG;
+            servo_test_cmd.enable[i] = APP_FALSE;
+        }
+        servo_test_cmd.angle_deg[APP_SERVO_TEST_INDEX] = APP_SERVO_TEST_MIN_DEG;
+        servo_test_cmd.enable[APP_SERVO_TEST_INDEX] = APP_TRUE;
+        actuator_servo_set_cmd(&servo_test_cmd);
 #endif
         app_state_set(APP_STATE_STANDBY);
     }

@@ -64,9 +64,7 @@ static void actuator_servo_write(uint8 index, float angle_deg)
 void actuator_servo_init(void)
 {
     uint8 i;
-    uint32 mid_duty;
 
-    mid_duty = actuator_servo_angle_to_duty(APP_SERVO_MID_DEG);
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         actuator_servo_current_angle[i] = APP_SERVO_MID_DEG;
@@ -74,7 +72,7 @@ void actuator_servo_init(void)
         actuator_servo_cmd.enable[i] = APP_FALSE;
         if(APP_TRUE == actuator_servo_is_active(i))
         {
-            pwm_init(actuator_servo_pwm_ch[i], APP_SERVO_PWM_FREQ_HZ, mid_duty);
+            pwm_init(actuator_servo_pwm_ch[i], APP_SERVO_PWM_FREQ_HZ, 0);
             pwm_set_duty(actuator_servo_pwm_ch[i], 0);
         }
     }
@@ -134,8 +132,10 @@ void actuator_servo_enable(void)
 
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
-        actuator_servo_cmd.enable[i] = APP_TRUE;
-        actuator_servo_write(i, actuator_servo_current_angle[i]);
+        if(APP_TRUE == actuator_servo_cmd.enable[i])
+        {
+            actuator_servo_write(i, actuator_servo_current_angle[i]);
+        }
     }
 }
 
@@ -170,13 +170,4 @@ uint32 actuator_servo_angle_to_duty(float angle_deg)
 const servo_cmd_struct *actuator_servo_get_cmd(void)
 {
     return &actuator_servo_cmd;
-}
-
-float actuator_servo_get_current_angle(uint8 index)
-{
-    if(APP_SERVO_COUNT <= index)
-    {
-        return 0.0f;
-    }
-    return actuator_servo_current_angle[index];
 }

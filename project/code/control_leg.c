@@ -14,7 +14,6 @@ static float               control_leg_manual_angle[APP_SERVO_COUNT];
 static float               control_leg_height_cmd;
 static float               control_leg_pitch_cmd;
 static float               control_leg_roll_cmd;
-static uint8               control_leg_safe_ready;
 
 static float control_leg_clamp(float value, float min_val, float max_val)
 {
@@ -37,29 +36,6 @@ static uint8 control_leg_servo_is_active(uint8 index)
 static uint8 control_leg_safe_deg_valid(float safe_deg)
 {
     return ((safe_deg >= APP_SERVO_MIN_DEG) && (safe_deg <= APP_SERVO_MAX_DEG)) ? APP_TRUE : APP_FALSE;
-}
-
-static uint8 control_leg_check_all_active_safe(const leg_config_struct *config)
-{
-    uint8 i;
-    const leg_servo_config_struct *servo_cfg;
-
-    for(i = 0; i < APP_SERVO_COUNT; i++)
-    {
-        if(APP_TRUE == control_leg_servo_is_active(i))
-        {
-            servo_cfg = &config->servo[i];
-            if(servo_cfg->servo_index != i)
-            {
-                return APP_FALSE;
-            }
-            if(APP_TRUE != control_leg_safe_deg_valid(servo_cfg->safe_deg))
-            {
-                return APP_FALSE;
-            }
-        }
-    }
-    return APP_TRUE;
 }
 
 static float control_leg_compute_target(const leg_servo_config_struct *servo_cfg,
@@ -93,7 +69,6 @@ void control_leg_init(void)
     control_leg_height_cmd = 0.0f;
     control_leg_pitch_cmd = 0.0f;
     control_leg_roll_cmd = 0.0f;
-    control_leg_safe_ready = control_leg_check_all_active_safe(config);
 
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
@@ -115,11 +90,6 @@ void control_leg_update(uint32 now_ms)
 
     (void)now_ms;
     config = leg_config_get();
-
-    if(APP_TRUE != control_leg_safe_ready)
-    {
-        control_leg_safe_ready = control_leg_check_all_active_safe(config);
-    }
 
     switch(control_leg_mode)
     {
@@ -213,9 +183,4 @@ void control_leg_set_body_cmd(float height_cmd, float pitch_cmd, float roll_cmd)
 const servo_cmd_struct *control_leg_get_servo_cmd(void)
 {
     return &control_leg_servo_cmd;
-}
-
-uint8 control_leg_get_safe_ready(void)
-{
-    return control_leg_safe_ready;
 }

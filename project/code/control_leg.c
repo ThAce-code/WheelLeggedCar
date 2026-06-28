@@ -118,6 +118,12 @@ void control_leg_update(uint32 now_ms)
     switch(control_leg_mode)
     {
         case LEG_MODE_MANUAL:
+#if (APP_LEG_CALIB_ENABLE == 1U)
+            servo_cfg = &config->servo[APP_LEG_CALIB_SERVO_ID];
+            control_leg_manual_angle[APP_LEG_CALIB_SERVO_ID] = control_leg_clamp(servo_cfg->safe_deg + APP_LEG_CALIB_OFFSET_DEG,
+                                                                                  servo_cfg->min_deg,
+                                                                                  servo_cfg->max_deg);
+#endif
             for(i = 0; i < APP_SERVO_COUNT; i++)
             {
                 servo_cfg = &config->servo[i];
@@ -125,12 +131,6 @@ void control_leg_update(uint32 now_ms)
                                                                        servo_cfg->min_deg,
                                                                        servo_cfg->max_deg);
             }
-#if (APP_LEG_CALIB_ENABLE == 1U)
-            servo_cfg = &config->servo[APP_LEG_CALIB_SERVO_ID];
-            control_leg_manual_angle[APP_LEG_CALIB_SERVO_ID] = control_leg_clamp(servo_cfg->safe_deg + APP_LEG_CALIB_OFFSET_DEG,
-                                                                                  servo_cfg->min_deg,
-                                                                                  servo_cfg->max_deg);
-#endif
             break;
 
         case LEG_MODE_ATTITUDE:

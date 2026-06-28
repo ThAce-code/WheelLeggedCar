@@ -53,7 +53,11 @@
 #define APP_LEG_CALIB_SERVO_ID          LEG_SERVO_FL
 #define APP_LEG_CALIB_OFFSET_DEG        (0.0f)
 
-#define APP_LEG_VERIFY_ENABLE           (1U)
+#if (APP_LEG_CALIB_ENABLE && APP_LEG_VERIFY_ENABLE)
+#error "APP_LEG_CALIB_ENABLE and APP_LEG_VERIFY_ENABLE cannot both be enabled"
+#endif
+
+#define APP_LEG_VERIFY_ENABLE           (0U)
 #define APP_LEG_VERIFY_DELAY_MS         (2000U)
 #define APP_LEG_VERIFY_HEIGHT_CMD       (0.0f)
 #define APP_LEG_VERIFY_PITCH_CMD        (25.0f)

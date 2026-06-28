@@ -16,7 +16,7 @@
 #define APP_ENCODER_PERIOD_MS           (1U)
 #define APP_MOTOR_PERIOD_MS             (1U)
 #define APP_IMU_PERIOD_MS               (5U)
-#define APP_IMU_USE_INT1                (1U)
+#define APP_IMU_USE_INT1                (0U)
 #define APP_IMU_INT1_PIN                P11_0
 #define APP_IMU_STALE_TIMEOUT_MS        (50U)
 #define APP_ESTIMATOR_PERIOD_MS         (5U)

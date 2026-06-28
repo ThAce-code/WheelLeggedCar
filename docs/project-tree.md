@@ -16,7 +16,7 @@ project/code
 |   |-- sensor_imu.c / sensor_imu.h
 |   |-- sensor_camera.c / sensor_camera.h
 |   |-- sensor_encoder.c / sensor_encoder.h
-|   `-- lsm6dsv16x_test.c / lsm6dsv16x_test.h
+|   `-- lsm6dsv16x_driver.c / lsm6dsv16x_driver.h
 |
 |-- estimate_perception
 |   |-- estimator.c / estimator.h

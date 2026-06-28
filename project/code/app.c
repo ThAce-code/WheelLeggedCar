@@ -39,7 +39,7 @@ uint8 app_init(void)
     if(0U == result)
     {
 #if APP_SERVO_TEST_ENABLE
-        actuator_servo_set_angle(APP_SERVO_TEST_INDEX, APP_SERVO_TEST_TARGET_DEG);
+        actuator_servo_set_angle(APP_SERVO_TEST_INDEX, APP_SERVO_TEST_MIN_DEG);
         actuator_servo_enable();
 #endif
         app_state_set(APP_STATE_STANDBY);

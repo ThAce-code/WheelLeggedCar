@@ -25,7 +25,7 @@ if not "%~1" == "" goto debugFile
 
 @echo on 
 
-"D:\IAR\common\bin\cspybat" -f "D:\smartcar\empty_project\project\iar\project_config\settings\cyt2bl3.Debug.general.xcl" --backend -f "D:\smartcar\empty_project\project\iar\project_config\settings\cyt2bl3.Debug.driver.xcl" 
+"D:\IAR\common\bin\cspybat" -f "D:\smartcar\WheelLeggedCar\project\iar\project_config\settings\cyt2bl3.Debug.general.xcl" --backend -f "D:\smartcar\WheelLeggedCar\project\iar\project_config\settings\cyt2bl3.Debug.driver.xcl" 
 
 @echo off 
 goto end 
@@ -34,7 +34,7 @@ goto end
 
 @echo on 
 
-"D:\IAR\common\bin\cspybat" -f "D:\smartcar\empty_project\project\iar\project_config\settings\cyt2bl3.Debug.general.xcl" "--debug_file=%~1" --backend -f "D:\smartcar\empty_project\project\iar\project_config\settings\cyt2bl3.Debug.driver.xcl" 
+"D:\IAR\common\bin\cspybat" -f "D:\smartcar\WheelLeggedCar\project\iar\project_config\settings\cyt2bl3.Debug.general.xcl" "--debug_file=%~1" --backend -f "D:\smartcar\WheelLeggedCar\project\iar\project_config\settings\cyt2bl3.Debug.driver.xcl" 
 
 @echo off 
 :end

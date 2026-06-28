@@ -29,6 +29,7 @@
 #define APP_MOTOR_CMD_LIMIT             (1000.0f)
 
 #define APP_SERVO_COUNT                 (4U)
+#define APP_SERVO_ACTIVE_MASK           (0x01U)
 #define APP_SERVO_PWM_FREQ_HZ           (50U)
 #define APP_SERVO_PWM_PERIOD_US         (20000U)
 #define APP_SERVO_MIN_PULSE_US          (500U)
@@ -39,9 +40,11 @@
 #define APP_SERVO_MAX_DEG               (180.0f)
 #define APP_SERVO_MAX_SPEED_DPS         (450.0f)
 #define APP_SERVO_MAX_UPDATE_GAP_MS     (20U)
-#define APP_SERVO_TEST_ENABLE           (1U)
+#define APP_SERVO_TEST_ENABLE           (0U)
 #define APP_SERVO_TEST_INDEX            (0U)
-#define APP_SERVO_TEST_TARGET_DEG       (120.0f)
+#define APP_SERVO_TEST_MIN_DEG          (60.0f)
+#define APP_SERVO_TEST_MAX_DEG          (120.0f)
+#define APP_SERVO_TEST_PERIOD_MS        (1000U)
 
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3
 #define APP_SERVO1_PWM_CH               TCPWM_CH14_P00_2

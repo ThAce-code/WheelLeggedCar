@@ -2854,7 +2854,7 @@
     <group>
         <name>code</name>
         <file>
-            <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.c</name>
+            <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>

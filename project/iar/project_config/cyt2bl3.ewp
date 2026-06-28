@@ -2248,10 +2248,10 @@
                 <name>$PROJ_DIR$\..\..\code\sensor_encoder.h</name>
             </file>
             <file>
-                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.c</name>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
             </file>
             <file>
-                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_test.h</name>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.h</name>
             </file>
         </group>
         <group>

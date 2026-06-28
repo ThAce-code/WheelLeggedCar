@@ -29,6 +29,22 @@
 static volatile uint32 app_tick_ms = 0;
 static volatile uint8 app_scheduler_pending = APP_FALSE;
 
+#if APP_SERVO_TEST_ENABLE
+static void app_scheduler_servo_test_update(uint32 now_ms)
+{
+    static uint32 servo_test_last_ms = 0;
+    static uint8 servo_test_high = APP_FALSE;
+
+    if(APP_SERVO_TEST_PERIOD_MS <= (now_ms - servo_test_last_ms))
+    {
+        servo_test_last_ms = now_ms;
+        servo_test_high = (APP_FALSE == servo_test_high) ? APP_TRUE : APP_FALSE;
+        actuator_servo_set_angle(APP_SERVO_TEST_INDEX,
+                                 (APP_TRUE == servo_test_high) ? APP_SERVO_TEST_MAX_DEG : APP_SERVO_TEST_MIN_DEG);
+    }
+}
+#endif
+
 static uint8 app_task_elapsed(uint32 now_ms, uint32 *last_ms, uint32 period_ms)
 {
     if(period_ms <= (now_ms - *last_ms))
@@ -84,6 +100,7 @@ void app_scheduler_run_pending(void)
 #if APP_SERVO_TEST_ENABLE
     if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))
     {
+        app_scheduler_servo_test_update(now_ms);
         actuator_servo_update(now_ms);
     }
 #endif

@@ -4,7 +4,7 @@
 ********************************************************************************************************************/
 
 #include "sensor_imu.h"
-#include "lsm6dsv16x_test.h"
+#include "lsm6dsv16x_driver.h"
 
 #define SENSOR_IMU_WHO_AM_I_RETRY      (30U)
 #define SENSOR_IMU_WHO_AM_I_DELAY_MS   (100U)

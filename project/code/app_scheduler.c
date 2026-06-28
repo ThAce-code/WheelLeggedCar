@@ -80,9 +80,11 @@ void app_scheduler_run_pending(void)
     static uint32 camera_last_ms = 0;
     static uint32 perception_last_ms = 0;
 #endif
-    static uint32 imu_last_ms = 0;
     static uint32 servo_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
+#if !((APP_SCHEDULER_IMU_ONLY == 1U) && (APP_IMU_USE_INT1 == 1U))
+    static uint32 imu_last_ms = 0;
+#endif
     uint32 now_ms;
 
     if(APP_FALSE == app_scheduler_pending)
@@ -93,10 +95,34 @@ void app_scheduler_run_pending(void)
     now_ms = app_tick_ms;
 
 #if APP_SCHEDULER_IMU_ONLY
+#if APP_IMU_USE_INT1
+    {
+        static uint8 imu_stale_active = APP_FALSE;
+
+        if(APP_TRUE == sensor_imu_take_data_ready())
+        {
+            sensor_imu_update(now_ms);
+        }
+
+        if((now_ms - sensor_imu_get_last_update_ms()) > APP_IMU_STALE_TIMEOUT_MS)
+        {
+            if(APP_FALSE == imu_stale_active)
+            {
+                sensor_imu_mark_stale();
+                imu_stale_active = APP_TRUE;
+            }
+        }
+        else
+        {
+            imu_stale_active = APP_FALSE;
+        }
+    }
+#else
     if(APP_TRUE == app_task_elapsed(now_ms, &imu_last_ms, APP_IMU_PERIOD_MS))
     {
         sensor_imu_update(now_ms);
     }
+#endif
 #if APP_SERVO_TEST_ENABLE
     if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))
     {

@@ -5,11 +5,17 @@
 
 #include "sensor_imu.h"
 #include "lsm6dsv16x_driver.h"
+#include "app_config.h"
+#include "zf_common_interrupt.h"
+#include "zf_driver_exti.h"
 
 #define SENSOR_IMU_WHO_AM_I_RETRY      (30U)
 #define SENSOR_IMU_WHO_AM_I_DELAY_MS   (100U)
 
 static imu_state_struct sensor_imu_state;
+static volatile uint8 sensor_imu_data_ready_flag;
+static volatile uint32 sensor_imu_int_count;
+static volatile uint32 sensor_imu_stale_count;
 
 uint8 sensor_imu_init(void)
 {
@@ -43,6 +49,11 @@ uint8 sensor_imu_init(void)
     }
 
     sensor_imu_state.healthy = APP_TRUE;
+
+#if (APP_IMU_USE_INT1 == 1U)
+    exti_init(APP_IMU_INT1_PIN, EXTI_TRIGGER_RISING);
+#endif
+
     return SENSOR_IMU_OK;
 }
 
@@ -68,4 +79,44 @@ void sensor_imu_update(uint32 now_ms)
 const imu_state_struct *sensor_imu_get_state(void)
 {
     return &sensor_imu_state;
+}
+
+void sensor_imu_int1_isr(void)
+{
+    sensor_imu_data_ready_flag = APP_TRUE;
+    sensor_imu_int_count++;
+}
+
+uint8 sensor_imu_take_data_ready(void)
+{
+    uint8 ready;
+    uint32 primask;
+
+    primask = interrupt_global_disable();
+    ready = sensor_imu_data_ready_flag;
+    sensor_imu_data_ready_flag = APP_FALSE;
+    interrupt_global_enable(primask);
+
+    return ready;
+}
+
+uint32 sensor_imu_get_last_update_ms(void)
+{
+    return sensor_imu_state.timestamp_ms;
+}
+
+uint32 sensor_imu_get_int_count(void)
+{
+    return sensor_imu_int_count;
+}
+
+uint32 sensor_imu_get_stale_count(void)
+{
+    return sensor_imu_stale_count;
+}
+
+void sensor_imu_mark_stale(void)
+{
+    sensor_imu_stale_count++;
+    sensor_imu_state.healthy = APP_FALSE;
 }

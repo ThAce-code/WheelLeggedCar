@@ -304,6 +304,9 @@ uint8 lsm6dsv16x_sflp_init(void)
 
     lsm6dsv16x_select_bank(LSM6DSV_FUNC_CFG_MAIN_BANK);
 
+    lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL1, APP_IMU_FIFO_WTM);
+    lsm6dsv16x_write_reg(LSM6DSV_INT1_CTRL, LSM6DSV_INT1_FIFO_TH);
+
     lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL4, LSM6DSV_FIFO_STREAM_MODE);
     system_delay_ms(20);
 

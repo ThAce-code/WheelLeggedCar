@@ -17,4 +17,11 @@ uint8 sensor_imu_init(void);
 void sensor_imu_update(uint32 now_ms);
 const imu_state_struct *sensor_imu_get_state(void);
 
+void sensor_imu_int1_isr(void);
+uint8 sensor_imu_take_data_ready(void);
+uint32 sensor_imu_get_last_update_ms(void);
+uint32 sensor_imu_get_int_count(void);
+uint32 sensor_imu_get_stale_count(void);
+void sensor_imu_mark_stale(void);
+
 #endif

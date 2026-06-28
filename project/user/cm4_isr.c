@@ -36,6 +36,8 @@
 
 #include "zf_common_headfile.h"
 #include "app_scheduler.h"
+#include "app_config.h"
+#include "sensor_imu.h"
 
 // **************************** PIT中断函数 ****************************
 void pit0_ch0_isr()                     // 定时器通道 0 周期中断服务函数      
@@ -361,6 +363,12 @@ void gpio_10_exti_isr()                  // 外部 GPIO_10 中断服务函数
 
 void gpio_11_exti_isr()                  // 外部 GPIO_11 中断服务函数     
 {
+#if APP_IMU_USE_INT1
+    if(exti_flag_get(APP_IMU_INT1_PIN))
+    {
+        sensor_imu_int1_isr();
+    }
+#endif
 
 
 

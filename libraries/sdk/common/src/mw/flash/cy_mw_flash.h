@@ -27,7 +27,6 @@
 #include "cy_device_headers.h"
 #include "flash/cy_flash.h"
 
-
 #if defined(__cplusplus)
 extern "C" {
 #endif

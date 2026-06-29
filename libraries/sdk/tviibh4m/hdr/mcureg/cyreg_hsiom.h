@@ -5,12 +5,12 @@
 * HSIOM register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -19,7 +19,7 @@
 #ifndef _CYREG_HSIOM_H_
 #define _CYREG_HSIOM_H_
 
-#include "cyip_hsiom_v2.h"
+#include "cyip_hsiom_v3.h"
 
 /**
   * \brief HSIOM port registers (HSIOM_PRT0)
@@ -30,6 +30,7 @@
   * \brief HSIOM port registers (HSIOM_PRT1)
   */
 #define CYREG_HSIOM_PRT1_PORT_SEL0      ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300010UL)
+#define CYREG_HSIOM_PRT1_PORT_SEL1      ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300014UL)
 
 /**
   * \brief HSIOM port registers (HSIOM_PRT2)
@@ -116,6 +117,7 @@
   * \brief HSIOM port registers (HSIOM_PRT16)
   */
 #define CYREG_HSIOM_PRT16_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300100UL)
+#define CYREG_HSIOM_PRT16_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300104UL)
 
 /**
   * \brief HSIOM port registers (HSIOM_PRT17)
@@ -158,6 +160,58 @@
   */
 #define CYREG_HSIOM_PRT23_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300170UL)
 #define CYREG_HSIOM_PRT23_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300174UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT24)
+  */
+#define CYREG_HSIOM_PRT24_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300180UL)
+#define CYREG_HSIOM_PRT24_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300184UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT25)
+  */
+#define CYREG_HSIOM_PRT25_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300190UL)
+#define CYREG_HSIOM_PRT25_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300194UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT26)
+  */
+#define CYREG_HSIOM_PRT26_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001A0UL)
+#define CYREG_HSIOM_PRT26_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x403001A4UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT27)
+  */
+#define CYREG_HSIOM_PRT27_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001B0UL)
+#define CYREG_HSIOM_PRT27_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x403001B4UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT28)
+  */
+#define CYREG_HSIOM_PRT28_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001C0UL)
+#define CYREG_HSIOM_PRT28_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x403001C4UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT29)
+  */
+#define CYREG_HSIOM_PRT29_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001D0UL)
+#define CYREG_HSIOM_PRT29_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x403001D4UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT30)
+  */
+#define CYREG_HSIOM_PRT30_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001E0UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT31)
+  */
+#define CYREG_HSIOM_PRT31_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x403001F0UL)
+
+/**
+  * \brief HSIOM port registers (HSIOM_PRT32)
+  */
+#define CYREG_HSIOM_PRT32_PORT_SEL0     ((volatile un_HSIOM_PRT_PORT_SEL0_t*) 0x40300200UL)
+#define CYREG_HSIOM_PRT32_PORT_SEL1     ((volatile un_HSIOM_PRT_PORT_SEL1_t*) 0x40300204UL)
 
 /**
   * \brief High Speed IO Matrix (HSIOM) (HSIOM0)

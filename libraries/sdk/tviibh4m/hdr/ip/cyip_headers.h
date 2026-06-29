@@ -6,7 +6,7 @@
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -19,13 +19,13 @@
 
 #if ((defined(__GNUC__)        && (__ARM_ARCH == 6) && (__ARM_ARCH_6M__ == 1)) || \
      (defined(__ICCARM__)      && (__CORE__ == __ARM6M__)) || \
-     (defined(__ARMCC_VERSION) && (__TARGET_ARCH_THUMB == 3)) || \
+     (defined(__ARMCC_VERSION) && defined(__TARGET_ARCH_THUMB) && (__TARGET_ARCH_THUMB == 3)) || \
      (defined(__ghs__)         && defined(__CORE_CORTEXM0PLUS__)))
 #include "cyip_coredefines.h"
 #include "core_cm0plus.h"
 #else
 #include "cyip_coredefines.h"
-#include "core_cm4.h"
+#include "core_cm7.h"
 #endif
 
 #endif /* _CYIP_HEADERS_H_ */

@@ -14,11 +14,8 @@
 
 #include "cy_sysclk.h"
 #include "syslib/cy_syslib.h"
-#include <math.h>
 
-#ifndef M_PI
-    #define M_PI (3.1415927f)
-#endif
+#define M_PI (3.1415927f)
 
 #if defined(__cplusplus)
 extern "C" {
@@ -26,6 +23,16 @@ extern "C" {
 
 /* # of elements in an array */
 #define  CY_SYSCLK_N_ELMTS(a)  (sizeof(a) / sizeof((a)[0]))
+
+const uint8_t divNumLocator[PERI_PERI_PCLK_PCLK_GROUP_NR][4] =
+{
+#if PERI_PERI_PCLK_PCLK_GROUP_NR > 0
+    {PERI_PERI_PCLK_PCLK_GROUP_NR0_GR_DIV_8_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR0_GR_DIV_16_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR0_GR_DIV_16_5_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR0_GR_DIV_24_5_VECT},
+#endif
+#if PERI_PERI_PCLK_PCLK_GROUP_NR > 1
+    {PERI_PERI_PCLK_PCLK_GROUP_NR1_GR_DIV_8_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR1_GR_DIV_16_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR1_GR_DIV_16_5_VECT, PERI_PERI_PCLK_PCLK_GROUP_NR1_GR_DIV_24_5_VECT},
+#endif
+};
 
 /* ========================================================================== */
 /* ===========================    ECO SECTION    ============================ */
@@ -534,7 +541,7 @@ cy_en_sysclk_status_t Cy_SysClk_FllConfigureStandard(uint32_t inputFreq, uint32_
 
     /* 5. Compute the FLL multiplier value.
           Formula is fllMult = (ccoFreq * refDiv) /  fref */
-    config.fllMult = (uint32_t) CY_SYSCLK_DIV_ROUND((uint64_t)ccoFreq * (uint64_t)config.refDiv, (uint64_t)inputFreq);
+    config.fllMult = CY_SYSCLK_DIV_ROUND((uint64_t)ccoFreq * (uint64_t)config.refDiv, (uint64_t)inputFreq);
 
     /* 6. Compute the lock tolerance.
           Recommendation: ROUNDUP((refDiv / fref ) * ccoFreq  * 3 * CCO_Trim_Step) + 2  */
@@ -1619,7 +1626,7 @@ cy_en_sysclk_status_t Cy_SysClk_ClkMeasurementCountersGetFreq(uint32_t *measured
     /* Done counting; allow entry into DeepSleep mode. */
     clkCounting = false;
     
-    *measuredFreq = (uint32_t) CY_SYSCLK_DIV_ROUND(counter2Value * (uint64_t)refClkFreq, (uint64_t)clk1Count1 );
+    *measuredFreq = CY_SYSCLK_DIV_ROUND(counter2Value * (uint64_t)refClkFreq, (uint64_t)clk1Count1 );
 
     return(CY_SYSCLK_SUCCESS);
 }
@@ -1677,11 +1684,11 @@ int32_t Cy_SysClk_IloTrim(uint32_t iloFreq, uint8_t iloNo)
 
         if (iloFreq > CY_SYSCLK_ILO_TARGET_FREQ)
         { /* iloFreq is too high. Reduce the trim value */
-            newTrim = curTrim - (uint32_t) CY_SYSCLK_DIV_ROUND(iloFreq - CY_SYSCLK_ILO_TARGET_FREQ, trimStep);
+            newTrim = curTrim - CY_SYSCLK_DIV_ROUND(iloFreq - CY_SYSCLK_ILO_TARGET_FREQ, trimStep);
         }
         else
         { /* iloFreq too low. Increase the trim value. */
-            newTrim = curTrim + (uint32_t) CY_SYSCLK_DIV_ROUND(CY_SYSCLK_ILO_TARGET_FREQ - iloFreq, trimStep);
+            newTrim = curTrim + CY_SYSCLK_DIV_ROUND(CY_SYSCLK_ILO_TARGET_FREQ - iloFreq, trimStep);
         }
 
         /* Update the trim value */
@@ -1803,14 +1810,21 @@ cy_en_syspm_status_t Cy_SysClk_DeepSleepCallback(cy_stc_syspm_callback_params_t 
         /* if any FLL/PLL was sourced by the ECO, timeout wait for the ECO to become fully stabilized again. */
         if (changedSourcePaths != 0u)
         {
-            uint32_t timeout;
+            uint32_t timeout = TIMEOUTK;
             /* Cy_SysClk_EcoGetStatus()return value 2ul = fully stabilized */
-            for (timeout = TIMEOUTK; (timeout != 0ul) && (Cy_SysClk_EcoGetStatus() != 2ul); timeout--){}
-            if (timeout != 0ul)
+            //for (timeout = TIMEOUTK; (timeout != 0ul) && (Cy_SysClk_EcoGetStatus() != 2ul); timeout--){}
+            
+            while ((2ul != Cy_SysClk_EcoGetStatus()) && (0UL != timeout))
             {
-                rtnval = CY_SYSPM_TIMEOUT;
+                timeout--;
             }
-            else
+            
+            //if (timeout != 0ul)
+            //{
+            //    rtnval = CY_SYSPM_TIMEOUT;
+            //}
+            
+            if (0UL != timeout)
             {
                 /* for FLL and each PLL, */
                 uint32_t fllpll; /* 0 = FLL, all other values = a PLL */
@@ -2382,31 +2396,69 @@ cy_en_sysclk_status_t Cy_SysClk_GetPllOutputFrequency(uint8_t pllNo, uint32_t *r
     return(CY_SYSCLK_SUCCESS);
 #else
 
-    cy_stc_pll_manual_config_t pllConfig;
-    status = Cy_SysClk_PllGetConfiguration((pllNo + 1u), &pllConfig);
-    CY_ASSERT(status == CY_SYSCLK_SUCCESS);
-
-    if(SRSS->unCLK_PLL_CONFIG[pllNo].stcField.u1ENABLE == 0ul)
+    if(pllNo > (SRSS_NUM_PLL400M - 1ul)) // PLL
     {
-        *result = pllInputFreq;
+        cy_stc_pll_manual_config_t pllConfig;
+        status = Cy_SysClk_PllGetConfiguration((pllNo + 1u), &pllConfig);
+        CY_ASSERT(status == CY_SYSCLK_SUCCESS);
+
+        if(SRSS->unCLK_PLL_CONFIG[pllNo - SRSS_NUM_PLL400M].stcField.u1ENABLE == 0ul)
+        {
+            *result = pllInputFreq;
+            return(CY_SYSCLK_SUCCESS);
+        }
+
+        if(pllConfig.outputMode == CY_SYSCLK_FLLPLL_OUTPUT_INPUT)
+        {
+            *result = pllInputFreq;
+            return(CY_SYSCLK_SUCCESS);
+        }
+
+        uint8_t locked = Cy_SysClk_PllGetLockStatus(pllNo + 1u);
+        if((locked == 0x00u) || (locked == 0xFFu))
+        {
+            *result = 0ul;
+            return(CY_SYSCLK_INVALID_STATE);  // unknown state
+        }
+
+        *result = (pllInputFreq * pllConfig.feedbackDiv) / pllConfig.referenceDiv / pllConfig.outputDiv ;
         return(CY_SYSCLK_SUCCESS);
     }
-
-    if(pllConfig.outputMode == CY_SYSCLK_FLLPLL_OUTPUT_INPUT)
+    else // PLL 400M
     {
-        *result = pllInputFreq;
+        cy_stc_pll_400M_manual_config_t pllConfig;
+        status = Cy_SysClk_Pll400MGetConfiguration((pllNo + 1u), &pllConfig);
+        CY_ASSERT(status == CY_SYSCLK_SUCCESS);
+
+        if(SRSS->CLK_PLL400M[pllNo].unCONFIG.stcField.u1ENABLE == 0ul)
+        {
+            *result = pllInputFreq;
+            return(CY_SYSCLK_SUCCESS);
+        }
+
+        if(pllConfig.outputMode == CY_SYSCLK_FLLPLL_OUTPUT_INPUT)
+        {
+            *result = pllInputFreq;
+            return(CY_SYSCLK_SUCCESS);
+        }
+
+        uint8_t locked = Cy_SysClk_Pll400MGetLockStatus(pllNo + 1u);
+        if((locked == 0x00u) || (locked == 0xFFu))
+        {
+            *result = 0ul;
+            return(CY_SYSCLK_INVALID_STATE);  // unknown state
+        }
+
+        if(pllConfig.fracEn == true)
+        {
+            *result = (uint32_t)((((uint64_t)pllInputFreq * (((uint64_t)pllConfig.feedbackDiv << 24ull) + (uint64_t)pllConfig.fracDiv)) / ((uint64_t)pllConfig.referenceDiv * (uint64_t)pllConfig.outputDiv)) >> 24ull);
+        }
+        else
+        {
+            *result = (pllInputFreq * pllConfig.feedbackDiv) / pllConfig.referenceDiv / pllConfig.outputDiv ;
+        }
         return(CY_SYSCLK_SUCCESS);
     }
-
-    uint8_t locked = Cy_SysClk_PllGetLockStatus(pllNo + 1u);
-    if((locked == 0x00u) || (locked == 0xFFu))
-    {
-        *result = 0ul;
-        return(CY_SYSCLK_INVALID_STATE);  // unknown state
-    }
-
-    *result = (pllInputFreq * pllConfig.feedbackDiv) / pllConfig.referenceDiv / pllConfig.outputDiv ;
-    return(CY_SYSCLK_SUCCESS);
 
 #endif
 }
@@ -2467,7 +2519,8 @@ cy_en_sysclk_status_t Cy_SysClk_GetPathFrequency(uint8_t pathNo, uint32_t *resul
 cy_en_sysclk_status_t Cy_SysClk_GetHfClkFrequency(cy_en_hfclk_t hfClkNo, uint32_t *result)
 {
 #if (CY_USE_PSVP == 1)
-    *result = 24000000ul;
+    // Note: This function may return wrong results if default HF clock initialization in system_tviic2d6mddr_cm0plus.c for PSVP is changed 
+    *result = CY_INITIAL_TARGET_PERI_FREQ; // Just use one of the available defines in system header that reflects the PSVP frequency.
     return(CY_SYSCLK_SUCCESS);
 #else
     cy_en_sysclk_status_t   status;
@@ -2659,6 +2712,8 @@ cy_en_sysclk_status_t Cy_SysClk_GetMTWDTFrequency(uint32_t *result)
     return(Cy_SysClk_GetLfFrequency(result));
 }
 
+
+
 /*******************************************************************************
 * Function Name: Cy_SysClk_GetTimerFrequency
 ****************************************************************************//**
@@ -2676,6 +2731,12 @@ cy_en_sysclk_status_t Cy_SysClk_GetMTWDTFrequency(uint32_t *result)
 *******************************************************************************/
 cy_en_sysclk_status_t Cy_SysClk_GetTimerFrequency(uint32_t *result)
 {
+    // CLK_TIMER_CTL register is defined as "Obsolete. Do not use in new designs" now.
+    // This results in a clock of 1MHz based on the register default value (IMO / 8)
+    *result = 1000000UL; 
+    return CY_SYSCLK_SUCCESS;
+    
+#if 0
     if(SRSS->unCLK_TIMER_CTL.stcField.u1ENABLE == 0ul)
     {
         return(CY_SYSCLK_INVALID_STATE);
@@ -2718,13 +2779,15 @@ cy_en_sysclk_status_t Cy_SysClk_GetTimerFrequency(uint32_t *result)
 
     *result = sourceFreq / (Cy_SysClk_ClkTimerGetDivider() + 1ul);
     return(CY_SYSCLK_SUCCESS);
+#endif
 }
 
+
 /*******************************************************************************
-* Function Name: Cy_SysClk_GetFastFrequency
+* Function Name: Cy_SysClk_GetFast0Frequency
 ****************************************************************************//**
 *
-* Reports clock Fast frequency. This function does not measure the frequency,
+* Reports clock Fast 0 frequency. This function does not measure the frequency,
 * just return values which is the result of calculation from register values 
 * and values set by Cy_SysClk_InitGetFreqParams.
 *
@@ -2735,21 +2798,137 @@ cy_en_sysclk_status_t Cy_SysClk_GetTimerFrequency(uint32_t *result)
 * Note: Please call this function after setting base clock information 
 *       by calling Cy_SysClk_InitGetFreqParams
 *******************************************************************************/
-cy_en_sysclk_status_t Cy_SysClk_GetFastFrequency(uint32_t *result)
+cy_en_sysclk_status_t Cy_SysClk_GetFast0Frequency(uint32_t *result)
 {
     uint32_t clkFastFreq;
     cy_en_sysclk_status_t status;
 
-    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_0,&clkFastFreq);
+    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_1,&clkFastFreq);
     if(status != CY_SYSCLK_SUCCESS)
     {
-        *result =  0ul;
+        *result = 0ul;
         return(status);
     }
 
-    *result =  clkFastFreq / (Cy_SysClk_FastClkGetDivider() + 1ul);
+    uint32_t intDiv;
+    uint32_t fracDiv;
+    Cy_SysClk_Fast0ClkGetDivider(&intDiv, &fracDiv);
+
+    uint64_t divNumShifted5bit = (((uint64_t)intDiv+1ull) << 5ull) + (uint64_t)fracDiv;
+    *result = (uint32_t)(((uint64_t)clkFastFreq << 5ull) / divNumShifted5bit);
+
     return(CY_SYSCLK_SUCCESS);
 }
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_GetFast1Frequency
+****************************************************************************//**
+*
+* Reports clock Fast 1 frequency. This function does not measure the frequency,
+* just return values which is the result of calculation from register values 
+* and values set by Cy_SysClk_InitGetFreqParams.
+*
+* \param result A pointer to variable in which the frequency value is stored.
+*
+* \return \cy_en_sysclk_status_t
+*
+* Note: Please call this function after setting base clock information 
+*       by calling Cy_SysClk_InitGetFreqParams
+*******************************************************************************/
+cy_en_sysclk_status_t Cy_SysClk_GetFast1Frequency(uint32_t *result)
+{
+    uint32_t clkFastFreq;
+    cy_en_sysclk_status_t status;
+
+    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_1,&clkFastFreq);
+    if(status != CY_SYSCLK_SUCCESS)
+    {
+        *result = 0ul;
+        return(status);
+    }
+
+    uint32_t intDiv;
+    uint32_t fracDiv;
+    Cy_SysClk_Fast1ClkGetDivider(&intDiv, &fracDiv);
+
+    uint64_t divNumShifted5bit = (((uint64_t)intDiv+1ull) << 5ull) + (uint64_t)fracDiv;
+    *result = (uint32_t)(((uint64_t)clkFastFreq << 5ull) / divNumShifted5bit);
+    return(CY_SYSCLK_SUCCESS);
+}
+
+#if defined (tviibh16m)
+/*******************************************************************************
+* Function Name: Cy_SysClk_GetFast2Frequency
+****************************************************************************//**
+*
+* Reports clock Fast 2 frequency. This function does not measure the frequency,
+* just return values which is the result of calculation from register values 
+* and values set by Cy_SysClk_InitGetFreqParams.
+*
+* \param result A pointer to variable in which the frequency value is stored.
+*
+* \return \cy_en_sysclk_status_t
+*
+* Note: Please call this function after setting base clock information 
+*       by calling Cy_SysClk_InitGetFreqParams
+*******************************************************************************/
+cy_en_sysclk_status_t Cy_SysClk_GetFast2Frequency(uint32_t *result)
+{
+    uint32_t clkFastFreq;
+    cy_en_sysclk_status_t status;
+
+    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_1,&clkFastFreq);
+    if(status != CY_SYSCLK_SUCCESS)
+    {
+        *result = 0ul;
+        return(status);
+    }
+
+    uint32_t intDiv;
+    uint32_t fracDiv;
+    Cy_SysClk_Fast2ClkGetDivider(&intDiv, &fracDiv);
+
+    uint64_t divNumShifted5bit = (((uint64_t)intDiv+1ull) << 5ull) + (uint64_t)fracDiv;
+    *result = (uint32_t)(((uint64_t)clkFastFreq << 5ull) / divNumShifted5bit);
+    return(CY_SYSCLK_SUCCESS);
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_GetFast3Frequency
+****************************************************************************//**
+*
+* Reports clock Fast 3 frequency. This function does not measure the frequency,
+* just return values which is the result of calculation from register values 
+* and values set by Cy_SysClk_InitGetFreqParams.
+*
+* \param result A pointer to variable in which the frequency value is stored.
+*
+* \return \cy_en_sysclk_status_t
+*
+* Note: Please call this function after setting base clock information 
+*       by calling Cy_SysClk_InitGetFreqParams
+*******************************************************************************/
+cy_en_sysclk_status_t Cy_SysClk_GetFast3Frequency(uint32_t *result)
+{
+    uint32_t clkFastFreq;
+    cy_en_sysclk_status_t status;
+
+    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_1,&clkFastFreq);
+    if(status != CY_SYSCLK_SUCCESS)
+    {
+        *result = 0ul;
+        return(status);
+    }
+
+    uint32_t intDiv;
+    uint32_t fracDiv;
+    Cy_SysClk_Fast3ClkGetDivider(&intDiv, &fracDiv);
+
+    uint64_t divNumShifted5bit = (((uint64_t)intDiv+1ull) << 5ull) + (uint64_t)fracDiv;
+    *result = (uint32_t)(((uint64_t)clkFastFreq << 5ull) / divNumShifted5bit);
+    return(CY_SYSCLK_SUCCESS);
+}
+#endif
 
 /*******************************************************************************
 * Function Name: Cy_SysClk_GetClkPeriFrequency
@@ -2783,6 +2962,37 @@ cy_en_sysclk_status_t Cy_SysClk_GetClkPeriFrequency(uint32_t *result)
 }
 
 /*******************************************************************************
+* Function Name: Cy_SysClk_GetClkMemFrequency
+****************************************************************************//**
+*
+* Reports clock Mem frequency. This function does not measure the frequency,
+* just return values which is the result of calculation from register values 
+* and values set by Cy_SysClk_InitGetFreqParams.
+*
+* \param result A pointer to variable in which the frequency value is stored.
+*
+* \return \cy_en_sysclk_status_t
+*
+* Note: Please call this function after setting base clock information 
+*       by calling Cy_SysClk_InitGetFreqParams
+*******************************************************************************/
+cy_en_sysclk_status_t Cy_SysClk_GetClkMemFrequency(uint32_t *result)
+{
+    uint32_t freqHfClk0;
+    cy_en_sysclk_status_t status;
+
+    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_0, &freqHfClk0);
+    if(status != CY_SYSCLK_SUCCESS)
+    {
+        *result = 0ul;
+        return(status);
+    }
+
+    *result = freqHfClk0 / (Cy_SysClk_MemClkGetDivider() + 1ul);
+    return(CY_SYSCLK_SUCCESS);
+}
+
+/*******************************************************************************
 * Function Name: Cy_SysClk_GetClkSlowFrequency
 ****************************************************************************//**
 *
@@ -2799,16 +3009,16 @@ cy_en_sysclk_status_t Cy_SysClk_GetClkPeriFrequency(uint32_t *result)
 *******************************************************************************/
 cy_en_sysclk_status_t Cy_SysClk_GetClkSlowFrequency(uint32_t *result)
 {
-    uint32_t clkPeriFreq;
+    uint32_t clkMemFreq;
     cy_en_sysclk_status_t status;
 
-    status = Cy_SysClk_GetClkPeriFrequency(&clkPeriFreq);
+    status = Cy_SysClk_GetClkMemFrequency(&clkMemFreq);
     if(status != CY_SYSCLK_SUCCESS)
     {
         return(status);
     }
 
-    *result = clkPeriFreq / (Cy_SysClk_SlowClkGetDivider() + 1ul);
+    *result = clkMemFreq / (Cy_SysClk_SlowClkGetDivider() + 1ul);
     return(CY_SYSCLK_SUCCESS);
 }
 
@@ -2829,10 +3039,35 @@ cy_en_sysclk_status_t Cy_SysClk_GetClkSlowFrequency(uint32_t *result)
 *******************************************************************************/
 cy_en_sysclk_status_t Cy_SysClk_GetCoreFrequency(uint32_t *result)
 {
-#if (CY_CPU_CORTEX_M0P)
+#if CY_CPU_CORTEX_M0P
     return(Cy_SysClk_GetClkSlowFrequency(result));
 #else
-    return(Cy_SysClk_GetFastFrequency(result));
+    if(CPUSS->unIDENTITY.stcField.u4MS == CPUSS_MS_ID_CM7_0)
+    {
+        return(Cy_SysClk_GetFast0Frequency(result));
+    }
+    #if defined(CPUSS_CM7_1_PRESENT) && (CPUSS_CM7_1_PRESENT == 1)
+    else if(CPUSS->unIDENTITY.stcField.u4MS == CPUSS_MS_ID_CM7_1)
+    {
+        return(Cy_SysClk_GetFast1Frequency(result));
+    }
+    #endif
+    #if defined(CPUSS_CM7_2_PRESENT) && (CPUSS_CM7_2_PRESENT == 1)
+    else if(CPUSS->unIDENTITY.stcField.u4MS == CPUSS_MS_ID_CM7_2)
+    {
+        return(Cy_SysClk_GetFast2Frequency(result));
+    }
+    #endif
+    #if defined(CPUSS_CM7_3_PRESENT) && (CPUSS_CM7_3_PRESENT == 1)
+    else if(CPUSS->unIDENTITY.stcField.u4MS == CPUSS_MS_ID_CM7_3)
+    {
+        return(Cy_SysClk_GetFast3Frequency(result));
+    }
+    #endif
+    else
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
 #endif
 }
 
@@ -2892,9 +3127,9 @@ cy_en_sysclk_status_t Cy_SysClk_GetGroupFrequency(uint32_t clkGR, uint32_t *resu
 {
     cy_en_sysclk_status_t status;
 
-    if((clkGR == 3ul) || (clkGR == 5ul) || (clkGR == 6ul) || (clkGR == 9ul))
+    if((clkGR == 5ul) || (clkGR == 6ul) || (clkGR == 9ul))
     {
-         status = Cy_SysClk_GetClkPeriFrequency(result);
+         status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_2, result);
          if(status != CY_SYSCLK_SUCCESS)
          {
              *result = 0ul;
@@ -2902,6 +3137,17 @@ cy_en_sysclk_status_t Cy_SysClk_GetGroupFrequency(uint32_t clkGR, uint32_t *resu
          }
          *result = *result / (uint32_t)(Cy_SysClk_GetClkGrDiv(clkGR) + 1ul);
          return CY_SYSCLK_SUCCESS;
+    }
+    else if((clkGR == 3ul) || (clkGR == 4ul) || (clkGR == 8ul))
+    {
+        status = Cy_SysClk_GetClkPeriFrequency(result);
+        if(status != CY_SYSCLK_SUCCESS)
+        {
+            *result = 0ul;
+            return status;
+        }
+        *result = *result / (uint32_t)(Cy_SysClk_GetClkGrDiv(clkGR) + 1ul);
+        return CY_SYSCLK_SUCCESS;
     }
     else
     {
@@ -2930,14 +3176,14 @@ cy_en_sysclk_status_t Cy_SysClk_GetFlashInterfaceFrequency(uint32_t *result)
     uint32_t freqHfClk0;
     cy_en_sysclk_status_t status;
 
-    status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_0, &freqHfClk0);
+    status = Cy_SysClk_GetClkMemFrequency(&freqHfClk0);
     if(status != CY_SYSCLK_SUCCESS)
     {
         *result = 0ul;
         return(status);
     }
 
-    *result = freqHfClk0 / (FLASHC->unFLASH_CTL.stcField.u4MAIN_WS + 1ul);
+    *result = freqHfClk0 / (FLASHC->unFLASH_CTL.stcField.u4WS + 1ul);
     return(CY_SYSCLK_SUCCESS);
 }
 
@@ -3154,45 +3400,59 @@ cy_en_sysclk_status_t Cy_SysClk_PeriphGetFrequency(en_clk_dst_t ipBlock, uint32_
     uint32_t              dividerNum;
     Cy_SysClk_PeriphGetAssignedDivider(ipBlock, &dividerType, &dividerNum);
 
+    uint8_t group_no = Cy_SysClk_GetClockGroup(ipBlock);
+
     /* get the divider value for clk_peri to the selected peripheral clock */
     switch(dividerType)
     {
-    case CY_SYSCLK_DIV_8_BIT:
-    case CY_SYSCLK_DIV_16_BIT:
-        clkdiv.divType16_5.integer = (uint32_t)Cy_SysClk_PeriphGetDivider(dividerType, dividerNum);
-        clkdiv.divType16_5.frac    = 0ul;  /* frac = 0 means it's an integer divider */
-        break;
-    case CY_SYSCLK_DIV_16_5_BIT:
-    {
-        uint32_t integer, frac;
-        Cy_SysClk_PeriphGetFracDivider(dividerType, dividerNum, &integer, &frac);
-        clkdiv.divType16_5.integer = integer;
-        clkdiv.divType16_5.frac    = frac;
-    }
-        break;
-    case CY_SYSCLK_DIV_24_5_BIT:
-    {
-        uint32_t integer, frac;
-        Cy_SysClk_PeriphGetFracDivider(dividerType, dividerNum, &integer, &frac);
-        clkdiv.divType24_5.integer = integer;
-        clkdiv.divType24_5.frac    = frac;
-    }
-        break;
-    default:
-        CY_ASSERT(false);
-        break;
+        case CY_SYSCLK_DIV_8_BIT:
+        case CY_SYSCLK_DIV_16_BIT:
+            clkdiv.divType16_5.integer = (uint32_t)Cy_SysClk_PeriphGetDivider(group_no, dividerType, dividerNum);
+            clkdiv.divType16_5.frac    = 0ul;  /* frac = 0 means it's an integer divider */
+            break;
+        case CY_SYSCLK_DIV_16_5_BIT:
+            {
+                uint32_t integer, frac;
+                Cy_SysClk_PeriphGetFracDivider(group_no, dividerType, dividerNum, &integer, &frac);
+                clkdiv.divType16_5.integer = integer;
+                clkdiv.divType16_5.frac    = frac;
+            }
+            break;
+        case CY_SYSCLK_DIV_24_5_BIT:
+            {
+                uint32_t integer, frac;
+                Cy_SysClk_PeriphGetFracDivider(group_no, dividerType, dividerNum, &integer, &frac);
+                clkdiv.divType24_5.integer = integer;
+                clkdiv.divType24_5.frac    = frac;
+            }
+            break;
+        default:
+            CY_ASSERT(false);
+            break;
     }
 
-    uint32_t periFreq;
+    uint32_t tempFreq;
     cy_en_sysclk_status_t status;
-    status = Cy_SysClk_GetClkPeriFrequency(&periFreq);
+    switch(group_no)
+    {
+    case 0ul:
+        status = Cy_SysClk_GetClkPeriFrequency(&tempFreq);
+        break;
+    case 1ul:
+        status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_2, &tempFreq);
+        break;
+    default:
+        status = CY_SYSCLK_BAD_PARAM;
+        tempFreq = 0ul;
+        break;
+    }
     if(status != CY_SYSCLK_SUCCESS)
     {
         return(status);
     }
 
     /* peripheral divider output frequency */
-    *result = (uint32_t)(((uint64_t)periFreq << 5ull) / (uint64_t)clkdiv.u32);
+    *result = (uint32_t)(((uint64_t)tempFreq << 5ull) / (uint64_t)clkdiv.u32);
     return(CY_SYSCLK_SUCCESS);
 }
 
@@ -3214,7 +3474,7 @@ cy_en_sysclk_status_t Cy_SysClk_PeriphGetFrequency(en_clk_dst_t ipBlock, uint32_
 * \return \ref cy_en_sysclk_status_t
 *
 *******************************************************************************/
-cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t targetFreq, uint32_t *targetResutFreq)
+cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t targetFreq, uint32_t *targetResutFreq)
 {
     /* For below 3 variables, the least significant 5 bit indicates fractional value. 
        The other 27 bit indicate integer value */
@@ -3222,7 +3482,7 @@ cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(cy_en_divider_types_t d
     uint64_t fixedPointDivNum64;
     uint32_t fixedPointDivNum;
 
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
@@ -3230,7 +3490,26 @@ cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(cy_en_divider_types_t d
     // Get peri clock frequency to integer part of "fixedPointPeriClk"
     {
         uint32_t tempFreq;
-        Cy_SysClk_GetClkPeriFrequency(&tempFreq);
+        cy_en_sysclk_status_t status;
+        switch(groupNum)
+        {
+        case 0ul:
+            status = Cy_SysClk_GetClkPeriFrequency(&tempFreq);
+            break;
+        case 1ul:
+            status = Cy_SysClk_GetHfClkFrequency(CY_SYSCLK_HFCLK_2, &tempFreq);
+            break;
+        default:
+            status = CY_SYSCLK_BAD_PARAM;
+            tempFreq = 0ul;
+            break;
+        }
+
+        if(status != CY_SYSCLK_SUCCESS)
+        {
+            return(status);
+        }
+
         fixedPointPeriClk = (uint64_t)tempFreq << 5ull;
     }
 
@@ -3240,29 +3519,29 @@ cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(cy_en_divider_types_t d
     if (dividerType == CY_SYSCLK_DIV_16_5_BIT)
     {
         if(
-              (fixedPointDivNum64 < (uint64_t)(0x20)) &&      // divided value is less than "1"
-              (fixedPointDivNum64 > (uint64_t)(0x00200000))   // divided value go over the range of 16bit value
+              (fixedPointDivNum64 < 0x20ull) &&      // divided value is less than "1"
+              (fixedPointDivNum64 > 0x00200000ull)   // divided value go over the range of 16bit value
           )
         {
             return CY_SYSCLK_BAD_PARAM;
         }
 
-        PERI->unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV = ((fixedPointDivNum & 0x001FFFE0ul) >> 5ul) - 1ul;
-        PERI->unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV = (fixedPointDivNum & 0x1Ful);
+        PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV = ((fixedPointDivNum & 0x001FFFE0ul) >> 5ul) - 1ul;
+        PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV = (fixedPointDivNum & 0x1Ful);
 
     }
     else if (dividerType == CY_SYSCLK_DIV_24_5_BIT)
     {
         if(
-              (fixedPointDivNum64 < (uint64_t)(0x20)) &&      // divided value is less than "1"
-              (fixedPointDivNum64 > (uint64_t)(0x20000000))   // divided value go over the range of 24bit value
+              (fixedPointDivNum64 < 0x20ull) &&      // divided value is less than "1"
+              (fixedPointDivNum64 > 0x20000000ull)   // divided value go over the range of 24bit value
           )
         {
             return CY_SYSCLK_BAD_PARAM;
         }
 
-        PERI->unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV = ((fixedPointDivNum & 0x1FFFFFE0ul) >> 5ul) - 1ul;
-        PERI->unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV = (fixedPointDivNum & 0x1Ful);
+        PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV = ((fixedPointDivNum & 0x1FFFFFE0ul) >> 5ul) - 1ul;
+        PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV = (fixedPointDivNum & 0x1Ful);
     }
     else
     {

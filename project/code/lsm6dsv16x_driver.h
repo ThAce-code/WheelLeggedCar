@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: lsm6dsv16x_driver.h
 * Description: SPI and SFLP driver for LSM6DSV16X 6-axis IMU.
-* Platform: CYT2BL3 (SEEKFREE)
+* Platform: CYT4BB7
 ********************************************************************************************************************/
 
 #ifndef _lsm6dsv16x_driver_h_
@@ -9,13 +9,14 @@
 
 #include "zf_common_headfile.h"
 
-#define LSM6DSV_CS_PIN          P13_3
+#define LSM6DSV_CS_PIN          P15_3
 
 #define LSM6DSV_ANGLE_DT_S      (0.01f)
 
 #define APP_IMU_FIFO_WTM        (1U)
 
 #define LSM6DSV_WHO_AM_I        0x0F
+#define LSM6DSV_IF_CFG          0x03
 #define LSM6DSV_CTRL1           0x10
 #define LSM6DSV_CTRL2           0x11
 #define LSM6DSV_CTRL3           0x12
@@ -35,8 +36,10 @@
 
 #define LSM6DSV_FUNC_CFG_ACCESS     0x01
 #define LSM6DSV_EMB_FUNC_EN_A       0x04
+#define LSM6DSV_EMB_FUNC_EXEC_STATUS 0x07
 #define LSM6DSV_EMB_FUNC_FIFO_EN_A  0x44
 #define LSM6DSV_SFLP_ODR            0x5E
+#define LSM6DSV_EMB_FUNC_INIT_A     0x66
 
 #define LSM6DSV_ID              0x70
 

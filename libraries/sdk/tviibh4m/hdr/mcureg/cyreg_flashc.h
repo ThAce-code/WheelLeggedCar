@@ -5,12 +5,12 @@
 * FLASHC register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -19,7 +19,7 @@
 #ifndef _CYREG_FLASHC_H_
 #define _CYREG_FLASHC_H_
 
-#include "cyip_flashc_v2.h"
+#include "cyip_flashc.h"
 
 /**
   * \brief Flash Macro Registers (FLASHC_FM_CTL_ECT0)
@@ -56,17 +56,14 @@
 #define CYREG_FLASHC_CM0_CA_STATUS1     ((volatile un_FLASHC_CM0_CA_STATUS1_t*) 0x40240444UL)
 #define CYREG_FLASHC_CM0_CA_STATUS2     ((volatile un_FLASHC_CM0_CA_STATUS2_t*) 0x40240448UL)
 #define CYREG_FLASHC_CM0_STATUS         ((volatile un_FLASHC_CM0_STATUS_t*) 0x40240460UL)
-#define CYREG_FLASHC_CM4_CA_CTL0        ((volatile un_FLASHC_CM4_CA_CTL0_t*) 0x40240480UL)
-#define CYREG_FLASHC_CM4_CA_CTL1        ((volatile un_FLASHC_CM4_CA_CTL1_t*) 0x40240484UL)
-#define CYREG_FLASHC_CM4_CA_CTL2        ((volatile un_FLASHC_CM4_CA_CTL2_t*) 0x40240488UL)
-#define CYREG_FLASHC_CM4_CA_STATUS0     ((volatile un_FLASHC_CM4_CA_STATUS0_t*) 0x402404C0UL)
-#define CYREG_FLASHC_CM4_CA_STATUS1     ((volatile un_FLASHC_CM4_CA_STATUS1_t*) 0x402404C4UL)
-#define CYREG_FLASHC_CM4_CA_STATUS2     ((volatile un_FLASHC_CM4_CA_STATUS2_t*) 0x402404C8UL)
-#define CYREG_FLASHC_CM4_STATUS         ((volatile un_FLASHC_CM4_STATUS_t*) 0x402404E0UL)
-#define CYREG_FLASHC_CRYPTO_BUFF_CTL    ((volatile un_FLASHC_CRYPTO_BUFF_CTL_t*) 0x40240500UL)
-#define CYREG_FLASHC_DW0_BUFF_CTL       ((volatile un_FLASHC_DW0_BUFF_CTL_t*) 0x40240580UL)
-#define CYREG_FLASHC_DW1_BUFF_CTL       ((volatile un_FLASHC_DW1_BUFF_CTL_t*) 0x40240600UL)
-#define CYREG_FLASHC_DMAC_BUFF_CTL      ((volatile un_FLASHC_DMAC_BUFF_CTL_t*) 0x40240680UL)
+#define CYREG_FLASHC_CM7_0_STATUS       ((volatile un_FLASHC_CM7_0_STATUS_t*) 0x402404E0UL)
+#define CYREG_FLASHC_CM7_1_STATUS       ((volatile un_FLASHC_CM7_1_STATUS_t*) 0x40240560UL)
+#define CYREG_FLASHC_CRYPTO_BUFF_CTL    ((volatile un_FLASHC_CRYPTO_BUFF_CTL_t*) 0x40240580UL)
+#define CYREG_FLASHC_DW0_BUFF_CTL       ((volatile un_FLASHC_DW0_BUFF_CTL_t*) 0x40240600UL)
+#define CYREG_FLASHC_DW1_BUFF_CTL       ((volatile un_FLASHC_DW1_BUFF_CTL_t*) 0x40240680UL)
+#define CYREG_FLASHC_DMAC_BUFF_CTL      ((volatile un_FLASHC_DMAC_BUFF_CTL_t*) 0x40240700UL)
+#define CYREG_FLASHC_SLOW0_MS_BUFF_CTL  ((volatile un_FLASHC_SLOW0_MS_BUFF_CTL_t*) 0x40240780UL)
+#define CYREG_FLASHC_SLOW1_MS_BUFF_CTL  ((volatile un_FLASHC_SLOW1_MS_BUFF_CTL_t*) 0x40240800UL)
 
 #endif /* _CYREG_FLASHC_H_ */
 

@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: lsm6dsv16x_driver.c
 * Description: SPI and SFLP driver for LSM6DSV16X 6-axis IMU.
-* Platform: CYT2BL3 (SEEKFREE)
+* Platform: CYT4BB7
 ********************************************************************************************************************/
 
 #include "lsm6dsv16x_driver.h"
@@ -21,12 +21,19 @@
 #define LSM6DSV_GYRO_FS_2000DPS         (0x04)
 #define LSM6DSV_FIFO_STREAM_MODE        (0x06)
 #define LSM6DSV_FIFO_GAME_TAG           (0x13)
+#define LSM6DSV_SPI_READ                (0x80)
+#define LSM6DSV_SPI_MAX_READ_LEN        (7U)
 
 static lsm6dsv16x_angle_data_struct lsm6dsv16x_angle_data;
 static float lsm6dsv16x_gyro_offset_x = 0.0f;
 static float lsm6dsv16x_gyro_offset_y = 0.0f;
 static float lsm6dsv16x_gyro_offset_z = 0.0f;
 static uint8 lsm6dsv16x_angle_ready = 0;
+
+volatile uint8 lsm6dsv16x_debug_who_am_i = 0;
+volatile uint8 lsm6dsv16x_debug_sflp_step = 0;
+volatile uint8 lsm6dsv16x_debug_sflp_reg = 0;
+volatile uint8 lsm6dsv16x_debug_bank = 0;
 
 static float lsm6dsv16x_inv_sqrt_arg(float value)
 {
@@ -36,6 +43,37 @@ static float lsm6dsv16x_inv_sqrt_arg(float value)
 static void lsm6dsv16x_select_bank(uint8 bank)
 {
     lsm6dsv16x_write_reg(LSM6DSV_FUNC_CFG_ACCESS, bank);
+    lsm6dsv16x_debug_bank = bank;
+    system_delay_ms(1);
+}
+
+static void lsm6dsv16x_read_regs(uint8 reg, uint8 *data, uint32 len)
+{
+    uint8 tx[LSM6DSV_SPI_MAX_READ_LEN + 1U];
+    uint8 rx[LSM6DSV_SPI_MAX_READ_LEN + 1U];
+    uint32 i;
+
+    if(LSM6DSV_SPI_MAX_READ_LEN < len)
+    {
+        return;
+    }
+
+    tx[0] = (uint8)(reg | LSM6DSV_SPI_READ);
+    for(i = 0; i < len; i++)
+    {
+        tx[i + 1U] = 0U;
+        rx[i + 1U] = 0U;
+    }
+
+    gpio_low(LSM6DSV_CS_PIN);
+    spi_transfer_8bit(SPI_2, tx, rx, len + 1U);
+    system_delay_us(1);
+    gpio_high(LSM6DSV_CS_PIN);
+
+    for(i = 0; i < len; i++)
+    {
+        data[i] = rx[i + 1U];
+    }
 }
 
 static float lsm6dsv16x_half_to_float(uint16 half)
@@ -111,31 +149,37 @@ static void lsm6dsv16x_quat_to_angle(float qw, float qx, float qy, float qz)
 
 void lsm6dsv16x_spi_init(void)
 {
-    spi_init(SPI_3, SPI_MODE0, 8 * 1000 * 1000,
-             SPI3_CLK_P13_2, SPI3_MOSI_P13_1, SPI3_MISO_P13_0, SPI_CS_NULL);
+    spi_init(SPI_2, SPI_MODE0, 8 * 1000 * 1000,
+             SPI2_CLK_P15_2, SPI2_MOSI_P15_1, SPI2_MISO_P15_0, SPI_CS_NULL);
     gpio_init(LSM6DSV_CS_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
     system_delay_ms(20);
 }
 
 void lsm6dsv16x_write_reg(uint8 reg, uint8 data)
 {
+    uint8 tx[2];
+    uint8 rx[2];
+
+    tx[0] = (uint8)(reg & (uint8)~LSM6DSV_SPI_READ);
+    tx[1] = data;
+
     gpio_low(LSM6DSV_CS_PIN);
-    spi_write_8bit_register(SPI_3, reg, data);
+    spi_transfer_8bit(SPI_2, tx, rx, 2);
+    system_delay_us(1);
     gpio_high(LSM6DSV_CS_PIN);
 }
 
 uint8 lsm6dsv16x_read_reg(uint8 reg)
 {
     uint8 data;
-    gpio_low(LSM6DSV_CS_PIN);
-    data = spi_read_8bit_register(SPI_3, reg | 0x80);
-    gpio_high(LSM6DSV_CS_PIN);
+    lsm6dsv16x_read_regs(reg, &data, 1U);
     return data;
 }
 
 uint8 lsm6dsv16x_self_check(void)
 {
-    return (lsm6dsv16x_read_reg(LSM6DSV_WHO_AM_I) == LSM6DSV_ID) ? 0 : 1;
+    lsm6dsv16x_debug_who_am_i = lsm6dsv16x_read_reg(LSM6DSV_WHO_AM_I);
+    return (lsm6dsv16x_debug_who_am_i == LSM6DSV_ID) ? 0 : 1;
 }
 
 uint8 lsm6dsv16x_init(void)
@@ -156,9 +200,7 @@ uint8 lsm6dsv16x_init(void)
 void lsm6dsv16x_get_acc(int16 *x, int16 *y, int16 *z)
 {
     uint8 dat[6];
-    gpio_low(LSM6DSV_CS_PIN);
-    spi_read_8bit_registers(SPI_3, LSM6DSV_OUTX_L_A | 0x80, dat, 6);
-    gpio_high(LSM6DSV_CS_PIN);
+    lsm6dsv16x_read_regs(LSM6DSV_OUTX_L_A, dat, 6U);
 
     *x = (int16)(((uint16)dat[1] << 8) | dat[0]);
     *y = (int16)(((uint16)dat[3] << 8) | dat[2]);
@@ -168,9 +210,7 @@ void lsm6dsv16x_get_acc(int16 *x, int16 *y, int16 *z)
 void lsm6dsv16x_get_gyro(int16 *x, int16 *y, int16 *z)
 {
     uint8 dat[6];
-    gpio_low(LSM6DSV_CS_PIN);
-    spi_read_8bit_registers(SPI_3, LSM6DSV_OUTX_L_G | 0x80, dat, 6);
-    gpio_high(LSM6DSV_CS_PIN);
+    lsm6dsv16x_read_regs(LSM6DSV_OUTX_L_G, dat, 6U);
 
     *x = (int16)(((uint16)dat[1] << 8) | dat[0]);
     *y = (int16)(((uint16)dat[3] << 8) | dat[2]);
@@ -212,6 +252,10 @@ void lsm6dsv16x_angle_init(void)
                                          lsm6dsv16x_inv_sqrt_arg(lsm6dsv16x_angle_data.acc_y * lsm6dsv16x_angle_data.acc_y +
                                                                  lsm6dsv16x_angle_data.acc_z * lsm6dsv16x_angle_data.acc_z)) * LSM6DSV_RAD_TO_DEG;
     lsm6dsv16x_angle_data.yaw = 0.0f;
+    lsm6dsv16x_angle_data.quat_w = 1.0f;
+    lsm6dsv16x_angle_data.quat_x = 0.0f;
+    lsm6dsv16x_angle_data.quat_y = 0.0f;
+    lsm6dsv16x_angle_data.quat_z = 0.0f;
     lsm6dsv16x_angle_ready = 1;
 }
 
@@ -276,40 +320,47 @@ uint8 lsm6dsv16x_sflp_init(void)
 {
     uint8 reg;
 
+    lsm6dsv16x_debug_sflp_step = 1;
     lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL4, 0x00);
 
+    lsm6dsv16x_debug_sflp_step = 2;
     lsm6dsv16x_select_bank(LSM6DSV_FUNC_CFG_EMB_BANK);
 
     reg = lsm6dsv16x_read_reg(LSM6DSV_SFLP_ODR);
     reg = (uint8)((reg & (uint8)~0x38U) | LSM6DSV_SFLP_ODR_120HZ);
     lsm6dsv16x_write_reg(LSM6DSV_SFLP_ODR, reg);
 
+    lsm6dsv16x_debug_sflp_step = 3;
     reg = lsm6dsv16x_read_reg(LSM6DSV_EMB_FUNC_FIFO_EN_A);
     lsm6dsv16x_write_reg(LSM6DSV_EMB_FUNC_FIFO_EN_A, (uint8)(reg | LSM6DSV_SFLP_FIFO_ENABLE));
     reg = lsm6dsv16x_read_reg(LSM6DSV_EMB_FUNC_FIFO_EN_A);
+    lsm6dsv16x_debug_sflp_reg = reg;
     if(0U == (reg & LSM6DSV_SFLP_FIFO_ENABLE))
     {
         lsm6dsv16x_select_bank(LSM6DSV_FUNC_CFG_MAIN_BANK);
         return 1;
     }
 
+    lsm6dsv16x_debug_sflp_step = 4;
     reg = lsm6dsv16x_read_reg(LSM6DSV_EMB_FUNC_EN_A);
     lsm6dsv16x_write_reg(LSM6DSV_EMB_FUNC_EN_A, (uint8)(reg | LSM6DSV_SFLP_GAME_ENABLE));
     reg = lsm6dsv16x_read_reg(LSM6DSV_EMB_FUNC_EN_A);
+    lsm6dsv16x_debug_sflp_reg = reg;
     if(0U == (reg & LSM6DSV_SFLP_GAME_ENABLE))
     {
         lsm6dsv16x_select_bank(LSM6DSV_FUNC_CFG_MAIN_BANK);
         return 1;
     }
 
+    lsm6dsv16x_debug_sflp_step = 5;
     lsm6dsv16x_select_bank(LSM6DSV_FUNC_CFG_MAIN_BANK);
 
     lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL1, APP_IMU_FIFO_WTM);
     lsm6dsv16x_write_reg(LSM6DSV_INT1_CTRL, LSM6DSV_INT1_FIFO_TH);
-
     lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL4, LSM6DSV_FIFO_STREAM_MODE);
     system_delay_ms(20);
 
+    lsm6dsv16x_debug_sflp_step = 0;
     return 0;
 }
 
@@ -331,9 +382,7 @@ uint8 lsm6dsv16x_sflp_update(void)
     float norm;
     uint8 got_game_vector = 0;
 
-    gpio_low(LSM6DSV_CS_PIN);
-    spi_read_8bit_registers(SPI_3, LSM6DSV_FIFO_STATUS1 | 0x80, status, 2);
-    gpio_high(LSM6DSV_CS_PIN);
+    lsm6dsv16x_read_regs(LSM6DSV_FIFO_STATUS1, status, 2U);
 
     fifo_count = (uint16)status[0] | (uint16)((status[1] & 0x01U) << 8);
     if(0U == fifo_count)
@@ -343,9 +392,7 @@ uint8 lsm6dsv16x_sflp_update(void)
 
     for(i = 0; i < fifo_count; i++)
     {
-        gpio_low(LSM6DSV_CS_PIN);
-        spi_read_8bit_registers(SPI_3, LSM6DSV_FIFO_DATA_TAG | 0x80, frame, 7);
-        gpio_high(LSM6DSV_CS_PIN);
+        lsm6dsv16x_read_regs(LSM6DSV_FIFO_DATA_TAG, frame, 7U);
 
         tag = frame[0] >> 3;
         if(LSM6DSV_FIFO_GAME_TAG == tag)

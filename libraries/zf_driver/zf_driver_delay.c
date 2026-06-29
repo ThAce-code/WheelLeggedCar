@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -38,14 +38,20 @@
 #include "tcpwm/cy_tcpwm_pwm.h"
 #include "zf_driver_delay.h"
 
+
+#if CY_CORE_CM7_0
+static en_clk_dst_t delay_clk = PCLK_TCPWM0_CLOCKS518;
+static uint8 timer_ch = 6;
+#elif CY_CORE_CM7_1
 static en_clk_dst_t delay_clk = PCLK_TCPWM0_CLOCKS519;
 static uint8 timer_ch = 7;
+#endif
 
 //-------------------------------------------------------------------------------------------------------------------
 //  函数简介      system延时函数
 //  参数说明      time            延时一轮的时间（单位为纳秒，可设置范围0-20000000）
 //  返回参数      void
-//  使用示例      system_delay(cy_delayFreqMhz * 2); // 软延时1us  160M时钟 最小单位时间为 6.25ns
+//  使用示例      system_delay(cy_delayFreqMhz * 2); // 软延时1us  250M时钟 最小单位时间为 4ns
 //-------------------------------------------------------------------------------------------------------------------
 void system_delay (uint32 time)
 {
@@ -61,6 +67,7 @@ void system_delay (uint32 time)
 //-------------------------------------------------------------------------------------------------------------------
 void system_delay_us (uint32 time)
 {
+#if CY_CORE_CM7_0 || CY_CORE_CM7_1
     time = time * 8;
    
     Cy_Tcpwm_Counter_SetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch], 0);
@@ -72,7 +79,10 @@ void system_delay_us (uint32 time)
         Cy_Tcpwm_Counter_SetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch], 0);    
     }
 
-    while(Cy_Tcpwm_Counter_GetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch]) <= time); 
+    while(Cy_Tcpwm_Counter_GetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch]) <= time);
+#else
+    Cy_SysTick_DelayInUs(time);
+#endif  
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -83,6 +93,7 @@ void system_delay_us (uint32 time)
 //-------------------------------------------------------------------------------------------------------------------
 void system_delay_ms (uint32 time)
 {
+#if CY_CORE_CM7_0 || CY_CORE_CM7_1
     time = time * 8000;
    
     Cy_Tcpwm_Counter_SetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch], 0);
@@ -97,6 +108,9 @@ void system_delay_ms (uint32 time)
     }
 
     while(Cy_Tcpwm_Counter_GetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch]) <= time);
+#else
+    Cy_SysTick_DelayInUs(time * 1000);
+#endif    
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -107,11 +121,12 @@ void system_delay_ms (uint32 time)
 //-------------------------------------------------------------------------------------------------------------------
 void system_delay_init(void)
 {
+#if CY_CORE_CM7_0 || CY_CORE_CM7_1
     cy_stc_tcpwm_counter_config_t timer_config  = {0};
     
     Cy_SysClk_PeriphAssignDivider(delay_clk, (cy_en_divider_types_t)CY_SYSCLK_DIV_16_BIT, 0ul);
-    Cy_SysClk_PeriphSetDivider((cy_en_divider_types_t)CY_SYSCLK_DIV_16_BIT, 0ul, 9u);           // 80Mhz时钟被10分频为8Mhz
-    Cy_SysClk_PeriphEnableDivider((cy_en_divider_types_t)CY_SYSCLK_DIV_16_BIT, 0ul);
+    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup(delay_clk), (cy_en_divider_types_t)CY_SYSCLK_DIV_16_BIT, 0ul, 9u); // 80Mhz时钟被10分频为8Mhz
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup(delay_clk), (cy_en_divider_types_t)CY_SYSCLK_DIV_16_BIT, 0ul);
     
     timer_config.period             = 0xffffffff                         ;        
     timer_config.clockPrescaler     = CY_TCPWM_PRESCALER_DIVBY_1         ;
@@ -126,5 +141,6 @@ void system_delay_init(void)
     Cy_Tcpwm_Counter_Enable((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch]);
     Cy_Tcpwm_Counter_SetCounter((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch], 0);
     Cy_Tcpwm_TriggerStart((volatile stc_TCPWM_GRP_CNT_t*) &TCPWM0->GRP[2].CNT[timer_ch]);
+#endif
 }
 

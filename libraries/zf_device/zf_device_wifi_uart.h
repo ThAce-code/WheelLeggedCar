@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -47,19 +47,19 @@
 *********************************************************************************************************************/
 
 #ifndef _zf_device_wifi_uart_h_
-#define _zf_device_wifi_uart_h_ 
-                                
-#include "zf_common_typedef.h"  
+#define _zf_device_wifi_uart_h_
+
+#include "zf_common_typedef.h"
 
 //==============================================定义 WIFI_UART 基本配置===================================================
-#define WIFI_UART_INDEX         (UART_2		   )                            // WIFI 模块 所使用到的串口
+#define WIFI_UART_INDEX         (UART_1		   )                            // WIFI 模块 所使用到的串口
 #define WIFI_UART_BAUD          (115200		   )                            // 模块工作波特率
-#define WIFI_UART_TX_PIN        (UART2_RX_P07_0    )                            // 连接 WIFI 模块 TX
-#define WIFI_UART_RX_PIN        (UART2_TX_P07_1    )                            // 连接 WIFI 模块 RX
-#define WIFI_UART_RTS_PIN       (P07_2		   )                            // 定义流控位引脚  指示当前模块是否可以接受数据  0-可以继续接收  1-不可以继续接收
-#define WIFI_UART_HARDWARE_RST  (0)                                             // 定义是否使用硬件复位引脚 0-使用软件复位 1-使用硬件 RST
+#define WIFI_UART_TX_PIN        (UART1_RX_P04_0    )                            // 连接 WIFI 模块 TX
+#define WIFI_UART_RX_PIN        (UART1_TX_P04_1    )                            // 连接 WIFI 模块 RX
+#define WIFI_UART_RTS_PIN       (P22_6		   )                            // 定义流控位引脚  指示当前模块是否可以接受数据  0-可以继续接收  1-不可以继续接收
+#define WIFI_UART_HARDWARE_RST  (1)                                             // 定义是否使用硬件复位引脚 0-使用软件复位 1-使用硬件 RST
 #if WIFI_UART_HARDWARE_RST                                                      // 建议使用硬件复位引脚 否则容易出现单片机复位后无法正常初始化模块
-#define WIFI_UART_RST_PIN       (P23_7)                                         // 定义硬件复位引脚
+#define WIFI_UART_RST_PIN       (P22_5)                                         // 定义硬件复位引脚
 #endif
 //==============================================定义 WIFI_UART 基本配置===================================================
 
@@ -73,7 +73,7 @@
 #error "WIFI_UART_AUTO_CONNECT 的值只能为 [0,1,2,3]"
 #else
 #define WIFI_UART_TARGET_IP     "192.168.137.1"                                 // 连接目标的 IP
-#define WIFI_UART_TARGET_PORT   "8086"                                          // 连接目标的端口
+#define WIFI_UART_TARGET_PORT   "8080"                                          // 连接目标的端口
 #define WIFI_UART_LOCAL_PORT    "8080"                                          // 本机端口
 #endif
 //==============================================定义 WIFI_UART 基本参数===================================================

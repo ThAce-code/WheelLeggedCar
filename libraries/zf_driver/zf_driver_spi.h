@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -38,11 +38,10 @@
 #include "zf_common_typedef.h"
 
 typedef enum        				// SPI模块号
-{                                               // 注意 SPI 与 UART 共用外设 模块化一致代表冲突  比如 SPI_1 和 UART_1 则是共用的资源
+{
+    SPI_0,
     SPI_1,
     SPI_2,
-    SPI_3,
-    SPI_4,
 }spi_index_enum;
 
 typedef enum        				// 枚举 SPI 模式 此枚举定义不允许用户修改
@@ -55,35 +54,44 @@ typedef enum        				// 枚举 SPI 模式 此枚举定义不允许用户修改
 
 typedef enum                           	// 枚举SPI CLK引脚 此枚举定义不允许用户修改
 {
-    SPI1_CLK_P06_2,                		// SPI1 CLK 引脚
-    SPI2_CLK_P07_2,             		// SPI2 CLK 引脚
-    SPI3_CLK_P13_2,				// SPI3 CLK 引脚
-    SPI4_CLK_P14_2,				// SPI4 CLK 引脚
+    SPI0_CLK_P02_2,                		// SPI0 CLK 引脚可选范围
+
+    SPI1_CLK_P12_2,             		// SPI1 CLK 引脚可选范围
+	
+    SPI2_CLK_P15_2,				// SPI2 CLK 引脚可选范围
 }spi_clk_pin_enum;
 
 typedef enum                       		// 枚举SPI MOSI引脚 此枚举定义不允许用户修改
 {
-    SPI1_MOSI_P06_1,                    	// SPI1 MOSI 引脚 
-    SPI2_MOSI_P07_1,                  	        // SPI2 MOSI 引脚   
-    SPI3_MOSI_P13_1,                  	        // SPI3 MOSI 引脚     
-    SPI4_MOSI_P14_1,                  	        // SPI4 MOSI 引脚 
+    SPI0_MOSI_P02_1,                    	// SPI0 MOSI引脚可选范围
+
+    SPI1_MOSI_P12_1,                  	        // SPI1 MOSI引脚可选范围
+  
+    SPI2_MOSI_P15_1,                  	        // SPI2 MOSI引脚可选范围
 }spi_mosi_pin_enum;
 
 typedef enum             			// 枚举SPI MISO引脚 此枚举定义不允许用户修改
 {
-    SPI1_MISO_P06_0,	                 	// SPI1 MISO 引脚
-    SPI2_MISO_P07_0,              		// SPI2 MISO 引脚
-    SPI3_MISO_P13_0, 				// SPI3 MISO 引脚    
-    SPI4_MISO_P14_0, 				// SPI4 MISO 引脚	
+    SPI0_MISO_P02_0,	                 	// SPI0 MISO引脚可选范围
+
+    SPI1_MISO_P12_0,              		// SPI1 MISO引脚可选范围
+
+    SPI2_MISO_P15_0, 				// SPI2 MISO引脚可选范围
+	
     SPI_MISO_NULL,
 }spi_miso_pin_enum;
 
 typedef enum                       		// 枚举SPI CS引脚 此枚举定义不允许用户修改
 {
-    SPI1_CS0_P06_3,	        		// SPI1 CS 引脚
-    SPI2_CS0_P11_0,	               		// SPI2 CS 引脚
-    SPI3_CS0_P13_3,                 	        // SPI3 CS 引脚
-    SPI4_CS0_P23_7,                             // SPI4 CS 引脚
+    SPI0_CS0_P02_3,	        		// SPI0 CS0 引脚可选范围
+    SPI0_CS1_P02_4,	
+    
+    SPI1_CS0_P12_3,	               		// SPI1 CS0 引脚可选范围
+    SPI1_CS1_P12_4,	
+            
+    SPI2_CS0_P15_3,                 	        // SPI2 CS0 引脚可选范围
+    SPI2_CS3_P05_1,
+	
     SPI_CS_NULL,
 }spi_cs_pin_enum;
 

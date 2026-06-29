@@ -25,8 +25,6 @@
 #include "cy_device_headers.h"
 #include "cy_project.h"
 
-#ifdef CY_IP_MXSMIF
-
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -291,9 +289,6 @@ cy_en_smif_status_t Cy_SMIF_Memslot_CmdRead(cy_stc_smif_reg_t volatile *base,
 #if defined(__cplusplus)
 }
 #endif
-
-#endif /* CY_IP_MXSMIF */
-
 
 #endif /* (CY_SMIF_MEMORYSLOT_H) */
 

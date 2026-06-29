@@ -21,16 +21,879 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/*******************************************************************************
+* Function Name: Cy_Cpu_WaitClear
+********************************************************************************
+* \brief 
+* Clears the CPU_WAIT bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_WaitClear(cy_en_cpu_core_type_t coreType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        CPUSS->unCM7_0_CTL.stcField.u1CPU_WAIT = 0;
+        break;
+    case CY_CPU_CM7_1:
+        CPUSS->unCM7_1_CTL.stcField.u1CPU_WAIT = 0;
+        break;     
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        CPUSS->unCM7_2_CTL.stcField.u1CPU_WAIT = 0;
+        break;  
+    case CY_CPU_CM7_3:
+        CPUSS->unCM7_3_CTL.stcField.u1CPU_WAIT = 0;
+        break;         
+#endif
+    default:
+        break;      
+    }
+}
 
 /*******************************************************************************
-* Function Name: Cy_Cpu_Cm4PowerModeSet
+* Function Name: Cy_Cpu_WaitSet
+********************************************************************************
+* \brief Sets the CPU_WAIT bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+*
+* \return
+* None.
+*******************************************************************************/
+void Cy_Cpu_WaitSet(cy_en_cpu_core_type_t coreType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        CPUSS->unCM7_0_CTL.stcField.u1CPU_WAIT = 1;
+        break;
+    case CY_CPU_CM7_1:
+        CPUSS->unCM7_1_CTL.stcField.u1CPU_WAIT = 1;
+        break;      
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        CPUSS->unCM7_2_CTL.stcField.u1CPU_WAIT = 1;
+        break;    
+    case CY_CPU_CM7_3:
+        CPUSS->unCM7_3_CTL.stcField.u1CPU_WAIT = 1;
+        break;         
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmEnable
+********************************************************************************
+* \brief 
+* Enable the INIT_TCM_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1   
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_TCM_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_TCM_EN = 2;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_TCM_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_TCM_EN = 2;
+        }
+        break;        
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_TCM_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_TCM_EN = 2;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_TCM_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_TCM_EN = 2;
+        }
+        break;         
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmDisable
+********************************************************************************
+* \brief 
+* Clear the INIT_TCM_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_TCM_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_TCM_EN &= 1;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_TCM_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_TCM_EN &= 1;
+        }
+        break;    
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_TCM_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_TCM_EN &= 1;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_TCM_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_TCM_EN &= 1;
+        }
+        break;  
+#endif        
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmReadModifyWriteEnable
+********************************************************************************
+* \brief 
+* Enable the INIT_RMW_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmReadModifyWriteEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_RMW_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_RMW_EN = 2;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_RMW_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_RMW_EN = 2;
+        }
+        break;   
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_RMW_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_RMW_EN = 2;
+        }
+        break; 
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_RMW_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_RMW_EN = 2;
+        }
+        break;     
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmReadModifyWriteDisable
+********************************************************************************
+* \brief 
+* Clear the INIT_RMW_EN bit.
+* 
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmReadModifyWriteDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_RMW_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u2INIT_RMW_EN &= 1;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_RMW_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u2INIT_RMW_EN &= 1;
+        }
+        break;    
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_RMW_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u2INIT_RMW_EN &= 1;
+        }
+        break;   
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_RMW_EN &= 2;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u2INIT_RMW_EN &= 1;
+        }
+        break;           
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmEccEnable
+********************************************************************************
+* \brief 
+* Enable the ITCM_ECC_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmEccEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1ITCM_ECC_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1DTCM_ECC_EN = 1;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1ITCM_ECC_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1DTCM_ECC_EN = 1;
+        }
+        break;   
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1ITCM_ECC_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1DTCM_ECC_EN = 1;
+        }
+        break; 
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1ITCM_ECC_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1DTCM_ECC_EN = 1;
+        }
+        break;         
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmEccDisable
+********************************************************************************
+* \brief 
+* Clear the ITCM_ECC_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmEccDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1ITCM_ECC_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1DTCM_ECC_EN = 0;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1ITCM_ECC_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1DTCM_ECC_EN = 0;
+        }
+        break;   
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1ITCM_ECC_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1DTCM_ECC_EN = 0;
+        }
+        break;   
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1ITCM_ECC_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1DTCM_ECC_EN = 0;
+        }
+        break;   
+#endif        
+    default:
+        break;      
+    }
+}
+
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmEccErrorInjEnable
+********************************************************************************
+* \brief 
+* Enable the ITCM_ECC_INJ_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmEccErrorInjEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1ITCM_ECC_INJ_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1DTCM_ECC_INJ_EN = 1;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1ITCM_ECC_INJ_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1DTCM_ECC_INJ_EN = 1;
+        }
+        break;        
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1ITCM_ECC_INJ_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1DTCM_ECC_INJ_EN = 1;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1ITCM_ECC_INJ_EN = 1;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1DTCM_ECC_INJ_EN = 1;
+        }
+        break;        
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmEccErrorInjDisable
+********************************************************************************
+* \brief 
+* Clear the ITCM_ECC_INJ_EN bit.
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmEccErrorInjDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1ITCM_ECC_INJ_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1DTCM_ECC_INJ_EN = 0;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1ITCM_ECC_INJ_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1DTCM_ECC_INJ_EN = 0;
+        }
+        break;        
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1ITCM_ECC_INJ_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1DTCM_ECC_INJ_EN = 0;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1ITCM_ECC_INJ_EN = 0;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1DTCM_ECC_INJ_EN = 0;
+        }
+        break;          
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmReadWaitStatesSet
+********************************************************************************
+* \brief 
+* Set the ITCM_READ_WS bit.
+*
+* \param coreType
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+* Wait states, 0 or 1
+*
+* \return 
+* None.
+*******************************************************************************/
+void Cy_Cpu_TcmReadWaitStatesSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType, uint8_t waitStates)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1ITCM_READ_WS = waitStates;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_0_CTL.stcField.u1DTCM_READ_WS = waitStates;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1ITCM_READ_WS = waitStates;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_1_CTL.stcField.u1DTCM_READ_WS = waitStates;
+        }
+        break;   
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1ITCM_READ_WS = waitStates;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_2_CTL.stcField.u1DTCM_READ_WS = waitStates;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1ITCM_READ_WS = waitStates;
+        }
+        else // CY_CPU_DTCM
+        {
+            CPUSS->unCM7_3_CTL.stcField.u1DTCM_READ_WS = waitStates;
+        }
+        break;    
+#endif
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_TcmReadWaitStatesGet
+********************************************************************************
+* \brief 
+* Get the ITCM_READ_WS bit.
+*
+* \param coreType
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+* TCM type, refer to cy_en_cpu_tcm_type_t.
+*   CY_CPU_ITCM = 0
+*   CY_CPU_DTCM = 1
+*
+* \return
+* Wait states, 0 or 1.
+*******************************************************************************/
+uint8_t Cy_Cpu_TcmReadWaitStatesGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType)
+{
+    uint8_t waitStates = 0;
+    
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            waitStates = CPUSS->unCM7_0_CTL.stcField.u1ITCM_READ_WS;
+        }
+        else // CY_CPU_DTCM
+        {
+            waitStates = CPUSS->unCM7_0_CTL.stcField.u1DTCM_READ_WS;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            waitStates = CPUSS->unCM7_1_CTL.stcField.u1ITCM_READ_WS;
+        }
+        else // CY_CPU_DTCM
+        {
+            waitStates = CPUSS->unCM7_1_CTL.stcField.u1DTCM_READ_WS;
+        }
+        break;    
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            waitStates = CPUSS->unCM7_2_CTL.stcField.u1ITCM_READ_WS;
+        }
+        else // CY_CPU_DTCM
+        {
+            waitStates = CPUSS->unCM7_2_CTL.stcField.u1DTCM_READ_WS;
+        }
+        break; 
+    case CY_CPU_CM7_3:
+        if(tcmType == CY_CPU_ITCM)
+        {
+            waitStates = CPUSS->unCM7_3_CTL.stcField.u1ITCM_READ_WS;
+        }
+        else // CY_CPU_DTCM
+        {
+            waitStates = CPUSS->unCM7_3_CTL.stcField.u1DTCM_READ_WS;
+        }
+        break;    
+#endif
+    default:
+        break;      
+    }
+    
+    return waitStates;
+}
+
+// rmkn:  CPR RTL does not have this feature yet
+/*******************************************************************************
+* Function Name: Cy_Cpu_Cm7TcmSlavePortAccessEnable
+********************************************************************************
+* \brief
+*
+* \param coreType
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+*
+* \return
+* None
+*******************************************************************************/
+void Cy_Cpu_Cm7TcmSlavePortAccessEnable(cy_en_cpu_core_type_t coreType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        CPUSS->unCM7_0_CTL.stcField.u1TCMC_EN = 1;
+        break;
+    case CY_CPU_CM7_1:
+        CPUSS->unCM7_1_CTL.stcField.u1TCMC_EN = 1;
+        break;  
+#if defined (tviibh16m)
+    case CY_CPU_CM7_2:
+        CPUSS->unCM7_2_CTL.stcField.u1TCMC_EN = 1;
+        break;  
+    case CY_CPU_CM7_3:
+        CPUSS->unCM7_3_CTL.stcField.u1TCMC_EN = 1;
+        break;  
+#endif        
+    default:
+        break;      
+    }
+}
+
+// rmkn: CPR RTL does not have this feature yet
+/*******************************************************************************
+* Function Name: Cy_Cpu_Cm7TcmSlavePortAccessDisable
+********************************************************************************
+* \brief
+*
+* \param
+* Core type, refer to cy_en_cpu_core_type_t.
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
+*
+* \return
+* None
+*******************************************************************************/
+void Cy_Cpu_Cm7TcmSlavePortAccessDisable(cy_en_cpu_core_type_t coreType)
+{
+    switch(coreType)
+    {
+    case CY_CPU_CM7_0:
+        CPUSS->unCM7_0_CTL.stcField.u1TCMC_EN = 0;
+        break;
+    case CY_CPU_CM7_1:
+        CPUSS->unCM7_1_CTL.stcField.u1TCMC_EN = 0;
+        break;  
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        CPUSS->unCM7_2_CTL.stcField.u1TCMC_EN = 0;
+        break;  
+    case CY_CPU_CM7_3:
+        CPUSS->unCM7_3_CTL.stcField.u1TCMC_EN = 0;
+        break;  
+#endif        
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_Cm7PowerModeSet
 ********************************************************************************
 * \brief 
 * Set the PWR_MODE bit.
 *
 * \param
 * Core type, refer to cy_en_cpu_core_type_t.
-*   CY_CPU_CM4   = 2
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
 * Pwr Mode, refer to cy_en_cpu_power_mode_t.
 *   CY_CPU_PM_OFF       = 0
 *   CY_CPU_PM_RESET     = 1
@@ -40,31 +903,56 @@ extern "C" {
 * \return
 * None
 *******************************************************************************/
-void Cy_Cpu_Cm4PowerModeSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_power_mode_t pwrMode)
+void Cy_Cpu_Cm7PowerModeSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_power_mode_t pwrMode)
 {
-    un_CPUSS_CM4_PWR_CTL_t      tempCpussCm4PwrCtl;
-    
+    un_CPUSS_CM7_0_PWR_CTL_t tempCpussCm70PwrCtl;
+    un_CPUSS_CM7_1_PWR_CTL_t tempCpussCm71PwrCtl;
+#if defined (tviibh16m)
+    un_CPUSS_CM7_2_PWR_CTL_t tempCpussCm72PwrCtl;
+    un_CPUSS_CM7_3_PWR_CTL_t tempCpussCm73PwrCtl;
+#endif
+
     switch(coreType)
     {
-    case CY_CPU_CM4:
-        tempCpussCm4PwrCtl.stcField.u16VECTKEYSTAT = 0x05FAUL;
-        tempCpussCm4PwrCtl.stcField.u2PWR_MODE = pwrMode;
-        CPUSS->unCM4_PWR_CTL.u32Register = tempCpussCm4PwrCtl.u32Register;
-        break;        
+    case CY_CPU_CM7_0:
+        tempCpussCm70PwrCtl.stcField.u16VECTKEYSTAT = 0x05FAUL;
+        tempCpussCm70PwrCtl.stcField.u2PWR_MODE = pwrMode;
+        CPUSS->unCM7_0_PWR_CTL.u32Register = tempCpussCm70PwrCtl.u32Register;
+        break;
+    case CY_CPU_CM7_1:
+        tempCpussCm71PwrCtl.stcField.u16VECTKEYSTAT = 0x05FAUL;
+        tempCpussCm71PwrCtl.stcField.u2PWR_MODE = pwrMode;
+        CPUSS->unCM7_1_PWR_CTL.u32Register = tempCpussCm71PwrCtl.u32Register;
+        break;   
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        tempCpussCm72PwrCtl.stcField.u16VECTKEYSTAT = 0x05FAUL;
+        tempCpussCm72PwrCtl.stcField.u2PWR_MODE = pwrMode;
+        CPUSS->unCM7_2_PWR_CTL.u32Register = tempCpussCm72PwrCtl.u32Register;
+        break;   
+    case CY_CPU_CM7_3:
+        tempCpussCm73PwrCtl.stcField.u16VECTKEYSTAT = 0x05FAUL;
+        tempCpussCm73PwrCtl.stcField.u2PWR_MODE = pwrMode;
+        CPUSS->unCM7_3_PWR_CTL.u32Register = tempCpussCm73PwrCtl.u32Register;
+        break;         
+#endif
     default:
         break;      
     }
 }
 
 /*******************************************************************************
-* Function Name: Cy_Cpu_Cm4PowerModeGet
+* Function Name: Cy_Cpu_Cm7PowerModeGet
 ********************************************************************************
 * \brief 
 * Get the PWR_MODE bit.
 *
 * \param
 * Core type, refer to cy_en_cpu_core_type_t.
-*   CY_CPU_CM4   = 2
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
 *
 * \return
 * Pwr Mode, refer to cy_en_cpu_power_mode_t.
@@ -73,15 +961,26 @@ void Cy_Cpu_Cm4PowerModeSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_power_mode
 *   CY_CPU_PM_RETAINED  = 2
 *   CY_CPU_PM_ENABLED   = 3
 *******************************************************************************/
-cy_en_cpu_power_mode_t Cy_Cpu_Cm4PowerModeGet(cy_en_cpu_core_type_t coreType)
+cy_en_cpu_power_mode_t Cy_Cpu_Cm7PowerModeGet(cy_en_cpu_core_type_t coreType)
 {
     cy_en_cpu_power_mode_t pwrMode = CY_CPU_PM_OFF;
     
     switch(coreType)
     {
-    case CY_CPU_CM4:
-        pwrMode = (cy_en_cpu_power_mode_t)CPUSS->unCM4_PWR_CTL.stcField.u2PWR_MODE;
-        break;        
+    case CY_CPU_CM7_0:
+        pwrMode = (cy_en_cpu_power_mode_t)CPUSS->unCM7_0_PWR_CTL.stcField.u2PWR_MODE;
+        break;
+    case CY_CPU_CM7_1:
+        pwrMode = (cy_en_cpu_power_mode_t)CPUSS->unCM7_1_PWR_CTL.stcField.u2PWR_MODE;
+        break;     
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        pwrMode = (cy_en_cpu_power_mode_t)CPUSS->unCM7_2_PWR_CTL.stcField.u2PWR_MODE;
+        break;  
+    case CY_CPU_CM7_3:
+        pwrMode = (cy_en_cpu_power_mode_t)CPUSS->unCM7_3_PWR_CTL.stcField.u2PWR_MODE;
+        break;         
+#endif
     default:
         break;      
     }
@@ -289,6 +1188,70 @@ void Cy_Cpu_SramEccErrorInjDisable(cy_en_cpu_sram_macro_t sramType)
 }
 
 /*******************************************************************************
+* Function Name: Cy_Cpu_SramEccCheckEnable
+********************************************************************************
+* \brief
+*
+* \param
+* SRAM type, refer to cy_en_cpu_sram_macro_t.
+*   CY_CPU_SRAM0 = 0
+*   CY_CPU_SRAM1 = 1
+*   CY_CPU_SRAM2 = 2
+*
+* \return
+* None
+*******************************************************************************/
+void Cy_Cpu_SramEccCheckEnable(cy_en_cpu_sram_macro_t sramType)
+{
+    switch(sramType)
+    {
+    case CY_CPU_SRAM0:
+        CPUSS->unRAM0_CTL0.stcField.u1ECC_CHECK_DIS = 0;
+        break;
+    case CY_CPU_SRAM1:
+        CPUSS->unRAM1_CTL0.stcField.u1ECC_CHECK_DIS = 0;
+        break;   
+    case CY_CPU_SRAM2:
+        CPUSS->unRAM2_CTL0.stcField.u1ECC_CHECK_DIS = 0;
+        break;
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_SramEccCheckDisable
+********************************************************************************
+* \brief
+*
+* \param
+* SRAM type, refer to cy_en_cpu_sram_macro_t.
+*   CY_CPU_SRAM0 = 0
+*   CY_CPU_SRAM1 = 1
+*   CY_CPU_SRAM2 = 2
+*
+* \return
+* None
+*******************************************************************************/
+void Cy_Cpu_SramEccCheckDisable(cy_en_cpu_sram_macro_t sramType)
+{
+    switch(sramType)
+    {
+    case CY_CPU_SRAM0:
+        CPUSS->unRAM0_CTL0.stcField.u1ECC_CHECK_DIS = 1;
+        break;
+    case CY_CPU_SRAM1:
+        CPUSS->unRAM1_CTL0.stcField.u1ECC_CHECK_DIS = 1;
+        break;   
+    case CY_CPU_SRAM2:
+        CPUSS->unRAM2_CTL0.stcField.u1ECC_CHECK_DIS = 1;
+        break;
+    default:
+        break;      
+    }
+}
+
+/*******************************************************************************
 * Function Name: Cy_Cpu_SramPowerModeSet
 ********************************************************************************
 * \brief 
@@ -304,7 +1267,7 @@ void Cy_Cpu_SramEccErrorInjDisable(cy_en_cpu_sram_macro_t sramType)
 *   CY_CPU_SRAM_PM_RESERVED  = 1
 *   CY_CPU_SRAM_PM_RETAINED  = 2
 *   CY_CPU_SRAM_PM_ENABLED   = 3   
-* SRAM Macro, Power control register index (max 0x0F), only for SRAM0!
+* SRAM Macro, Power control register index
 *
 * \return
 * None
@@ -549,7 +1512,7 @@ uint8_t Cy_Cpu_SramWaitStateGet(cy_en_cpu_sram_macro_t sramType, cy_en_cpu_clk_t
 *******************************************************************************/
 void Cy_Cpu_ErrorInjWordAddress(uint32_t wordAddr)
 {
-    CPUSS->unECC_CTL.stcField.u25WORD_ADDR = wordAddr;
+    CPUSS->unECC_CTL.stcField.u24WORD_ADDR = wordAddr;
 }
 
 /*******************************************************************************
@@ -566,7 +1529,7 @@ void Cy_Cpu_ErrorInjWordAddress(uint32_t wordAddr)
 *******************************************************************************/
 void Cy_Cpu_EccParityForErrorInj(uint8_t eccParity)
 {
-    CPUSS->unECC_CTL.stcField.u7PARITY = eccParity;
+    CPUSS->unECC_CTL.stcField.u8PARITY = eccParity;
 }
 
 /*******************************************************************************
@@ -596,68 +1559,284 @@ cy_en_cpu_protection_type_t Cy_Cpu_ProtectionStateGet(void)
 }
 
 /*******************************************************************************
-* Function Name: Cy_Cpu_CoreClkDividerSet
+* Function Name: Cy_Cpu_CoreFastClkDividerSet
 ********************************************************************************
 * \brief 
-* Set the INT_DIV value.
+* Set the FRAC_DIV/INT_DIV status.
 *
 * \param
 * Core Type, refer to cy_en_cpu_core_type_t.
-*   CY_CPU_CM4   = 2
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
 * Divider Type, refer to cy_en_cpu_div_type_t.
-*   CY_CPU_INTDIV  = 0   
-* Divider Value, Clock divider type value (0-255).
+*   CY_CPU_INTDIV  = 0
+    CY_CPU_FRACDIV = 1   
+* Divider Value, Clock divider type value.
 *
 * \return   
 * None
 *******************************************************************************/
-void Cy_Cpu_CoreClkDividerSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType, uint8_t divValue)
+void Cy_Cpu_CoreFastClkDividerSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType, uint8_t divValue)
 {
     switch(coreType)
     {
-    case CY_CPU_CM4:
+    case CY_CPU_CM7_0:
         if(divType == CY_CPU_INTDIV)
         {
-            CPUSS->unCM4_CLOCK_CTL.stcField.u8FAST_INT_DIV = divValue;
+            CPUSS->unFAST_0_CLOCK_CTL.stcField.u8INT_DIV = divValue;
         }
-        break;        
+        else // CY_CPU_FRACDIV
+        {
+            CPUSS->unFAST_0_CLOCK_CTL.stcField.u5FRAC_DIV = divValue;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(divType == CY_CPU_INTDIV)
+        {
+            CPUSS->unFAST_1_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            CPUSS->unFAST_1_CLOCK_CTL.stcField.u5FRAC_DIV = divValue;
+        }
+        break;     
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(divType == CY_CPU_INTDIV)
+        {
+            CPUSS->unFAST_2_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            CPUSS->unFAST_2_CLOCK_CTL.stcField.u5FRAC_DIV = divValue;
+        }
+        break;  
+    case CY_CPU_CM7_3:
+        if(divType == CY_CPU_INTDIV)
+        {
+            CPUSS->unFAST_3_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            CPUSS->unFAST_3_CLOCK_CTL.stcField.u5FRAC_DIV = divValue;
+        }
+        break;         
+#endif
     default:
         break;      
     }
 }
 
 /*******************************************************************************
-* Function Name: Cy_Cpu_CoreClkDividerGet
+* Function Name: Cy_Cpu_CoreFastClkDividerGet
 ********************************************************************************
 * \brief 
-* Get the INT_DIV value.
+* Get the FRAC_DIV/INT_DIV status.
 *
 * \param
 * Core Type, refer to cy_en_cpu_core_type_t.
-*   CY_CPU_CM4   = 2
+*   CY_CPU_CM7_0 = 0
+*   CY_CPU_CM7_1 = 1
+*   CY_CPU_CM7_2 = 2
+*   CY_CPU_CM7_3 = 3
 * Divider Type, refer to cy_en_cpu_div_type_t.
-*   CY_CPU_INTDIV  = 0   
+*   CY_CPU_INTDIV  = 0
+    CY_CPU_FRACDIV = 1   
 *
 * \return   
-* Divider Value, Clock divider type value (0-255).
+* Divider Value, Clock divider type value.
 *******************************************************************************/
-uint8_t Cy_Cpu_CoreClkDividerGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType)
+uint8_t Cy_Cpu_CoreFastClkDividerGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType)
 {
     uint8_t divValue = 0;
     
     switch(coreType)
     {
-    case CY_CPU_CM4:
+    case CY_CPU_CM7_0:
         if(divType == CY_CPU_INTDIV)
         {
-            divValue = CPUSS->unCM4_CLOCK_CTL.stcField.u8FAST_INT_DIV;
+            divValue = CPUSS->unFAST_0_CLOCK_CTL.stcField.u8INT_DIV;
         }
-        break;   
+        else // CY_CPU_FRACDIV
+        {
+            divValue = CPUSS->unFAST_0_CLOCK_CTL.stcField.u5FRAC_DIV;
+        }
+        break;
+    case CY_CPU_CM7_1:
+        if(divType == CY_CPU_INTDIV)
+        {
+            divValue = CPUSS->unFAST_1_CLOCK_CTL.stcField.u8INT_DIV;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            divValue = CPUSS->unFAST_1_CLOCK_CTL.stcField.u5FRAC_DIV;
+        }
+        break;     
+#if defined (tviibh16m)        
+    case CY_CPU_CM7_2:
+        if(divType == CY_CPU_INTDIV)
+        {
+            divValue = CPUSS->unFAST_2_CLOCK_CTL.stcField.u8INT_DIV;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            divValue = CPUSS->unFAST_2_CLOCK_CTL.stcField.u5FRAC_DIV;
+        }
+        break; 
+    case CY_CPU_CM7_3:
+        if(divType == CY_CPU_INTDIV)
+        {
+            divValue = CPUSS->unFAST_3_CLOCK_CTL.stcField.u8INT_DIV;
+        }
+        else // CY_CPU_FRACDIV
+        {
+            divValue = CPUSS->unFAST_3_CLOCK_CTL.stcField.u5FRAC_DIV;
+        }
+        break;      
+#endif
     default:
         break;      
     }
     
     return divValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreMemDividerSet
+********************************************************************************
+* \brief 
+* Set the INT_DIV bit.
+*
+* \param   
+* Divider Value, Clock divider type value.
+*
+* \return   
+* None
+*******************************************************************************/
+void Cy_Cpu_CoreMemDividerSet(uint8_t divValue)
+{
+    CPUSS->unMEM_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreMemDividerGet
+********************************************************************************
+* \brief 
+* Get the INT_DIV bit.
+*
+* \param   
+* None
+*
+* \return   
+* Divider Value, Clock divider type value.
+*******************************************************************************/
+uint8_t Cy_Cpu_CoreMemDividerGet(void)
+{
+    return (CPUSS->unMEM_CLOCK_CTL.stcField.u8INT_DIV);
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CorePeriDividerSet
+********************************************************************************
+* \brief 
+* Set the INT_DIV bit.
+*
+* \param   
+* Divider Value, Peripheral Clock divider type value.
+*
+* \return   
+* None
+*******************************************************************************/
+void Cy_Cpu_CorePeriDividerSet(uint8_t divValue)
+{
+    CPUSS->unPERI_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CorePeriDividerGet
+********************************************************************************
+* \brief 
+* Get the INT_DIV bit.
+*
+* \param   
+* None
+*
+* \return   
+* Divider Value, Peripheral Clock divider type value.
+*******************************************************************************/
+uint8_t Cy_Cpu_CorePeriDividerGet(void)
+{
+    return (CPUSS->unPERI_CLOCK_CTL.stcField.u8INT_DIV);
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreTraceDbgDividerSet
+********************************************************************************
+* \brief 
+* Set the INT_DIV bit.
+*
+* \param   
+* Divider Value, Trace/Debuger Clock divider type value.
+*
+* \return   
+* None
+*******************************************************************************/
+void Cy_Cpu_CoreTraceDbgDividerSet(uint8_t divValue)
+{
+    CPUSS->unTRC_DBG_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreTraceDbgDividerGet
+********************************************************************************
+* \brief 
+* Get the INT_DIV bit.
+*
+* \param   
+* None
+*
+* \return   
+* Divider Value, Trace/Debuger Clock divider type value.
+*******************************************************************************/
+uint8_t Cy_Cpu_CoreTraceDbgDividerGet(void)
+{
+    return (CPUSS->unTRC_DBG_CLOCK_CTL.stcField.u8INT_DIV);
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreSlowClkDividerSet
+********************************************************************************
+* \brief 
+* Set the INT_DIV bit.
+*
+* \param   
+* Divider Value, Slow Clock divider type value.
+*
+* \return   
+* None
+*******************************************************************************/
+void Cy_Cpu_CoreSlowClkDividerSet(uint8_t divValue)
+{
+    CPUSS->unSLOW_CLOCK_CTL.stcField.u8INT_DIV = divValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_Cpu_CoreSlowClkDividerGet
+********************************************************************************
+* \brief 
+* Get the INT_DIV bit.
+*
+* \param   
+* None
+*
+* \return   
+* Divider Value, Skow Clock divider type value.
+*******************************************************************************/
+uint8_t Cy_Cpu_CoreSlowClkDividerGet(void)
+{
+    return (CPUSS->unSLOW_CLOCK_CTL.stcField.u8INT_DIV);
 }
 
 /*******************************************************************************

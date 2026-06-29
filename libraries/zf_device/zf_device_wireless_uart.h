@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -50,11 +50,11 @@
 
 #include "zf_common_typedef.h"
 //================================================定义 无线串口 基本配置===================================================
-#define WIRELESS_UART_INDEX         (UART_2		   )                    // 无线串口对应使用的串口号
+#define WIRELESS_UART_INDEX         (UART_1		   )                    // 无线串口对应使用的串口号
 #define WIRELESS_UART_BUAD_RATE     (115200		   )                    // 无线串口对应使用的串口波特率
-#define WIRELESS_UART_TX_PIN        (UART2_RX_P07_0        )                    // 无线串口对应模块的 TX 要接到单片机的 RX
-#define WIRELESS_UART_RX_PIN        (UART2_TX_P07_1        )                    // 无线串口对应模块的 RX 要接到单片机的 TX
-#define WIRELESS_UART_RTS_PIN       (P07_2		   )                    // 无线串口对应模块的 RTS 引脚
+#define WIRELESS_UART_TX_PIN        (UART1_RX_P04_0        )                    // 无线串口对应模块的 TX 要接到单片机的 RX
+#define WIRELESS_UART_RX_PIN        (UART1_TX_P04_1        )                    // 无线串口对应模块的 RX 要接到单片机的 TX
+#define WIRELESS_UART_RTS_PIN       (P22_6		   )                    // 无线串口对应模块的 RTS 引脚
 //====================================================自动波特率====================================================
 // 注意事项1：无线转串口模块版本是V2.0以下的是无法开启自动波特率的。
 // 注意事项2：开启自动波特率务必连接RTS引脚 否则会开启失败。
@@ -88,6 +88,7 @@ typedef enum
 uint32      wireless_uart_send_byte         (const uint8 data);
 uint32      wireless_uart_send_buffer      (const uint8 *buff, uint32 len);
 uint32      wireless_uart_send_string       (const char *str);
+void        wireless_uart_send_image        (const uint8 *image_addr, uint32 image_size);
 
 uint32      wireless_uart_read_buffer       (uint8 *buff, uint32 len);
 

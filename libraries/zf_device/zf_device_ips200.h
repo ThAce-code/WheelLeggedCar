@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /********************************************************************************************************************
 * 接线定义：
@@ -65,43 +65,39 @@
 
 #include "zf_common_typedef.h"
 
-// CYT2BL 引脚有限 暂不支持两寸并口屏幕
-// CYT2BL 引脚有限 暂不支持两寸并口屏幕
-// CYT2BL 引脚有限 暂不支持两寸并口屏幕
-
 //==================================================定义 IPS200 基本配置================================================
 #define IPS200_USE_SOFT_SPI             (0 )                                    // 默认使用硬件 SPI 方式驱动 建议使用硬件 SPI 方式驱动
 #if IPS200_USE_SOFT_SPI                                                         // 这两段 颜色正常的才是正确的 颜色灰的就是没有用的
 //====================================================软件 SPI 驱动====================================================
-// 如果使用的是 SPI版本 的两寸屏幕 SPI 驱动控制引脚 可以修改
+// 如果使用的是单排排针的两寸屏幕 SPI 驱动控制引脚 可以修改
 #define IPS200_SOFT_SPI_DELAY           (0 )                                    // 软件 SPI 的时钟延时周期 数值越小 SPI 通信速率越快
-#define IPS200_SCL_PIN                  (P13_2)                                 // 软件 SPI SCK 引脚
-#define IPS200_SDA_PIN                  (P13_1)                                 // 软件 SPI MOSI 引脚
+#define IPS200_SCL_PIN                  (P12_2)                                 // 软件 SPI SCK 引脚
+#define IPS200_SDA_PIN                  (P12_1)                                 // 软件 SPI MOSI 引脚
 //====================================================软件 SPI 驱动====================================================
 #else
 //====================================================硬件 SPI 驱动====================================================
-// 如果使用的是 SPI版本 的两寸屏幕(具体屏幕型号请查看屏幕背面丝印) SPI 驱动控制引脚 可以修改
+// 如果使用的是单排排针的两寸屏幕 SPI 驱动控制引脚 可以修改
 #define IPS200_SPI_SPEED                (30*1000*1000	)                       // 硬件 SPI 速率
-#define IPS200_SPI                      (SPI_3		)                       // 硬件 SPI 号
-#define IPS200_SCL_PIN_SPI              (SPI3_CLK_P13_2	)                       // 硬件 SPI SCK 引脚
-#define IPS200_SDA_PIN_SPI              (SPI3_MOSI_P13_1)                       // 硬件 SPI MOSI 引脚
+#define IPS200_SPI                      (SPI_1			)                       // 硬件 SPI 号
+#define IPS200_SCL_PIN_SPI              (SPI1_CLK_P12_2	)                       // 硬件 SPI SCK 引脚
+#define IPS200_SDA_PIN_SPI              (SPI1_MOSI_P12_1)                       // 硬件 SPI MOSI 引脚
 #define IPS200_SDA_IN_PIN_SPI           (SPI_MISO_NULL	)                       // 硬件 SPI MISO 引脚  IPS没有MISO引脚，但是这里任然需要定义，在spi的初始化时需要使用
 //====================================================硬件 SPI 驱动====================================================
 #endif
-// 如果使用的是 SPI版本 的两寸屏幕(具体屏幕型号请查看屏幕背面丝印) SPI 驱动控制引脚 可以修改
-#define IPS200_RST_PIN_SPI              (P12_0)                                 // 单排针(SPI)液晶复位引脚定义
-#define IPS200_DC_PIN_SPI               (P12_1)                                 // 单排针(SPI)液晶命令位引脚定义
-#define IPS200_CS_PIN_SPI               (P13_3)                                 // 单排针(SPI)液晶片选引脚定义
-#define IPS200_BLk_PIN_SPI              (P13_0)                                 // 单排针(SPI)液晶背光引脚定义
+// 如果使用的是单排排针的两寸屏幕 SPI 驱动控制引脚 可以修改
+#define IPS200_RST_PIN_SPI              (P22_4)                                 // 单排针(SPI)液晶复位引脚定义
+#define IPS200_DC_PIN_SPI               (P22_3)                                 // 单排针(SPI)液晶命令位引脚定义
+#define IPS200_CS_PIN_SPI               (P12_3)                                 // 单排针(SPI)液晶片选引脚定义
+#define IPS200_BLk_PIN_SPI              (P11_0)                                 // 单排针(SPI)液晶背光引脚定义
 
-// 如果使用的是并口版本的两寸屏幕(具体屏幕型号请查看屏幕背面丝印) 并口驱动控制引脚 可以修改
-#define IPS200_RD_PIN_PARALLEL8         (P13_2)                                 // 双排针(并口)液晶读取位引脚定义
-#define IPS200_WR_PIN_PARALLEL8         (P13_1)                                 // 双排针(并口)液晶写入位引脚定义
-#define IPS200_RST_PIN_PARALLEL8        (P14_0)                                 // 双排针(并口)液晶复位引脚定义
-#define IPS200_RS_PIN_PARALLEL8         (P14_1)                                 // 双排针(并口)液晶命令位引脚定义
-#define IPS200_CS_PIN_PARALLEL8         (P13_3)                                 // 双排针(并口)液晶片选引脚定义
-#define IPS200_BL_PIN_PARALLEL8         (P13_0)                                 // 双排针(并口)液晶背光引脚定义
-//并口驱动数据引脚 可以修改 如果你的屏幕是并口版本(具体屏幕型号请查看屏幕背面丝印) 这里的引脚用得到。
+// 如果使用的是双排排针的两寸屏幕 并口驱动控制引脚 可以修改
+#define IPS200_RD_PIN_PARALLEL8         (P12_2)                                 // 双排针(并口)液晶读取位引脚定义
+#define IPS200_WR_PIN_PARALLEL8         (P12_1)                                 // 双排针(并口)液晶写入位引脚定义
+#define IPS200_RST_PIN_PARALLEL8        (P22_3)                                 // 双排针(并口)液晶复位引脚定义
+#define IPS200_RS_PIN_PARALLEL8         (P22_4)                                 // 双排针(并口)液晶命令位引脚定义
+#define IPS200_CS_PIN_PARALLEL8         (P12_3)                                 // 双排针(并口)液晶片选引脚定义
+#define IPS200_BL_PIN_PARALLEL8         (P11_0)                                 // 双排针(并口)液晶背光引脚定义
+//并口驱动数据引脚 可以修改 如果你的屏幕是双排排针 这里的引脚用得到。
 #define IPS200_D0_PIN_PARALLEL8         (P13_0)                                	// 双排针(并口)液晶数据引脚D0
 #define IPS200_D1_PIN_PARALLEL8         (P13_1)                                	// 双排针(并口)液晶数据引脚D1
 #define IPS200_D2_PIN_PARALLEL8         (P13_2)                                	// 双排针(并口)液晶数据引脚D2

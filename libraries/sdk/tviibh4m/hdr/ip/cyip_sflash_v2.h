@@ -5,12 +5,12 @@
 * SFLASH IP definitions
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -53,54 +53,6 @@ typedef union un_SFLASH_SILICON_ID {
 } un_SFLASH_SILICON_ID_t;
 
 /**
-  * \brief SORT Revision (SFLASH_SORT_REV)
-  */
-typedef struct stc_SFLASH_SORT_REV_field {
-  uint8_t                          u8DATA:8;
-} stc_SFLASH_SORT_REV_field_t;
-
-typedef union un_SFLASH_SORT_REV {
-  uint8_t                          u8Register;
-  stc_SFLASH_SORT_REV_field_t      stcField;
-} un_SFLASH_SORT_REV_t;
-
-/**
-  * \brief CRI BB Revision (SFLASH_CRI_BB_REV)
-  */
-typedef struct stc_SFLASH_CRI_BB_REV_field {
-  uint8_t                          u8DATA:8;
-} stc_SFLASH_CRI_BB_REV_field_t;
-
-typedef union un_SFLASH_CRI_BB_REV {
-  uint8_t                          u8Register;
-  stc_SFLASH_CRI_BB_REV_field_t    stcField;
-} un_SFLASH_CRI_BB_REV_t;
-
-/**
-  * \brief CRI AB Revision (SFLASH_CRI_AB_REV)
-  */
-typedef struct stc_SFLASH_CRI_AB_REV_field {
-  uint8_t                          u8DATA:8;
-} stc_SFLASH_CRI_AB_REV_field_t;
-
-typedef union un_SFLASH_CRI_AB_REV {
-  uint8_t                          u8Register;
-  stc_SFLASH_CRI_AB_REV_field_t    stcField;
-} un_SFLASH_CRI_AB_REV_t;
-
-/**
-  * \brief CHI AB Revision (SFLASH_CHI_AB_REV)
-  */
-typedef struct stc_SFLASH_CHI_AB_REV_field {
-  uint8_t                          u8DATA:8;
-} stc_SFLASH_CHI_AB_REV_field_t;
-
-typedef union un_SFLASH_CHI_AB_REV {
-  uint8_t                          u8Register;
-  stc_SFLASH_CHI_AB_REV_field_t    stcField;
-} un_SFLASH_CHI_AB_REV_t;
-
-/**
   * \brief SFLASH Subversion (SFLASH_SFLASH_SVN)
   */
 typedef struct stc_SFLASH_SFLASH_SVN_field {
@@ -132,6 +84,201 @@ typedef union un_SFLASH_FB_FLAGS {
 } un_SFLASH_FB_FLAGS_t;
 
 /**
+  * \brief On Chip temperature measured using external currents and external ADC at ROOM (SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Temperature sensor diode voltage at ROOM (SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Bandgap voltage at ROOM (SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_t;
+
+/**
+  * \brief On Chip temperature measured using external currents and external ADC at COLD (SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Temperature sensor diode voltage at COLD (SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Bandgap voltage at COLD (SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_t;
+
+/**
+  * \brief On Chip temperature measured using external currents and external ADC at HOT (SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Temperature sensor diode voltage at HOT (SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=3.3V, Bandgap voltage at HOT (SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Temperature sensor diode voltage at ROOM (SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Bandgap voltage at ROOM (SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Temperature sensor diode voltage at COLD (SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Bandgap voltage at COLD (SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Temperature sensor diode voltage at HOT (SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_t;
+
+/**
+  * \brief Temperature sensor calibration data for VDDA=5V, Bandgap voltage at HOT (SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V)
+  */
+typedef struct stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_field {
+  uint16_t                         u16DATA16:16;
+} stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_field_t;
+
+typedef union un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V {
+  uint16_t                         u16Register;
+  stc_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_field_t stcField;
+  uint8_t                          au8Byte[2];
+} un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_t;
+
+/**
   * \brief SRSS_PWR_OFFSET (SFLASH_SRSS_PWR_OFFSET)
   */
 typedef struct stc_SFLASH_SRSS_PWR_OFFSET_field {
@@ -147,6 +294,40 @@ typedef union un_SFLASH_SRSS_PWR_OFFSET {
   uint8_t                          au8Byte[4];
   uint16_t                         au16Halfword[2];
 } un_SFLASH_SRSS_PWR_OFFSET_t;
+
+/**
+  * \brief Trim settings when the supply is intended to come from the internal regulators (SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL)
+  */
+typedef struct stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_field {
+  uint32_t                         u5ACT_REG_VTRIM:5;
+  uint32_t                         :19;
+  uint32_t                         u4DPSLP_REG_VTRIM:4;
+  uint32_t                         :4;
+} stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_field_t;
+
+typedef union un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL {
+  uint32_t                         u32Register;
+  stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_field_t stcField;
+  uint8_t                          au8Byte[4];
+  uint16_t                         au16Halfword[2];
+} un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_t;
+
+/**
+  * \brief Trim settings for the regulators so they do not interfere with external supply (SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL)
+  */
+typedef struct stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_field {
+  uint32_t                         u5ACT_REG_VTRIM:5;
+  uint32_t                         :19;
+  uint32_t                         u4DPSLP_REG_VTRIM:4;
+  uint32_t                         :4;
+} stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_field_t;
+
+typedef union un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL {
+  uint32_t                         u32Register;
+  stc_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_field_t stcField;
+  uint8_t                          au8Byte[4];
+  uint16_t                         au16Halfword[2];
+} un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_t;
 
 /**
   * \brief USER_FREE_ROW0 (SFLASH_USER_FREE_ROW0)
@@ -250,18 +431,32 @@ typedef union un_SFLASH_FLASH_BOOT_APP_ID {
 } un_SFLASH_FLASH_BOOT_APP_ID_t;
 
 /**
-  * \brief Flash Boot - Core Vector Table (SFLASH_FLASH_BOOT_VECTOR_TABLE)
+  * \brief Flash Boot - Version Low (SFLASH_FLASH_BOOT_VERSION_LOW)
   */
-typedef struct stc_SFLASH_FLASH_BOOT_VECTOR_TABLE_field {
+typedef struct stc_SFLASH_FLASH_BOOT_VERSION_LOW_field {
   uint32_t                         u32DATA32:32;
-} stc_SFLASH_FLASH_BOOT_VECTOR_TABLE_field_t;
+} stc_SFLASH_FLASH_BOOT_VERSION_LOW_field_t;
 
-typedef union un_SFLASH_FLASH_BOOT_VECTOR_TABLE {
+typedef union un_SFLASH_FLASH_BOOT_VERSION_LOW {
   uint32_t                         u32Register;
-  stc_SFLASH_FLASH_BOOT_VECTOR_TABLE_field_t stcField;
+  stc_SFLASH_FLASH_BOOT_VERSION_LOW_field_t stcField;
   uint8_t                          au8Byte[4];
   uint16_t                         au16Halfword[2];
-} un_SFLASH_FLASH_BOOT_VECTOR_TABLE_t;
+} un_SFLASH_FLASH_BOOT_VERSION_LOW_t;
+
+/**
+  * \brief Flash Boot - Family ID (SFLASH_FLASH_BOOT_FAMILY_ID)
+  */
+typedef struct stc_SFLASH_FLASH_BOOT_FAMILY_ID_field {
+  uint32_t                         u32DATA32:32;
+} stc_SFLASH_FLASH_BOOT_FAMILY_ID_field_t;
+
+typedef union un_SFLASH_FLASH_BOOT_FAMILY_ID {
+  uint32_t                         u32Register;
+  stc_SFLASH_FLASH_BOOT_FAMILY_ID_field_t stcField;
+  uint8_t                          au8Byte[4];
+  uint16_t                         au16Halfword[2];
+} un_SFLASH_FLASH_BOOT_FAMILY_ID_t;
 
 /**
   * \brief Public key for signature verification (max RSA key size 4096) (SFLASH_PUBLIC_KEY)
@@ -527,35 +722,67 @@ typedef struct stc_SFLASH {
   uint8_t                          u8Reserved;
   un_SFLASH_SI_REVISION_ID_t       unSI_REVISION_ID;   /*!< 0x00000001 Indicates Silicon Revision ID of the device */
   un_SFLASH_SILICON_ID_t           unSILICON_ID;       /*!< 0x00000002 Indicates Silicon ID of the device */
-  uint32_t                         au32Reserved1[39];
-  un_SFLASH_SORT_REV_t             unSORT_REV[3];      /*!< 0x000000A0 SORT Revision */
-  un_SFLASH_CRI_BB_REV_t           unCRI_BB_REV;       /*!< 0x000000A3 CRI BB Revision */
-  un_SFLASH_CRI_AB_REV_t           unCRI_AB_REV;       /*!< 0x000000A4 CRI AB Revision */
-  un_SFLASH_CHI_AB_REV_t           unCHI_AB_REV;       /*!< 0x000000A5 CHI AB Revision */
-  uint16_t                         u16Reserved2;
+  uint32_t                         au32Reserved1[41];
   un_SFLASH_SFLASH_SVN_t           unSFLASH_SVN;       /*!< 0x000000A8 SFLASH Subversion */
-  uint32_t                         au32Reserved3[84];
+  uint32_t                         au32Reserved2[84];
   un_SFLASH_FB_FLAGS_t             unFB_FLAGS;         /*!< 0x000001FC Flash boot flags */
-  uint32_t                         au32Reserved4[332];
+  uint16_t                         au16Reserved3[551];
+  un_SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_t unEPASS_TEMP_TRIM_TEMP_ROOMSORT; /*!< 0x0000064E On Chip temperature measured using external currents and
+                                                                                external ADC at ROOM */
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_t unEPASS_TEMP_TRIM_DIODE_ROOMSORT; /*!< 0x00000650 Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Temperature sensor diode voltage at ROOM */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_t unEPASS_TEMP_TRIM_VBG_ROOMSORT; /*!< 0x00000652 Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Bandgap voltage at ROOM */
+  un_SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_t unEPASS_TEMP_TRIM_TEMP_COLDSORT; /*!< 0x00000654 On Chip temperature measured using external currents and
+                                                                                external ADC at COLD */
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_t unEPASS_TEMP_TRIM_DIODE_COLDSORT; /*!< 0x00000656 Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Temperature sensor diode voltage at COLD */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_t unEPASS_TEMP_TRIM_VBG_COLDSORT; /*!< 0x00000658 Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Bandgap voltage at COLD */
+  un_SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_t unEPASS_TEMP_TRIM_TEMP_HOTCLASS; /*!< 0x0000065A On Chip temperature measured using external currents and
+                                                                                external ADC at HOT */
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_t unEPASS_TEMP_TRIM_DIODE_HOTCLASS; /*!< 0x0000065C Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Temperature sensor diode voltage at HOT */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_t unEPASS_TEMP_TRIM_VBG_HOTCLASS; /*!< 0x0000065E Temperature sensor calibration data for VDDA=3.3V,
+                                                                                Bandgap voltage at HOT */
+  uint16_t                         au16Reserved4[5];
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_t unEPASS_TEMP_TRIM_DIODE_ROOMSORT_5V; /*!< 0x0000066A Temperature sensor calibration data for VDDA=5V,
+                                                                                Temperature sensor diode voltage at ROOM */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_t unEPASS_TEMP_TRIM_VBG_ROOMSORT_5V; /*!< 0x0000066C Temperature sensor calibration data for VDDA=5V, Bandgap
+                                                                                voltage at ROOM */
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_t unEPASS_TEMP_TRIM_DIODE_COLDSORT_5V; /*!< 0x0000066E Temperature sensor calibration data for VDDA=5V,
+                                                                                Temperature sensor diode voltage at COLD */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_t unEPASS_TEMP_TRIM_VBG_COLDSORT_5V; /*!< 0x00000670 Temperature sensor calibration data for VDDA=5V, Bandgap
+                                                                                voltage at COLD */
+  un_SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_t unEPASS_TEMP_TRIM_DIODE_HOTCLASS_5V; /*!< 0x00000672 Temperature sensor calibration data for VDDA=5V,
+                                                                                Temperature sensor diode voltage at HOT */
+  un_SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_t unEPASS_TEMP_TRIM_VBG_HOTCLASS_5V; /*!< 0x00000674 Temperature sensor calibration data for VDDA=5V, Bandgap
+                                                                                voltage at HOT */
+  uint16_t                         au16Reserved5[93];
   un_SFLASH_SRSS_PWR_OFFSET_t      unSRSS_PWR_OFFSET;  /*!< 0x00000730 SRSS_PWR_OFFSET */
-  uint32_t                         au32Reserved5[51];
+  un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_t unSRSS_PWR_TRIM_HT_PWRSYS_INTERNAL; /*!< 0x00000734 Trim settings when the supply is intended to come from
+                                                                                the internal regulators */
+  un_SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_t unSRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL; /*!< 0x00000738 Trim settings for the regulators so they do not
+                                                                                interfere with external supply */
+  uint32_t                         au32Reserved6[49];
   un_SFLASH_USER_FREE_ROW0_t       unUSER_FREE_ROW0[128]; /*!< 0x00000800 USER_FREE_ROW0 */
   un_SFLASH_USER_FREE_ROW1_t       unUSER_FREE_ROW1[128]; /*!< 0x00000A00 USER_FREE_ROW1 */
   un_SFLASH_USER_FREE_ROW2_t       unUSER_FREE_ROW2[128]; /*!< 0x00000C00 USER_FREE_ROW2 */
   un_SFLASH_USER_FREE_ROW3_t       unUSER_FREE_ROW3[128]; /*!< 0x00000E00 USER_FREE_ROW3 */
-  uint32_t                         au32Reserved6[512];
+  uint32_t                         au32Reserved7[512];
   un_SFLASH_SFLASH_UPDATE_MARKER_t unSFLASH_UPDATE_MARKER[2]; /*!< 0x00001800 Markers for storing SFLASH programming states */
-  uint32_t                         au32Reserved7[510];
+  uint32_t                         au32Reserved8[510];
   un_SFLASH_FLASH_BOOT_OBJECT_SIZE_t unFLASH_BOOT_OBJECT_SIZE; /*!< 0x00002000 Flash Boot - Object Size */
   un_SFLASH_FLASH_BOOT_APP_ID_t    unFLASH_BOOT_APP_ID; /*!< 0x00002004 Flash Boot - Application ID/Version */
-  uint32_t                         au32Reserved8[4];
-  un_SFLASH_FLASH_BOOT_VECTOR_TABLE_t unFLASH_BOOT_VECTOR_TABLE[48]; /*!< 0x00002018 Flash Boot - Core Vector Table */
-  uint32_t                         au32Reserved9[4298];
+  uint32_t                         au32Reserved9[4];
+  un_SFLASH_FLASH_BOOT_VERSION_LOW_t unFLASH_BOOT_VERSION_LOW; /*!< 0x00002018 Flash Boot - Version Low */
+  un_SFLASH_FLASH_BOOT_FAMILY_ID_t unFLASH_BOOT_FAMILY_ID; /*!< 0x0000201C Flash Boot - Family ID */
+  uint32_t                         au32Reserved10[4344];
   un_SFLASH_PUBLIC_KEY_t           unPUBLIC_KEY[3072]; /*!< 0x00006400 Public key for signature verification (max RSA key size
                                                                                 4096) */
-  uint32_t                         au32Reserved10[384];
+  uint32_t                         au32Reserved11[384];
   un_SFLASH_APP_PROT_SETTINGS_t    unAPP_PROT_SETTINGS[128]; /*!< 0x00007600 Application protection settings (4*128=512 bytes) */
-  uint32_t                         au32Reserved11[256];
+  uint32_t                         au32Reserved12[256];
   un_SFLASH_TOC2_OBJECT_SIZE_t     unTOC2_OBJECT_SIZE; /*!< 0x00007C00 Object size in bytes for CRC calculation starting from
                                                                                 offset 0x00 */
   un_SFLASH_TOC2_MAGIC_NUMBER_t    unTOC2_MAGIC_NUMBER; /*!< 0x00007C04 Magic number(0x01211220) */
@@ -575,14 +802,14 @@ typedef struct stc_SFLASH {
                                                                                 Object */
   un_SFLASH_TOC2_SECOND_CMX_2_USER_APP_ADDR_t unTOC2_SECOND_CMX_2_USER_APP_ADDR; /*!< 0x00007C28 Address of Second CM4 or CM7 core2 User Application
                                                                                 Object */
-  uint32_t                         au32Reserved12[53];
+  uint32_t                         au32Reserved13[53];
   un_SFLASH_TOC2_SHASH_OBJECTS_t   unTOC2_SHASH_OBJECTS; /*!< 0x00007D00 Number of additional objects to be verified for
                                                                                 SECURE_HASH */
   un_SFLASH_TOC2_SIGNATURE_VERIF_KEY_t unTOC2_SIGNATURE_VERIF_KEY; /*!< 0x00007D04 Address of signature verification key (0 if none).The
                                                                                 object is signature specific key. It is the
                                                                                 public key in case of RSA */
   un_SFLASH_TOC2_APP_PROTECTION_ADDR_t unTOC2_APP_PROTECTION_ADDR; /*!< 0x00007D08 Address of  Application Protection */
-  uint32_t                         au32Reserved13[58];
+  uint32_t                         au32Reserved14[58];
   un_SFLASH_TOC2_REVISION_t        unTOC2_REVISION;    /*!< 0x00007DF4 Indicates TOC2 Revision. It is not used now. */
   un_SFLASH_TOC2_FLAGS_t           unTOC2_FLAGS;       /*!< 0x00007DF8 Controls default configuration */
 } stc_SFLASH_t;                                        /*!< Size = 32252 (0x7DFC) */
@@ -594,18 +821,6 @@ typedef struct stc_SFLASH {
 /* SFLASH.SILICON_ID */
 #define SFLASH_SILICON_ID_ID_Pos                0UL
 #define SFLASH_SILICON_ID_ID_Msk                0xFFFFUL
-/* SFLASH.SORT_REV */
-#define SFLASH_SORT_REV_DATA_Pos                0UL
-#define SFLASH_SORT_REV_DATA_Msk                0xFFUL
-/* SFLASH.CRI_BB_REV */
-#define SFLASH_CRI_BB_REV_DATA_Pos              0UL
-#define SFLASH_CRI_BB_REV_DATA_Msk              0xFFUL
-/* SFLASH.CRI_AB_REV */
-#define SFLASH_CRI_AB_REV_DATA_Pos              0UL
-#define SFLASH_CRI_AB_REV_DATA_Msk              0xFFUL
-/* SFLASH.CHI_AB_REV */
-#define SFLASH_CHI_AB_REV_DATA_Pos              0UL
-#define SFLASH_CHI_AB_REV_DATA_Msk              0xFFUL
 /* SFLASH.SFLASH_SVN */
 #define SFLASH_SFLASH_SVN_DATA32_Pos            0UL
 #define SFLASH_SFLASH_SVN_DATA32_Msk            0xFFFFFFFFUL
@@ -616,11 +831,66 @@ typedef struct stc_SFLASH {
 #define SFLASH_FB_FLAGS_FB_RSA3K_CTL_Msk        0xCUL
 #define SFLASH_FB_FLAGS_FB_RSA4K_CTL_Pos        4UL
 #define SFLASH_FB_FLAGS_FB_RSA4K_CTL_Msk        0x30UL
+/* SFLASH.EPASS_TEMP_TRIM_TEMP_ROOMSORT */
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_ROOMSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_ROOMSORT */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_ROOMSORT */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_TEMP_COLDSORT */
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_COLDSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_COLDSORT */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_COLDSORT */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_TEMP_HOTCLASS */
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_TEMP_HOTCLASS_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_HOTCLASS */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_HOTCLASS */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_ROOMSORT_5V_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_ROOMSORT_5V */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_ROOMSORT_5V_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_COLDSORT_5V */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_COLDSORT_5V_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_COLDSORT_5V */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_COLDSORT_5V_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V */
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_DIODE_HOTCLASS_5V_DATA16_Msk 0xFFFFUL
+/* SFLASH.EPASS_TEMP_TRIM_VBG_HOTCLASS_5V */
+#define SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_DATA16_Pos 0UL
+#define SFLASH_EPASS_TEMP_TRIM_VBG_HOTCLASS_5V_DATA16_Msk 0xFFFFUL
 /* SFLASH.SRSS_PWR_OFFSET */
 #define SFLASH_SRSS_PWR_OFFSET_PMIC_VADJ_OFFSET_Pos 0UL
 #define SFLASH_SRSS_PWR_OFFSET_PMIC_VADJ_OFFSET_Msk 0x1FUL
 #define SFLASH_SRSS_PWR_OFFSET_REGHC_TRANS_VADJ_OFFSET_Pos 8UL
 #define SFLASH_SRSS_PWR_OFFSET_REGHC_TRANS_VADJ_OFFSET_Msk 0x1F00UL
+/* SFLASH.SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL */
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_ACT_REG_VTRIM_Pos 0UL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_ACT_REG_VTRIM_Msk 0x1FUL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_DPSLP_REG_VTRIM_Pos 24UL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_INTERNAL_DPSLP_REG_VTRIM_Msk 0xF000000UL
+/* SFLASH.SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL */
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_ACT_REG_VTRIM_Pos 0UL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_ACT_REG_VTRIM_Msk 0x1FUL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_DPSLP_REG_VTRIM_Pos 24UL
+#define SFLASH_SRSS_PWR_TRIM_HT_PWRSYS_EXTERNAL_DPSLP_REG_VTRIM_Msk 0xF000000UL
 /* SFLASH.USER_FREE_ROW0 */
 #define SFLASH_USER_FREE_ROW0_DATA32_Pos        0UL
 #define SFLASH_USER_FREE_ROW0_DATA32_Msk        0xFFFFFFFFUL
@@ -646,9 +916,12 @@ typedef struct stc_SFLASH {
 #define SFLASH_FLASH_BOOT_APP_ID_MINOR_VERSION_Msk 0xFF0000UL
 #define SFLASH_FLASH_BOOT_APP_ID_MAJOR_VERSION_Pos 24UL
 #define SFLASH_FLASH_BOOT_APP_ID_MAJOR_VERSION_Msk 0xF000000UL
-/* SFLASH.FLASH_BOOT_VECTOR_TABLE */
-#define SFLASH_FLASH_BOOT_VECTOR_TABLE_DATA32_Pos 0UL
-#define SFLASH_FLASH_BOOT_VECTOR_TABLE_DATA32_Msk 0xFFFFFFFFUL
+/* SFLASH.FLASH_BOOT_VERSION_LOW */
+#define SFLASH_FLASH_BOOT_VERSION_LOW_DATA32_Pos 0UL
+#define SFLASH_FLASH_BOOT_VERSION_LOW_DATA32_Msk 0xFFFFFFFFUL
+/* SFLASH.FLASH_BOOT_FAMILY_ID */
+#define SFLASH_FLASH_BOOT_FAMILY_ID_DATA32_Pos  0UL
+#define SFLASH_FLASH_BOOT_FAMILY_ID_DATA32_Msk  0xFFFFFFFFUL
 /* SFLASH.PUBLIC_KEY */
 #define SFLASH_PUBLIC_KEY_DATA_Pos              0UL
 #define SFLASH_PUBLIC_KEY_DATA_Msk              0xFFUL

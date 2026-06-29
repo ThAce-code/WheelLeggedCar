@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL37CEE Opensourec Library 即（CYT2BL37CEE 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB7CEE Opensourec Library 即（CYT4BB7CEE 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2023 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL37CEE 开源库的一部分
+* 本文件是 CYT4BB7CEE 开源库的一部分
 *
-* CYT2BL37CEE 开源库 是免费软件
+* CYT4BB7CEE 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,13 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          MDK 5.38a
-* 适用平台          CYT2BL37CEE
+* 适用平台          CYT4BB7CEE
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
 * 2023-11-30       pudding            first version
-* 2023-05-21       pudding            新增支持正交编码器
 ********************************************************************************************************************/
 
 #include "sysclk/cy_sysclk.h"
@@ -45,8 +44,8 @@
 
 
 static uint8 			encoder_mode[4]; 
-en_clk_dst_t   encoder_clk[4] = {PCLK_TCPWM0_CLOCKS7, PCLK_TCPWM0_CLOCKS9, PCLK_TCPWM0_CLOCKS19, PCLK_TCPWM0_CLOCKS36};
-volatile stc_TCPWM_GRP_CNT_t *encoder_module[4] = {TCPWM0_GRP0_CNT7, TCPWM0_GRP0_CNT9, TCPWM0_GRP0_CNT19, TCPWM0_GRP0_CNT36};
+en_clk_dst_t   encoder_clk[4] = {PCLK_TCPWM0_CLOCKS263, PCLK_TCPWM0_CLOCKS20, PCLK_TCPWM0_CLOCKS27, PCLK_TCPWM0_CLOCKS58};
+volatile stc_TCPWM_GRP_CNT_t *encoder_module[4] = {TCPWM0_GRP1_CNT7, TCPWM0_GRP0_CNT20, TCPWM0_GRP0_CNT27, TCPWM0_GRP0_CNT58};
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     获取通道1引脚值
 // 参数说明     ch1_pin       
@@ -59,10 +58,10 @@ static gpio_pin_enum get_ch1_pin (encoder_channel1_enum ch1_pin)
     gpio_pin_enum temp_pin;
     switch(ch1_pin)
     {
-        case TC_CH07_ENCODER_CH1_P02_0: 	temp_pin = P02_0; 	break;
-        case TC_CH09_ENCODER_CH1_P05_0: 	temp_pin = P05_0; 	break;
-        case TC_CH19_ENCODER_CH1_P08_0: 	temp_pin = P08_0; 	break;
-        case TC_CH36_ENCODER_CH1_P12_0: 	temp_pin = P12_0; 	break;
+        case TC_CH07_ENCODER_CH1_P07_6: 	temp_pin = P07_6; 	break;
+        case TC_CH20_ENCODER_CH1_P08_1: 	temp_pin = P08_1; 	break;
+        case TC_CH27_ENCODER_CH1_P19_2: 	temp_pin = P19_2; 	break;
+        case TC_CH58_ENCODER_CH1_P17_3: 	temp_pin = P17_3; 	break;
     }
     return temp_pin;
 }
@@ -79,10 +78,10 @@ static en_hsiom_sel_t get_ch1_hsiom (encoder_channel1_enum ch1_pin)
     en_hsiom_sel_t temp_pin;
     switch(ch1_pin)
     {
-        case TC_CH07_ENCODER_CH1_P02_0: 	temp_pin = P2_0_TCPWM0_TR_ONE_CNT_IN21; 	break;
-        case TC_CH09_ENCODER_CH1_P05_0: 	temp_pin = P5_0_TCPWM0_TR_ONE_CNT_IN27; 	break;
-        case TC_CH19_ENCODER_CH1_P08_0: 	temp_pin = P8_0_TCPWM0_TR_ONE_CNT_IN57; 	break;
-        case TC_CH36_ENCODER_CH1_P12_0: 	temp_pin = P12_0_TCPWM0_TR_ONE_CNT_IN108; 	break;
+        case TC_CH07_ENCODER_CH1_P07_6: 	temp_pin = P7_6_TCPWM0_TR_ONE_CNT_IN789; 	break;
+        case TC_CH20_ENCODER_CH1_P08_1: 	temp_pin = P8_1_TCPWM0_TR_ONE_CNT_IN60; 	break;
+        case TC_CH27_ENCODER_CH1_P19_2: 	temp_pin = P19_2_TCPWM0_TR_ONE_CNT_IN81; 	break;
+        case TC_CH58_ENCODER_CH1_P17_3: 	temp_pin = P17_3_TCPWM0_TR_ONE_CNT_IN174; 	break;
     }
     return temp_pin;
 }
@@ -99,10 +98,10 @@ static gpio_pin_enum get_ch2_pin (encoder_channel2_enum ch2_pin)
     gpio_pin_enum temp_pin;
     switch(ch2_pin)
     {
-        case TC_CH07_ENCODER_CH2_P02_1: 	temp_pin = P02_1; 	break;
-        case TC_CH09_ENCODER_CH2_P05_1: 	temp_pin = P05_1; 	break;
-        case TC_CH19_ENCODER_CH2_P08_1: 	temp_pin = P08_1; 	break;
-        case TC_CH36_ENCODER_CH2_P12_1: 	temp_pin = P12_1; 	break;
+        case TC_CH07_ENCODER_CH2_P07_7: 	temp_pin = P07_7; 	break;
+        case TC_CH20_ENCODER_CH2_P08_2: 	temp_pin = P08_2; 	break;
+        case TC_CH27_ENCODER_CH2_P19_3: 	temp_pin = P19_3; 	break;
+        case TC_CH58_ENCODER_CH2_P17_4: 	temp_pin = P17_4; 	break;
     }
     return temp_pin;
 }
@@ -118,10 +117,10 @@ static en_hsiom_sel_t get_ch2_hsiom (encoder_channel2_enum ch2_pin)
     en_hsiom_sel_t temp_pin;
     switch(ch2_pin)
     {
-        case TC_CH07_ENCODER_CH2_P02_1: 	temp_pin = P2_1_TCPWM0_TR_ONE_CNT_IN22; 	break;
-        case TC_CH09_ENCODER_CH2_P05_1: 	temp_pin = P5_1_TCPWM0_TR_ONE_CNT_IN28; 	break;
-        case TC_CH19_ENCODER_CH2_P08_1: 	temp_pin = P8_1_TCPWM0_TR_ONE_CNT_IN58; 	break;
-        case TC_CH36_ENCODER_CH2_P12_1: 	temp_pin = P12_1_TCPWM0_TR_ONE_CNT_IN109; 	break;
+        case TC_CH07_ENCODER_CH2_P07_7: 	temp_pin = P7_7_TCPWM0_TR_ONE_CNT_IN790; 	break;
+        case TC_CH20_ENCODER_CH2_P08_2: 	temp_pin = P8_2_TCPWM0_TR_ONE_CNT_IN61; 	break;
+        case TC_CH27_ENCODER_CH2_P19_3: 	temp_pin = P19_3_TCPWM0_TR_ONE_CNT_IN82; 	break;
+        case TC_CH58_ENCODER_CH2_P17_4: 	temp_pin = P17_4_TCPWM0_TR_ONE_CNT_IN175; 	break;
     }
     return temp_pin;
 }
@@ -143,9 +142,7 @@ int16 encoder_get_count (encoder_index_enum encoder_n)
     }
     else
     {
-        encoder_data = (int16)(0x00008000 - Cy_Tcpwm_QuadDec_GetCounter(encoder_module[encoder_n]));
-        Cy_Tcpwm_QuadDec_SetCounter(encoder_module[encoder_n], 0x00008000);
-        
+        encoder_data = (int16)Cy_Tcpwm_QuadDec_GetCounter(encoder_module[encoder_n]);
     }
     return encoder_data;
 }
@@ -174,44 +171,43 @@ void encoder_clear_count (encoder_index_enum encoder_n)
 //  参数说明      ch1_pin         ENCODER 通道 1
 //  参数说明      ch2_pin         ENCODER 通道 2
 //  返回参数      void
-//  使用示例      encoder_quad_init(TC_CH07_ENCODER, TC_CH07_ENCODER_CH1_P02_0, TC_CH07_ENCODER_CH2_P02_1);// 使用tcpwm模块的通道7   P7_6 引脚为A通道    P7_7引脚为B通道
+//  使用示例      encoder_quad_init(TC_CH07_ENCODER, TC_CH07_ENCODER_CH1_P07_6, TC_CH07_ENCODER_CH2_P07_7);// 使用tcpwm模块的通道7   P7_6 引脚为A通道    P7_7引脚为B通道
 //  备注信息
 //-------------------------------------------------------------------------------------------------------------------
 void encoder_quad_init (encoder_index_enum encoder_n, encoder_channel1_enum ch1_pin, encoder_channel2_enum ch2_pin)
 {
     cy_stc_gpio_pin_config_t  pwm_pin_config    = {0};
     cy_stc_tcpwm_quaddec_config_t encoder_quad_config;
+
+    Cy_Tcpwm_QuadDec_DeInit(encoder_module[encoder_n]);
     
-    pwm_pin_config.driveMode                    = CY_GPIO_DM_HIGHZ;
+    pwm_pin_config.driveMode                    = CY_GPIO_DM_STRONG_IN_OFF;
     pwm_pin_config.hsiom                        = get_ch1_hsiom(ch1_pin);
     Cy_GPIO_Pin_Init(get_port(get_ch1_pin(ch1_pin)), (get_ch1_pin(ch1_pin) % 8), &pwm_pin_config);
     
-    pwm_pin_config.driveMode                    = CY_GPIO_DM_HIGHZ;
+    pwm_pin_config.driveMode                    = CY_GPIO_DM_STRONG_IN_OFF;
     pwm_pin_config.hsiom                        = get_ch2_hsiom(ch2_pin);
     Cy_GPIO_Pin_Init(get_port(get_ch2_pin(ch2_pin)), (get_ch2_pin(ch2_pin) % 8), &pwm_pin_config);
     
     Cy_SysClk_PeriphAssignDivider(encoder_clk[encoder_n], CY_SYSCLK_DIV_16_BIT, 0ul);
-    Cy_SysClk_PeriphSetDivider(CY_SYSCLK_DIV_16_BIT, 0ul, 9u); // 80Mhz时钟被10分频为8Mhz
-    Cy_SysClk_PeriphEnableDivider(CY_SYSCLK_DIV_16_BIT, 0ul);
+    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup(encoder_clk[encoder_n]), CY_SYSCLK_DIV_16_BIT, 0ul, 9u); // 80Mhz时钟被10分频为8Mhz
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup(encoder_clk[encoder_n]), CY_SYSCLK_DIV_16_BIT, 0ul);
    
     
-    Cy_Tcpwm_QuadDec_DeInit(encoder_module[encoder_n]);
+    memset(&encoder_quad_config, 0, sizeof(encoder_quad_config));
     
-    encoder_quad_config.encoding_mode           = CY_TCPWM_QUADDEC_X1           ;
+    encoder_quad_config.encoding_mode           = CY_TCPWM_QUADDEC_X4           ;
     encoder_quad_config.range_mode              = CY_TCPWM_QUADDEC_RANGE_0      ;
-    encoder_quad_config.interruptSources        = CY_TCPWM_INT_NONE             ;
-    encoder_quad_config.indexInputMode          = CY_TCPWM_INPUT_RISING_EDGE    ;
-    encoder_quad_config.indexInput              = CY_TCPWM_INPUT0               ;
-    encoder_quad_config.stopInputMode           = CY_TCPWM_INPUT_LEVEL          ;
-    encoder_quad_config.stopInput               = CY_TCPWM_INPUT0               ;
+    encoder_quad_config.indexInputMode          = CY_TCPWM_INPUT_LEVEL          ;
     encoder_quad_config.phiAInput               = CY_TCPWM_INPUT_TRIG0          ;
-    encoder_quad_config.phiBInput               = CY_TCPWM_INPUT_TRIG1          ;  
+    encoder_quad_config.phiBInput               = CY_TCPWM_INPUT_TRIG0          ;
+    encoder_quad_config.trigger0EventCfg        = CY_TCPWM_COUNTER_DISABLED     ;
+    encoder_quad_config.trigger1EventCfg        = CY_TCPWM_COUNTER_DISABLED     ;
+    encoder_quad_config.debug_pause             = 1uL                           ;
     
     Cy_Tcpwm_QuadDec_Init(encoder_module[encoder_n], &encoder_quad_config);
     Cy_Tcpwm_QuadDec_Enable(encoder_module[encoder_n]);
-    Cy_Tcpwm_TriggerStart(encoder_module[encoder_n]);
-    Cy_Tcpwm_TriggerReloadOrIndex(encoder_module[encoder_n]);
-    
+                  
     encoder_mode[encoder_n]  = 0;
 }       
 
@@ -234,8 +230,8 @@ void encoder_dir_init (encoder_index_enum encoder_n, encoder_channel1_enum count
     zf_assert((uint8)count_pin == (uint8)dir_pin ? 1 : 0);
     
     Cy_SysClk_PeriphAssignDivider(encoder_clk[encoder_n], CY_SYSCLK_DIV_16_BIT, 0ul);
-    Cy_SysClk_PeriphSetDivider(CY_SYSCLK_DIV_16_BIT, 0ul, 9u); // 80Mhz时钟被10分频为8Mhz
-    Cy_SysClk_PeriphEnableDivider(CY_SYSCLK_DIV_16_BIT, 0ul);
+    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup(encoder_clk[encoder_n]), CY_SYSCLK_DIV_16_BIT, 0ul, 9u); // 80Mhz时钟被10分频为8Mhz
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup(encoder_clk[encoder_n]), CY_SYSCLK_DIV_16_BIT, 0ul);
   
     pwm_pin_config.driveMode                    = CY_GPIO_DM_STRONG;
     pwm_pin_config.hsiom                        = get_ch1_hsiom(count_pin);

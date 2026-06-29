@@ -5,12 +5,12 @@
 * EFUSE_DATA register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.

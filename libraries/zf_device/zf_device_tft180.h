@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -58,23 +58,23 @@
 #if TFT180_USE_SOFT_SPI                                                         // 这两段 颜色正常的才是正确的 颜色灰的就是没有用的
 //====================================================软件 SPI 驱动====================================================
 #define TFT180_SOFT_SPI_DELAY           (0 )                                    // 软件 SPI 的时钟延时周期 数值越小 SPI 通信速率越快
-#define TFT180_SCL_PIN                  (P13_2)                                 // 软件 SPI SCK 引脚
-#define TFT180_SDA_PIN                  (P13_1)                                 // 软件 SPI MOSI 引脚
+#define TFT180_SCL_PIN                  (P12_2)                                 // 软件 SPI SCK 引脚
+#define TFT180_SDA_PIN                  (P12_1)                                 // 软件 SPI MOSI 引脚
 //====================================================软件 SPI 驱动====================================================
 #else
 //====================================================硬件 SPI 驱动====================================================
 #define TFT180_SPI_SPEED                (30*1000*1000	)                       // 硬件 SPI 速率
-#define TFT180_SPI                      (SPI_3		)                       // 硬件 SPI 号
-#define TFT180_SCL_PIN                  (SPI3_CLK_P13_2	)                       // 硬件 SPI SCK 引脚
-#define TFT180_SDA_PIN                  (SPI3_MOSI_P13_1)                       // 硬件 SPI MOSI 引脚
+#define TFT180_SPI                      (SPI_1			)                       // 硬件 SPI 号
+#define TFT180_SCL_PIN                  (SPI1_CLK_P12_2	)                       // 硬件 SPI SCK 引脚
+#define TFT180_SDA_PIN                  (SPI1_MOSI_P12_1)                       // 硬件 SPI MOSI 引脚
 #define TFT180_SDA_PIN_IN               (SPI_MISO_NULL	)                       // 定义SPI_MISO引脚  TFT没有MISO引脚，但是这里任然需要定义，在spi的初始化时需要使用
 //====================================================硬件 SPI 驱动====================================================
 #endif
 
-#define TFT180_RES_PIN                  (P12_0)                                 // 液晶复位引脚定义
-#define TFT180_DC_PIN                   (P12_1)                                 // 液晶命令位引脚定义
-#define TFT180_CS_PIN                   (P13_3)                                 // CS 片选引脚
-#define TFT180_BL_PIN                   (P13_0)                                 // 液晶背光引脚定义
+#define TFT180_RES_PIN                  (P22_4)                                 // 液晶复位引脚定义
+#define TFT180_DC_PIN                   (P22_3)                                 // 液晶命令位引脚定义
+#define TFT180_CS_PIN                   (P12_3)                                 // CS 片选引脚
+#define TFT180_BL_PIN                   (P11_0)                                 // 液晶背光引脚定义
 
 #define TFT180_DEFAULT_DISPLAY_DIR      (TFT180_PORTAIT)                        // 默认的显示方向
 #define TFT180_DEFAULT_PENCOLOR         (RGB565_RED)                            // 默认的画笔颜色

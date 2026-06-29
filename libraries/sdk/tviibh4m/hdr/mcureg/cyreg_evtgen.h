@@ -5,12 +5,12 @@
 * EVTGEN register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -97,6 +97,41 @@
 #define CYREG_EVTGEN0_COMP_STRUCT10_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F0940UL)
 #define CYREG_EVTGEN0_COMP_STRUCT10_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F0944UL)
 #define CYREG_EVTGEN0_COMP_STRUCT10_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F0948UL)
+
+/**
+  * \brief Comparator structure (EVTGEN_COMP_STRUCT11)
+  */
+#define CYREG_EVTGEN0_COMP_STRUCT11_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F0960UL)
+#define CYREG_EVTGEN0_COMP_STRUCT11_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F0964UL)
+#define CYREG_EVTGEN0_COMP_STRUCT11_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F0968UL)
+
+/**
+  * \brief Comparator structure (EVTGEN_COMP_STRUCT12)
+  */
+#define CYREG_EVTGEN0_COMP_STRUCT12_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F0980UL)
+#define CYREG_EVTGEN0_COMP_STRUCT12_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F0984UL)
+#define CYREG_EVTGEN0_COMP_STRUCT12_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F0988UL)
+
+/**
+  * \brief Comparator structure (EVTGEN_COMP_STRUCT13)
+  */
+#define CYREG_EVTGEN0_COMP_STRUCT13_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F09A0UL)
+#define CYREG_EVTGEN0_COMP_STRUCT13_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F09A4UL)
+#define CYREG_EVTGEN0_COMP_STRUCT13_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F09A8UL)
+
+/**
+  * \brief Comparator structure (EVTGEN_COMP_STRUCT14)
+  */
+#define CYREG_EVTGEN0_COMP_STRUCT14_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F09C0UL)
+#define CYREG_EVTGEN0_COMP_STRUCT14_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F09C4UL)
+#define CYREG_EVTGEN0_COMP_STRUCT14_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F09C8UL)
+
+/**
+  * \brief Comparator structure (EVTGEN_COMP_STRUCT15)
+  */
+#define CYREG_EVTGEN0_COMP_STRUCT15_COMP_CTL ((volatile un_EVTGEN_COMP_STRUCT_COMP_CTL_t*) 0x403F09E0UL)
+#define CYREG_EVTGEN0_COMP_STRUCT15_COMP0 ((volatile un_EVTGEN_COMP_STRUCT_COMP0_t*) 0x403F09E4UL)
+#define CYREG_EVTGEN0_COMP_STRUCT15_COMP1 ((volatile un_EVTGEN_COMP_STRUCT_COMP1_t*) 0x403F09E8UL)
 
 /**
   * \brief Event generator (EVTGEN0)

@@ -39,7 +39,7 @@ typedef enum
     CY_SROM_OP_READ_FUSE_BYTE_MARGIN    = (0x2Bul),
     CY_SROM_OP_READ_UNIQUE_ID           = (0x1Ful),
     CY_SROM_OP_SWITCH_REGULATOR         = (0x11ul),
-    CY_SROM_OP_LOAD_REGULATOR_TRIM      = (0x16ul),
+    CY_SROM_OP_LoadRegulatorTrim        = (0x16ul),
     CY_SROM_OP_CONFIGURE_REGULATOR      = (0x15ul),
     CY_SROM_OP_BLOW_FUSE_BIT            = (0x01ul),
     CY_SROM_OP_FLASH_PROGRAM_ROW        = (0x06ul),

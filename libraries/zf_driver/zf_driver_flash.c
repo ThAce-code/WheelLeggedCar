@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -37,14 +37,13 @@
 #include "zf_common_debug.h"
 #include "zf_driver_flash.h"
 
-
 flash_data_union flash_union_buffer[FLASH_PAGE_LENGTH];                    // FLASH 操作的数据缓冲区
 static vuint8 flash_init_flag = 0;
 
 //-------------------------------------------------------------------------------------------------------------------
 //  函数简介      校验FLASH页是否有数据
 //  参数说明      sector_num    仅可填写0  此处扇区编号并无实际作用，只是留出接口
-//  参数说明      page_num      需要写入的页编号   参数范围 <0 - 47>
+//  参数说明      page_num      需要写入的页编号   参数范围0 - 95
 //  返回参数      返回1有数据，返回0没有数据，如果需要对有数据的区域写入新的数据则应该对所在扇区进行擦除操作
 //  使用示例      flash_check(0, 0); 	// 校验0页是否有数据
 //  备注信息			
@@ -60,7 +59,7 @@ uint8 flash_check (uint32 sector_num, uint32 page_num)
 //-------------------------------------------------------------------------------------------------------------------
 //  函数简介      擦除页
 //  参数说明      sector_num    仅可填写0  此处扇区编号并无实际作用，只是留出接口
-//  参数说明      page_num      需要写入的页编号   参数范围 <0 - 47>
+//  参数说明      page_num      需要写入的页编号   参数范围0 - 95
 //  返回参数      void
 //  使用示例      flash_erase_page(0, 0);
 //  备注信息
@@ -76,35 +75,30 @@ void flash_erase_page (uint32 sector_num, uint32 page_num)
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     读取一页
 // 参数说明     sector_num      仅可填写0  此处扇区编号并无实际作用，只是留出接口
-// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 47>
+// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 95>
 // 参数说明     buf             需要读取的数据地址   传入的数组类型必须为uint32
 // 参数说明     len             需要写入的数据长度   参数范围 1 - 511
 // 返回参数     void
-// 使用示例     flash_read_page(0, 0, data_buffer, 256);
+// 使用示例     flash_read_page(0, 11, data_buffer, 256);
 // 备注信息
 //-------------------------------------------------------------------------------------------------------------------
 void flash_read_page(uint32 sector_num, uint32 page_num, uint32 *buf, uint32 len)
 {
-    uint32 data_count = 0;
+    uint32 data_cont = 0;
     zf_assert(FLASH_PAGE_NUM > page_num);
     zf_assert(FLASH_PAGE_LENGTH >= len);
     zf_assert(flash_init_flag);				// 用户未初始化flash则断言报错
-
-    uint32 * flash_addr = (uint32 *)FLASH_BASE_ADDR;
-    flash_addr = flash_addr + (page_num * FLASH_PAGE_SIZE / FLASH_DATA_SIZE);
-#if CY_CORE_CM7_0 || CY_CORE_CM7_1
-    SCB_InvalidateDCache_by_Addr(flash_addr, len * FLASH_DATA_SIZE);
-#endif
-    for(data_count = 0; data_count < len; data_count ++)
+	
+    for(data_cont = 0; data_cont < len; data_cont ++)
     {
-        *buf ++ = *(flash_addr + data_count);
+        *buf ++ = *((uint32 *)((FLASH_BASE_ADDR + page_num * FLASH_PAGE_SIZE) + (data_cont * FLASH_DATA_SIZE)));
     }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 //  函数简介      编程一页
 //  参数说明      sector_num      仅可填写0  此处扇区编号并无实际作用，只是留出接口
-//  参数说明      page_num        当前扇区页的编号    参数范围 <0 - 47>
+//  参数说明      page_num        当前扇区页的编号    参数范围 <0 - 95>
 //  参数说明      buf             需要写入的数据地址   传入的数组类型必须为 uint32
 //  参数说明      len             需要写入的数据长度   参数范围 1 - 511
 //  返回参数      void
@@ -125,7 +119,6 @@ void flash_write_page (uint32 sector_num, uint32 page_num, const uint32 *buf, ui
     
     for(int i = 0; i < len; i ++)
     {
-      
         Cy_FlashWriteWork(flash_addr, buf, CY_FLASH_DRIVER_BLOCKING);
         flash_addr += 4;
         buf += 1;
@@ -135,35 +128,33 @@ void flash_write_page (uint32 sector_num, uint32 page_num, const uint32 *buf, ui
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     从指定 FLASH 的扇区的指定页码读取数据到缓冲区
 // 参数说明     sector_num      仅可填写0  此处扇区编号并无实际作用，只是留出接口
-// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 47>
+// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 95>
 // 返回参数     void
-// 使用示例     flash_read_page_to_buffer(0, 0, 1);
+// 使用示例     flash_read_page_to_buffer(0, 95, 1);
 // 备注信息
 //-------------------------------------------------------------------------------------------------------------------
 void flash_read_page_to_buffer (uint32 sector_num, uint32 page_num, uint32 len)
 {
-    uint32 data_count = 0;
+    uint32 data_cont = 0;
     zf_assert(FLASH_PAGE_NUM > page_num);
     zf_assert(FLASH_PAGE_LENGTH >= len);
     zf_assert(flash_init_flag);				// 用户未初始化flash则断言报错
 	
-    uint32 * flash_addr = (uint32 *)FLASH_BASE_ADDR;
-    flash_addr = flash_addr + (page_num * FLASH_PAGE_SIZE / FLASH_DATA_SIZE);
-#if CY_CORE_CM7_0 || CY_CORE_CM7_1
-    SCB_InvalidateDCache_by_Addr(flash_addr, len * FLASH_DATA_SIZE);
-#endif    
-    for(data_count = 0; data_count < len; data_count ++)
+    uint32_t* flash_addr = (uint32_t*)(page_num * FLASH_PAGE_SIZE + FLASH_BASE_ADDR);
+    
+    for(data_cont = 0; data_cont < len; data_cont ++)
     {
-        flash_union_buffer[data_count].uint32_type = flash_addr[data_count];
+        flash_union_buffer[data_cont].uint32_type = flash_addr[data_cont];
+        
     }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     向指定 FLASH 的扇区的指定页码写入缓冲区的数据
 // 参数说明     sector_num      仅可填写0  此处扇区编号并无实际作用，只是留出接口
-// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 47>
+// 参数说明     page_num        当前扇区页的编号   参数范围 <0 - 95>
 // 返回参数     uint8           1-表示失败 0-表示成功
-// 使用示例     flash_write_page_from_buffer(0, 0, 1);
+// 使用示例     flash_write_page_from_buffer(0, 11, 1);
 // 备注信息
 //-------------------------------------------------------------------------------------------------------------------
 uint8 flash_write_page_from_buffer (uint32 sector_num, uint32 page_num, uint32 len)

@@ -24,7 +24,9 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
+  
+#define CY_SEMIHOSTING_DISABLED (1)
+  
 #ifdef CY_SEMIHOSTING_DISABLED
 
 typedef char dummy_t; // prevent compiler warning because of empty file
@@ -86,9 +88,9 @@ typedef char dummy_t; // prevent compiler warning because of empty file
 * Local variable definitions ('static')
 *****************************************************************************/
 
-cy_semihosting_wdg_handle_callout_t  m_pfnWatchdogCallout = NULL;
+static cy_semihosting_wdg_handle_callout_t  m_pfnWatchdogCallout = NULL;
 
-volatile stc_SCB_t* m_pScbInstance = NULL;
+static volatile stc_SCB_t* m_pScbInstance = NULL;
 
 static const cy_stc_scb_uart_config_t    m_stcScbConfig = 
 {
@@ -255,110 +257,110 @@ cy_semihosting_en_result_t Cy_Semihosting_InitAll(volatile stc_SCB_t *pScbInstan
 
 
 
-//// Remap low-level IO function names to toolchain specific expected names
-//#if defined(__ghs__) // GreenHills
-//    #define _write  write
-//    #define _read   read
-//#elif defined(__ICCARM__) // IAR
-//    #define _write  __write
-//    #define _read   __read
-//    int __write(int fd, const void *buffer, unsigned int count);
-//    int __read(int fd, void *buffer, unsigned int count);
-//#elif defined(__DCC__) // Wind River DIAB
-//    #define _write  __write
-//    #define _read   __read
-//#endif
-//
-//
-///*******************************************************************************
-//* Function Name: _write / write / __write
-//****************************************************************************//**
-//*
-//* \brief  Low level write function, called by file I/O functions
-//*
-//* \param fd       File descriptor (0 = stdin, 1 = stdout, 2 = stderr) - ignored
-//* \param buffer   Buffer with data to be written
-//* \param count    Number of bytes to be written
-//*
-//* \return Number of written bytes
-//*
-//*******************************************************************************/
-//int _write(int fd, const void *buffer, unsigned int count)
-//{
-//    // If no SCB instance available, return error
-//    if (NULL == m_pScbInstance)
-//    {
-//        return -1;
-//    }
-//    
-//    uint8_t * pu8BufStart = (uint8_t *) buffer;
-//    uint32_t u32TotalLength = count;
-//    uint32_t u32BufIndex = 0;
-//    uint32_t u32CurrentLength = 0;
-//    
-//    do
-//    {
-//        u32CurrentLength = Cy_SCB_GetFifoSize(m_pScbInstance) - Cy_SCB_GetNumInTxFifo(m_pScbInstance);    
-//        if((u32BufIndex + u32CurrentLength) > u32TotalLength)
-//        {
-//            u32CurrentLength = u32TotalLength - u32BufIndex;
-//        }
-//        if(u32CurrentLength > 0)
-//        {
-//            Cy_SCB_UART_PutArray(m_pScbInstance, &(pu8BufStart[u32BufIndex]), u32CurrentLength);
-//        }
-//        u32BufIndex += u32CurrentLength;
-//
-//        // Call watchdog handle function if configured
-//        if (m_pfnWatchdogCallout != NULL)
-//        {
-//            m_pfnWatchdogCallout();
-//        }
-//        
-//    } while(u32BufIndex < u32TotalLength);
-//    
-//    // Wait until FIFO and shift register are empty, to have a real synchronous printf behavior
-//    while(Cy_SCB_UART_IsTxComplete(m_pScbInstance) == false)
-//    {
-//    }
-//
-//    // Return number of written bytes
-//    return count;
-//}
-//
-//
-///*******************************************************************************
-//* Function Name: _read / read / __read
-//****************************************************************************//**
-//*
-//* \brief  Low level read function, called by file I/O functions
-//*
-//* \param fd       File descriptor (0 = stdin, 1 = stdout, 2 = stderr) - ignored
-//* \param buffer   Buffer to receive read data
-//* \param count    Number of bytes to read
-//*
-//* \return Number of read bytes
-//*
-//*******************************************************************************/
-//int _read(int fd, void *buffer, unsigned int count)
-//{
-//    uint32_t u32ActualReadCount;
-//    
-//    // If no SCB instance available, return error
-//    if (NULL == m_pScbInstance)
-//    {
-//        return -1;
-//    }
-//
-//    // Block until at least one byte has been received
-//    // Note: stdin must never return EOF (i.e. return 0), otherwise no further reads are possible    
-//    do
-//    {
-//        u32ActualReadCount = Cy_SCB_UART_GetArray(m_pScbInstance, buffer, count);
-//    } while (u32ActualReadCount == 0);
-//
-//    return (int) u32ActualReadCount;
-//}
+// Remap low-level IO function names to toolchain specific expected names
+#if defined(__ghs__) // GreenHills
+    #define _write  write
+    #define _read   read
+#elif defined(__ICCARM__) // IAR
+    #define _write  __write
+    #define _read   __read
+    int __write(int fd, const void *buffer, unsigned int count);
+    int __read(int fd, void *buffer, unsigned int count);
+#elif defined(__DCC__) // Wind River DIAB
+    #define _write  __write
+    #define _read   __read
+#endif
+
+
+/*******************************************************************************
+* Function Name: _write / write / __write
+****************************************************************************//**
+*
+* \brief  Low level write function, called by file I/O functions
+*
+* \param fd       File descriptor (0 = stdin, 1 = stdout, 2 = stderr) - ignored
+* \param buffer   Buffer with data to be written
+* \param count    Number of bytes to be written
+*
+* \return Number of written bytes
+*
+*******************************************************************************/
+int _write(int fd, const void *buffer, unsigned int count)
+{
+    // If no SCB instance available, return error
+    if (NULL == m_pScbInstance)
+    {
+        return -1;
+    }
+    
+    uint8_t * pu8BufStart = (uint8_t *) buffer;
+    uint32_t u32TotalLength = count;
+    uint32_t u32BufIndex = 0;
+    uint32_t u32CurrentLength = 0;
+    
+    do
+    {
+        u32CurrentLength = Cy_SCB_GetFifoSize(m_pScbInstance) - Cy_SCB_GetNumInTxFifo(m_pScbInstance);    
+        if((u32BufIndex + u32CurrentLength) > u32TotalLength)
+        {
+            u32CurrentLength = u32TotalLength - u32BufIndex;
+        }
+        if(u32CurrentLength > 0)
+        {
+            Cy_SCB_UART_PutArray(m_pScbInstance, &(pu8BufStart[u32BufIndex]), u32CurrentLength);
+        }
+        u32BufIndex += u32CurrentLength;
+
+        // Call watchdog handle function if configured
+        if (m_pfnWatchdogCallout != NULL)
+        {
+            m_pfnWatchdogCallout();
+        }
+        
+    } while(u32BufIndex < u32TotalLength);
+    
+    // Wait until FIFO and shift register are empty, to have a real synchronous printf behavior
+    while(Cy_SCB_UART_IsTxComplete(m_pScbInstance) == false)
+    {
+    }
+
+    // Return number of written bytes
+    return count;
+}
+
+
+/*******************************************************************************
+* Function Name: _read / read / __read
+****************************************************************************//**
+*
+* \brief  Low level read function, called by file I/O functions
+*
+* \param fd       File descriptor (0 = stdin, 1 = stdout, 2 = stderr) - ignored
+* \param buffer   Buffer to receive read data
+* \param count    Number of bytes to read
+*
+* \return Number of read bytes
+*
+*******************************************************************************/
+int _read(int fd, void *buffer, unsigned int count)
+{
+    uint32_t u32ActualReadCount;
+    
+    // If no SCB instance available, return error
+    if (NULL == m_pScbInstance)
+    {
+        return -1;
+    }
+
+    // Block until at least one byte has been received
+    // Note: stdin must never return EOF (i.e. return 0), otherwise no further reads are possible    
+    do
+    {
+        u32ActualReadCount = Cy_SCB_UART_GetArray(m_pScbInstance, buffer, count);
+    } while (u32ActualReadCount == 0);
+
+    return (int) u32ActualReadCount;
+}
 
 
 #endif // CY_SEMIHOSTING_DISABLED

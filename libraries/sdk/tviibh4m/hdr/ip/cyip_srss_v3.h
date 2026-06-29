@@ -5,12 +5,12 @@
 * SRSS IP definitions
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -1768,57 +1768,6 @@ typedef union un_RES_CAUSE2 {
 } un_RES_CAUSE2_t;
 
 /**
-  * \brief SECURE TEST and FIRMWARE TEST Key control register (TST_XRES_SECURE)
-  */
-typedef struct stc_TST_XRES_SECURE_field {
-  uint32_t                         u8DATA8:8;
-  uint32_t                         u4FW_WR:4;
-  uint32_t                         :4;
-  uint32_t                         u4SECURE_WR:4;
-  uint32_t                         :9;
-  uint32_t                         u1FW_KEY_OK:1;
-  uint32_t                         u1SECURE_KEY_OK:1;
-  uint32_t                         u1SECURE_DISABLE:1;
-} stc_TST_XRES_SECURE_field_t;
-
-typedef union un_TST_XRES_SECURE {
-  uint32_t                         u32Register;
-  stc_TST_XRES_SECURE_field_t      stcField;
-  uint8_t                          au8Byte[4];
-  uint16_t                         au16Halfword[2];
-} un_TST_XRES_SECURE_t;
-
-/**
-  * \brief Programmable XRES Control Register (RES_PXRES_CTL)
-  */
-typedef struct stc_RES_PXRES_CTL_field {
-  uint32_t                         u1PXRES_TRIGGER:1;
-  uint32_t                         :31;
-} stc_RES_PXRES_CTL_field_t;
-
-typedef union un_RES_PXRES_CTL {
-  uint32_t                         u32Register;
-  stc_RES_PXRES_CTL_field_t        stcField;
-  uint8_t                          au8Byte[4];
-  uint16_t                         au16Halfword[2];
-} un_RES_PXRES_CTL_t;
-
-/**
-  * \brief Wakeup Trim Register (PWR_TRIM_WAKE_CTL)
-  */
-typedef struct stc_PWR_TRIM_WAKE_CTL_field {
-  uint32_t                         u8WAKE_DELAY:8;
-  uint32_t                         :24;
-} stc_PWR_TRIM_WAKE_CTL_field_t;
-
-typedef union un_PWR_TRIM_WAKE_CTL {
-  uint32_t                         u32Register;
-  stc_PWR_TRIM_WAKE_CTL_field_t    stcField;
-  uint8_t                          au8Byte[4];
-  uint16_t                         au16Halfword[2];
-} un_PWR_TRIM_WAKE_CTL_t;
-
-/**
   * \brief ILO0 Trim Register (CLK_TRIM_ILO0_CTL)
   */
 typedef struct stc_CLK_TRIM_ILO0_CTL_field {
@@ -2143,25 +2092,19 @@ typedef struct stc_SRSS {
   un_RES_CAUSE2_t                  unRES_CAUSE2;       /*!< 0x00001804 Reset Cause Observation Register 2 */
   uint32_t                         au32Reserved18[62];
   stc_CLK_PLL400M_t                CLK_PLL400M[15];    /*!< 0x00001900 400MHz PLL Configuration Register */
-  uint32_t                         au32Reserved19[409];
-  un_TST_XRES_SECURE_t             unTST_XRES_SECURE;  /*!< 0x00002054 SECURE TEST and FIRMWARE TEST Key control register */
-  uint32_t                         au32Reserved20[9];
-  un_RES_PXRES_CTL_t               unRES_PXRES_CTL;    /*!< 0x0000207C Programmable XRES Control Register */
-  uint32_t                         au32Reserved21[994];
-  un_PWR_TRIM_WAKE_CTL_t           unPWR_TRIM_WAKE_CTL; /*!< 0x00003008 Wakeup Trim Register */
-  uint32_t                         au32Reserved22[2];
+  uint32_t                         au32Reserved19[1417];
   un_CLK_TRIM_ILO0_CTL_t           unCLK_TRIM_ILO0_CTL; /*!< 0x00003014 ILO0 Trim Register */
-  uint32_t                         au32Reserved23[60];
+  uint32_t                         au32Reserved20[60];
   un_PWR_TRIM_PWRSYS_CTL_t         unPWR_TRIM_PWRSYS_CTL; /*!< 0x00003108 Power System Trim Register */
-  uint32_t                         au32Reserved24[2];
+  uint32_t                         au32Reserved21[2];
   un_CLK_TRIM_PILO_CTL_t           unCLK_TRIM_PILO_CTL; /*!< 0x00003114 PILO Trim Register */
   un_CLK_TRIM_PILO_CTL2_t          unCLK_TRIM_PILO_CTL2; /*!< 0x00003118 PILO Trim Register 2 */
   un_CLK_TRIM_PILO_CTL3_t          unCLK_TRIM_PILO_CTL3; /*!< 0x0000311C PILO Trim Register 3 */
-  uint32_t                         au32Reserved25[64];
+  uint32_t                         au32Reserved22[64];
   un_CLK_TRIM_ILO1_CTL_t           unCLK_TRIM_ILO1_CTL; /*!< 0x00003220 ILO1 Trim Register */
-  uint32_t                         au32Reserved26[4983];
+  uint32_t                         au32Reserved23[4983];
   stc_MCWDT_t                      MCWDT[4];           /*!< 0x00008000 Multi-Counter Watchdog Timer */
-  uint32_t                         au32Reserved27[3840];
+  uint32_t                         au32Reserved24[3840];
   stc_WDT_t                        WDT;                /*!< 0x0000C000 Watchdog Timer */
 } stc_SRSS_t;                                          /*!< Size = 49280 (0xC080) */
 
@@ -2919,25 +2862,6 @@ typedef struct stc_SRSS {
 #define SRSS_RES_CAUSE2_RESET_CSV_HF_Msk        0xFFFFUL
 #define SRSS_RES_CAUSE2_RESET_CSV_REF_Pos       16UL
 #define SRSS_RES_CAUSE2_RESET_CSV_REF_Msk       0x10000UL
-/* SRSS.TST_XRES_SECURE */
-#define SRSS_TST_XRES_SECURE_DATA8_Pos          0UL
-#define SRSS_TST_XRES_SECURE_DATA8_Msk          0xFFUL
-#define SRSS_TST_XRES_SECURE_FW_WR_Pos          8UL
-#define SRSS_TST_XRES_SECURE_FW_WR_Msk          0xF00UL
-#define SRSS_TST_XRES_SECURE_SECURE_WR_Pos      16UL
-#define SRSS_TST_XRES_SECURE_SECURE_WR_Msk      0xF0000UL
-#define SRSS_TST_XRES_SECURE_FW_KEY_OK_Pos      29UL
-#define SRSS_TST_XRES_SECURE_FW_KEY_OK_Msk      0x20000000UL
-#define SRSS_TST_XRES_SECURE_SECURE_KEY_OK_Pos  30UL
-#define SRSS_TST_XRES_SECURE_SECURE_KEY_OK_Msk  0x40000000UL
-#define SRSS_TST_XRES_SECURE_SECURE_DISABLE_Pos 31UL
-#define SRSS_TST_XRES_SECURE_SECURE_DISABLE_Msk 0x80000000UL
-/* SRSS.RES_PXRES_CTL */
-#define SRSS_RES_PXRES_CTL_PXRES_TRIGGER_Pos    0UL
-#define SRSS_RES_PXRES_CTL_PXRES_TRIGGER_Msk    0x1UL
-/* SRSS.PWR_TRIM_WAKE_CTL */
-#define SRSS_PWR_TRIM_WAKE_CTL_WAKE_DELAY_Pos   0UL
-#define SRSS_PWR_TRIM_WAKE_CTL_WAKE_DELAY_Msk   0xFFUL
 /* SRSS.CLK_TRIM_ILO0_CTL */
 #define SRSS_CLK_TRIM_ILO0_CTL_ILO0_FTRIM_Pos   0UL
 #define SRSS_CLK_TRIM_ILO0_CTL_ILO0_FTRIM_Msk   0x3FUL

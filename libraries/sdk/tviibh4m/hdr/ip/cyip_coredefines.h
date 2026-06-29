@@ -6,7 +6,7 @@
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -17,7 +17,7 @@
 
 #if ((defined(__GNUC__)        && (__ARM_ARCH == 6) && (__ARM_ARCH_6M__ == 1)) || \
      (defined(__ICCARM__)      && (__CORE__ == __ARM6M__)) || \
-     (defined(__ARMCC_VERSION) && (__TARGET_ARCH_THUMB == 3)) || \
+     (defined(__ARMCC_VERSION) && defined(__TARGET_ARCH_THUMB) && (__TARGET_ARCH_THUMB == 3)) || \
      (defined(__ghs__)         && defined(__CORE_CORTEXM0PLUS__)))
 
 /* Configuration of the ARM Cortex-M0+ Processor and Core Peripherals */
@@ -32,17 +32,17 @@
 
 #else
 
-/* Configuration of the ARM Cortex-M4 Processor and Core Peripherals */
-#define __CM4_REV                       0x0001U /*!< CM4 Core Revision */
+/* Configuration of the ARM Cortex-M7 Processor and Core Peripherals */
+#define __CM7_REV                       0x0001U /*!< CM7 Core Revision */
 #define __NVIC_PRIO_BITS                3       /*!< Number of Bits used for Priority Levels */
 #define __Vendor_SysTickConfig          0       /*!< Set to 1 if different SysTick Config is used */
 #define __VTOR_PRESENT                  1       /*!< Set to 1 if CPU supports Vector Table Offset Register */
 #define __MPU_PRESENT                   1       /*!< MPU present or not */
 #define __FPU_PRESENT                   1       /*!< FPU present or not */
 #define __CM0P_PRESENT                  1       /*!< CM0P present or not */
-#define __DTCM_PRESENT                  0       /*!< DTCM present or not */
-#define __ICACHE_PRESENT                0       /*!< ICACHE present or not */
-#define __DCACHE_PRESENT                0       /*!< DCACHE present or not */
+#define __DTCM_PRESENT                  1       /*!< DTCM present or not */
+#define __ICACHE_PRESENT                1       /*!< ICACHE present or not */
+#define __DCACHE_PRESENT                1       /*!< DCACHE present or not */
 
 /** \} Configuration_of_CMSIS */
 
@@ -55,7 +55,7 @@
 typedef enum {
 #if ((defined(__GNUC__)        && (__ARM_ARCH == 6) && (__ARM_ARCH_6M__ == 1)) || \
      (defined(__ICCARM__)      && (__CORE__ == __ARM6M__)) || \
-     (defined(__ARMCC_VERSION) && (__TARGET_ARCH_THUMB == 3)) || \
+     (defined(__ARMCC_VERSION) && defined(__TARGET_ARCH_THUMB) && (__TARGET_ARCH_THUMB == 3)) || \
      (defined(__ghs__)         && defined(__CORE_CORTEXM0PLUS__)))
   /* ARM Cortex-M0+ Core Interrupt Numbers */
   Reset_IRQn                        = -15,      /*!< -15 Reset Vector, invoked on Power up and warm reset */
@@ -65,7 +65,7 @@ typedef enum {
   PendSV_IRQn                       =  -2,      /*!<  -2 Pendable request for system service */
   SysTick_IRQn                      =  -1,      /*!<  -1 System Tick Timer */
 #else
-  /* ARM Cortex-M4 Core Interrupt Numbers */
+  /* ARM Cortex-M7 Core Interrupt Numbers */
   Reset_IRQn                        = -15,      /*!< -15 Reset Vector, invoked on Power up and warm reset */
   NonMaskableInt_IRQn               = -14,      /*!< -14 Non maskable Interrupt, cannot be stopped or preempted */
   HardFault_IRQn                    = -13,      /*!< -13 Hard Fault, all classes of Fault */

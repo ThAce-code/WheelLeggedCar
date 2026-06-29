@@ -5,12 +5,12 @@
 * GPIO register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -19,7 +19,7 @@
 #ifndef _CYREG_GPIO_H_
 #define _CYREG_GPIO_H_
 
-#include "cyip_gpio_v2.h"
+#include "cyip_gpio_v3.h"
 
 /**
   * \brief GPIO port registers (GPIO_PRT0)
@@ -454,9 +454,172 @@
 #define CYREG_GPIO_PRT23_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310BD8UL)
 
 /**
+  * \brief GPIO port registers (GPIO_PRT24)
+  */
+#define CYREG_GPIO_PRT24_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310C00UL)
+#define CYREG_GPIO_PRT24_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310C04UL)
+#define CYREG_GPIO_PRT24_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310C08UL)
+#define CYREG_GPIO_PRT24_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310C0CUL)
+#define CYREG_GPIO_PRT24_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310C10UL)
+#define CYREG_GPIO_PRT24_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310C14UL)
+#define CYREG_GPIO_PRT24_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310C18UL)
+#define CYREG_GPIO_PRT24_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310C1CUL)
+#define CYREG_GPIO_PRT24_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310C20UL)
+#define CYREG_GPIO_PRT24_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310C40UL)
+#define CYREG_GPIO_PRT24_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310C44UL)
+#define CYREG_GPIO_PRT24_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310C48UL)
+#define CYREG_GPIO_PRT24_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310C4CUL)
+#define CYREG_GPIO_PRT24_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310C58UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT25)
+  */
+#define CYREG_GPIO_PRT25_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310C80UL)
+#define CYREG_GPIO_PRT25_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310C84UL)
+#define CYREG_GPIO_PRT25_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310C88UL)
+#define CYREG_GPIO_PRT25_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310C8CUL)
+#define CYREG_GPIO_PRT25_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310C90UL)
+#define CYREG_GPIO_PRT25_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310C94UL)
+#define CYREG_GPIO_PRT25_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310C98UL)
+#define CYREG_GPIO_PRT25_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310C9CUL)
+#define CYREG_GPIO_PRT25_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310CA0UL)
+#define CYREG_GPIO_PRT25_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310CC0UL)
+#define CYREG_GPIO_PRT25_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310CC4UL)
+#define CYREG_GPIO_PRT25_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310CC8UL)
+#define CYREG_GPIO_PRT25_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310CCCUL)
+#define CYREG_GPIO_PRT25_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310CD8UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT26)
+  */
+#define CYREG_GPIO_PRT26_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310D00UL)
+#define CYREG_GPIO_PRT26_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310D04UL)
+#define CYREG_GPIO_PRT26_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310D08UL)
+#define CYREG_GPIO_PRT26_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310D0CUL)
+#define CYREG_GPIO_PRT26_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310D10UL)
+#define CYREG_GPIO_PRT26_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310D14UL)
+#define CYREG_GPIO_PRT26_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310D18UL)
+#define CYREG_GPIO_PRT26_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310D1CUL)
+#define CYREG_GPIO_PRT26_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310D20UL)
+#define CYREG_GPIO_PRT26_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310D40UL)
+#define CYREG_GPIO_PRT26_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310D44UL)
+#define CYREG_GPIO_PRT26_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310D48UL)
+#define CYREG_GPIO_PRT26_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310D4CUL)
+#define CYREG_GPIO_PRT26_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310D58UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT27)
+  */
+#define CYREG_GPIO_PRT27_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310D80UL)
+#define CYREG_GPIO_PRT27_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310D84UL)
+#define CYREG_GPIO_PRT27_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310D88UL)
+#define CYREG_GPIO_PRT27_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310D8CUL)
+#define CYREG_GPIO_PRT27_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310D90UL)
+#define CYREG_GPIO_PRT27_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310D94UL)
+#define CYREG_GPIO_PRT27_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310D98UL)
+#define CYREG_GPIO_PRT27_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310D9CUL)
+#define CYREG_GPIO_PRT27_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310DA0UL)
+#define CYREG_GPIO_PRT27_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310DC0UL)
+#define CYREG_GPIO_PRT27_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310DC4UL)
+#define CYREG_GPIO_PRT27_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310DC8UL)
+#define CYREG_GPIO_PRT27_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310DCCUL)
+#define CYREG_GPIO_PRT27_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310DD8UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT28)
+  */
+#define CYREG_GPIO_PRT28_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310E00UL)
+#define CYREG_GPIO_PRT28_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310E04UL)
+#define CYREG_GPIO_PRT28_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310E08UL)
+#define CYREG_GPIO_PRT28_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310E0CUL)
+#define CYREG_GPIO_PRT28_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310E10UL)
+#define CYREG_GPIO_PRT28_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310E14UL)
+#define CYREG_GPIO_PRT28_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310E18UL)
+#define CYREG_GPIO_PRT28_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310E1CUL)
+#define CYREG_GPIO_PRT28_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310E20UL)
+#define CYREG_GPIO_PRT28_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310E40UL)
+#define CYREG_GPIO_PRT28_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310E44UL)
+#define CYREG_GPIO_PRT28_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310E48UL)
+#define CYREG_GPIO_PRT28_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310E4CUL)
+#define CYREG_GPIO_PRT28_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310E58UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT29)
+  */
+#define CYREG_GPIO_PRT29_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310E80UL)
+#define CYREG_GPIO_PRT29_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310E84UL)
+#define CYREG_GPIO_PRT29_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310E88UL)
+#define CYREG_GPIO_PRT29_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310E8CUL)
+#define CYREG_GPIO_PRT29_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310E90UL)
+#define CYREG_GPIO_PRT29_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310E94UL)
+#define CYREG_GPIO_PRT29_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310E98UL)
+#define CYREG_GPIO_PRT29_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310E9CUL)
+#define CYREG_GPIO_PRT29_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310EA0UL)
+#define CYREG_GPIO_PRT29_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310EC0UL)
+#define CYREG_GPIO_PRT29_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310EC4UL)
+#define CYREG_GPIO_PRT29_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310EC8UL)
+#define CYREG_GPIO_PRT29_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310ECCUL)
+#define CYREG_GPIO_PRT29_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310ED8UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT30)
+  */
+#define CYREG_GPIO_PRT30_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310F00UL)
+#define CYREG_GPIO_PRT30_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310F04UL)
+#define CYREG_GPIO_PRT30_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310F08UL)
+#define CYREG_GPIO_PRT30_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310F0CUL)
+#define CYREG_GPIO_PRT30_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310F10UL)
+#define CYREG_GPIO_PRT30_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310F14UL)
+#define CYREG_GPIO_PRT30_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310F18UL)
+#define CYREG_GPIO_PRT30_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310F1CUL)
+#define CYREG_GPIO_PRT30_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310F20UL)
+#define CYREG_GPIO_PRT30_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310F40UL)
+#define CYREG_GPIO_PRT30_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310F44UL)
+#define CYREG_GPIO_PRT30_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310F48UL)
+#define CYREG_GPIO_PRT30_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310F4CUL)
+#define CYREG_GPIO_PRT30_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310F58UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT31)
+  */
+#define CYREG_GPIO_PRT31_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40310F80UL)
+#define CYREG_GPIO_PRT31_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40310F84UL)
+#define CYREG_GPIO_PRT31_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40310F88UL)
+#define CYREG_GPIO_PRT31_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x40310F8CUL)
+#define CYREG_GPIO_PRT31_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40310F90UL)
+#define CYREG_GPIO_PRT31_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40310F94UL)
+#define CYREG_GPIO_PRT31_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40310F98UL)
+#define CYREG_GPIO_PRT31_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x40310F9CUL)
+#define CYREG_GPIO_PRT31_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40310FA0UL)
+#define CYREG_GPIO_PRT31_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40310FC0UL)
+#define CYREG_GPIO_PRT31_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40310FC4UL)
+#define CYREG_GPIO_PRT31_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40310FC8UL)
+#define CYREG_GPIO_PRT31_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x40310FCCUL)
+#define CYREG_GPIO_PRT31_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40310FD8UL)
+
+/**
+  * \brief GPIO port registers (GPIO_PRT32)
+  */
+#define CYREG_GPIO_PRT32_OUT            ((volatile un_GPIO_PRT_OUT_t*) 0x40311000UL)
+#define CYREG_GPIO_PRT32_OUT_CLR        ((volatile un_GPIO_PRT_OUT_CLR_t*) 0x40311004UL)
+#define CYREG_GPIO_PRT32_OUT_SET        ((volatile un_GPIO_PRT_OUT_SET_t*) 0x40311008UL)
+#define CYREG_GPIO_PRT32_OUT_INV        ((volatile un_GPIO_PRT_OUT_INV_t*) 0x4031100CUL)
+#define CYREG_GPIO_PRT32_IN             ((volatile un_GPIO_PRT_IN_t*) 0x40311010UL)
+#define CYREG_GPIO_PRT32_INTR           ((volatile un_GPIO_PRT_INTR_t*) 0x40311014UL)
+#define CYREG_GPIO_PRT32_INTR_MASK      ((volatile un_GPIO_PRT_INTR_MASK_t*) 0x40311018UL)
+#define CYREG_GPIO_PRT32_INTR_MASKED    ((volatile un_GPIO_PRT_INTR_MASKED_t*) 0x4031101CUL)
+#define CYREG_GPIO_PRT32_INTR_SET       ((volatile un_GPIO_PRT_INTR_SET_t*) 0x40311020UL)
+#define CYREG_GPIO_PRT32_INTR_CFG       ((volatile un_GPIO_PRT_INTR_CFG_t*) 0x40311040UL)
+#define CYREG_GPIO_PRT32_CFG            ((volatile un_GPIO_PRT_CFG_t*) 0x40311044UL)
+#define CYREG_GPIO_PRT32_CFG_IN         ((volatile un_GPIO_PRT_CFG_IN_t*) 0x40311048UL)
+#define CYREG_GPIO_PRT32_CFG_OUT        ((volatile un_GPIO_PRT_CFG_OUT_t*) 0x4031104CUL)
+#define CYREG_GPIO_PRT32_CFG_IN_AUTOLVL ((volatile un_GPIO_PRT_CFG_IN_AUTOLVL_t*) 0x40311058UL)
+
+/**
   * \brief GPIO port control/configuration (GPIO0)
   */
 #define CYREG_GPIO_INTR_CAUSE0          ((volatile un_GPIO_INTR_CAUSE0_t*) 0x40314000UL)
+#define CYREG_GPIO_INTR_CAUSE1          ((volatile un_GPIO_INTR_CAUSE1_t*) 0x40314004UL)
 #define CYREG_GPIO_VDD_ACTIVE           ((volatile un_GPIO_VDD_ACTIVE_t*) 0x40314010UL)
 #define CYREG_GPIO_VDD_INTR             ((volatile un_GPIO_VDD_INTR_t*) 0x40314014UL)
 #define CYREG_GPIO_VDD_INTR_MASK        ((volatile un_GPIO_VDD_INTR_MASK_t*) 0x40314018UL)

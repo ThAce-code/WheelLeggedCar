@@ -1,4 +1,4 @@
-/***************************************************************************//**
+/*******************************************************************************
 * \file cy_cpu.h
 * \version 1.0
 *
@@ -51,10 +51,22 @@ extern "C" {
 * \{
 */
 
+/* Data types for Tightly Coupled Memory type */ 
+typedef enum
+{
+    CY_CPU_ITCM = 0,
+    CY_CPU_DTCM = 1,
+} cy_en_cpu_tcm_type_t;
+
 /* Data types for CPU Core type */
 typedef enum
 {
-    CY_CPU_CM4   = 0,
+    CY_CPU_CM7_0 = 0,
+    CY_CPU_CM7_1 = 1,
+#if defined (tviibh16m)  
+    CY_CPU_CM7_2 = 2,
+    CY_CPU_CM7_3 = 3,
+#endif
 } cy_en_cpu_core_type_t;
 
 /* Data types for CPU Power Mode type */
@@ -87,14 +99,14 @@ typedef enum
 typedef enum
 {
     CY_CPU_INTDIV  = 0,
-    // CY_CPU_FRACDIV = 1, Not available
+    CY_CPU_FRACDIV = 1,
 } cy_en_cpu_div_type_t;
 
 /* Data types for CPU Clock Speed Selection type */
 typedef enum
 {
     CY_CPU_SLOW_CLK  = 0,
-    CY_CPU_FAST_CLK  = 1,
+    CY_CPU_FAST_CLK = 1,
 } cy_en_cpu_clk_type_t;
 
 /* Data types for CPU Protection State type */
@@ -114,9 +126,27 @@ typedef enum
 * \{
 */
 
+/* API's for the CPU Core wait function */
+void Cy_Cpu_WaitClear(cy_en_cpu_core_type_t coreType);
+void Cy_Cpu_WaitSet(cy_en_cpu_core_type_t coreType);
+
+/* API's for the CPU TCM block functions */
+void Cy_Cpu_TcmEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmReadModifyWriteEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmReadModifyWriteDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmEccEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmEccDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmEccErrorInjEnable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmEccErrorInjDisable(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_TcmReadWaitStatesSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType, uint8_t waitStates);
+uint8_t Cy_Cpu_TcmReadWaitStatesGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_tcm_type_t tcmType);
+void Cy_Cpu_Cm7TcmSlavePortAccessEnable(cy_en_cpu_core_type_t coreType);
+void Cy_Cpu_Cm7TcmSlavePortAccessDisable(cy_en_cpu_core_type_t coreType);
+
 /* API's for the CPU Power Mode functions */
-void Cy_Cpu_Cm4PowerModeSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_power_mode_t pwrMode);
-cy_en_cpu_power_mode_t Cy_Cpu_Cm4PowerModeGet(cy_en_cpu_core_type_t coreType);
+void Cy_Cpu_Cm7PowerModeSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_power_mode_t pwrMode);
+cy_en_cpu_power_mode_t Cy_Cpu_Cm7PowerModeGet(cy_en_cpu_core_type_t coreType);
 
 /* API's for the CPU SRAM module functionality */
 void Cy_Cpu_SramEccEnable(cy_en_cpu_sram_macro_t sramType);
@@ -141,8 +171,24 @@ void Cy_Cpu_EccParityForErrorInj(uint8_t eccParity);
 cy_en_cpu_protection_type_t Cy_Cpu_ProtectionStateGet(void);
 
 /* API's for CPU Fast Clock Divider functions */
-void Cy_Cpu_CoreClkDividerSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType, uint8_t divValue);
-uint8_t Cy_Cpu_CoreClkDividerGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType);
+void Cy_Cpu_CoreFastClkDividerSet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType, uint8_t divValue);
+uint8_t Cy_Cpu_CoreFastClkDividerGet(cy_en_cpu_core_type_t coreType, cy_en_cpu_div_type_t divType);
+
+/* API's for CPU Memory Clock Divider functions */
+void Cy_Cpu_CoreMemDividerSet(uint8_t divValue);
+uint8_t Cy_Cpu_CoreMemDividerGet(void);
+
+/* API's for CPU Peripheral Clock Divider functions */
+void Cy_Cpu_CorePeriDividerSet(uint8_t divValue);
+uint8_t Cy_Cpu_CorePeriDividerGet(void);
+
+/* API's for CPU Trace/Debug Clock Divider functions */
+void Cy_Cpu_CoreTraceDbgDividerSet(uint8_t divValue);
+uint8_t Cy_Cpu_CoreTraceDbgDividerGet(void);
+
+/* API's for CPU Core Slow Clock Divider functions */
+void Cy_Cpu_CoreSlowClkDividerSet(uint8_t divValue);
+uint8_t Cy_Cpu_CoreSlowClkDividerGet(void);
 
 /* API's for Getting device parameter */
 void Cy_Cpu_GetProductId(uint32_t* pFamilyId, uint32_t* pMajorRevisionId, uint32_t* pMinorRevisionId);

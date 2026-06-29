@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /********************************************************************************************************************
 * 接线定义：
@@ -109,9 +109,8 @@ static soft_iic_info_struct imu963ra_iic_struct;
 static void imu963ra_write_acc_gyro_register (uint8 reg, uint8 data)
 {
     IMU963RA_CS(0);
-    
     spi_write_8bit_register(IMU963RA_SPI, reg | IMU963RA_SPI_W, data);
-//	system_delay_us(10);
+
     IMU963RA_CS(1);
 }
 
@@ -126,7 +125,6 @@ static uint8 imu963ra_read_acc_gyro_register (uint8 reg)
 {
     uint8 data = 0;
     IMU963RA_CS(0);
-    
     data = spi_read_8bit_register(IMU963RA_SPI, reg | IMU963RA_SPI_R);
 
     IMU963RA_CS(1);
@@ -145,7 +143,6 @@ static uint8 imu963ra_read_acc_gyro_register (uint8 reg)
 static void imu963ra_read_acc_gyro_registers (uint8 reg, uint8 *data, uint32 len)
 {
     IMU963RA_CS(0);
-    
     spi_read_8bit_registers(IMU963RA_SPI, reg | IMU963RA_SPI_R, data, len);
 
     IMU963RA_CS(1);
@@ -337,19 +334,15 @@ void imu963ra_get_mag (void)
     uint8 dat[6];
 
     imu963ra_write_acc_gyro_register(IMU963RA_FUNC_CFG_ACCESS, 0x40);
-	system_delay_us(10);
     temp_status = imu963ra_read_acc_gyro_register(IMU963RA_STATUS_MASTER);
-	system_delay_us(10);
     if(0x01 & temp_status)
     {
         imu963ra_read_acc_gyro_registers(IMU963RA_SENSOR_HUB_1, dat, 6);
-	system_delay_us(10);
         imu963ra_mag_x = (int16)(((uint16)dat[1]<<8 | dat[0]));
         imu963ra_mag_y = (int16)(((uint16)dat[3]<<8 | dat[2]));
         imu963ra_mag_z = (int16)(((uint16)dat[5]<<8 | dat[4]));
     }
     imu963ra_write_acc_gyro_register(IMU963RA_FUNC_CFG_ACCESS, 0x00);
-	system_delay_us(10);
 }
 
 //-------------------------------------------------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -43,57 +43,41 @@ typedef enum                   // 枚举串口发送引脚 此枚举定义不允许用户修改
 {
     UART0_TX_P00_1,             // 串口0 发送引脚
  
-    UART1_TX_P06_1,             // 串口1 发送引脚
+    UART1_TX_P04_1,             // 串口1 发送引脚
 
-    UART2_TX_P07_1,             // 串口2 发送引脚
+    UART2_TX_P10_1,             // 串口2 发送引脚可选范围
 
-    UART3_TX_P13_1,             // 串口3 发送引脚
+    UART3_TX_P17_2,             // 串口3 发送引脚可选范围
 
-    UART4_TX_P14_1,             // 串口4 发送引脚
-    
-    UART5_TX_P02_1,             // 串口5 发送引脚
-    
-    UART6_TX_P18_1,             // 串口6 发送引脚
+    UART4_TX_P14_1,             // 串口4 发送引脚可选范围
 }uart_tx_pin_enum;
 
 
 typedef enum                   // 枚举串口接收引脚 此枚举定义不允许用户修改
 {
+
     UART0_RX_P00_0,             // 串口0 接收引脚
  
-    UART1_RX_P06_0,             // 串口1 接收引脚
+    UART1_RX_P04_0,             // 串口1 接收引脚
   
-    UART2_RX_P07_0,             // 串口2 接收引脚
+    UART2_RX_P10_0,             // 串口2 接收引脚可选范围
 
-    UART3_RX_P13_0,             // 串口3 接收引脚
+    UART3_RX_P17_1,             // 串口3 接收引脚可选范围
 	
-    UART4_RX_P14_0,             // 串口4 接收引脚
-    
-    UART5_RX_P02_0,             // 串口5 接收引脚
-    
-    UART6_RX_P18_0,             // 串口6 接收引脚
+    UART4_RX_P14_0,             // 串口4 接收引脚可选范围
 }uart_rx_pin_enum;
 
 
 typedef enum                   // 枚举串口号 此枚举定义不允许用户修改
-{                               // 注意 SPI 与 UART 共用外设 模块化一致代表冲突  比如 SPI_1 和 UART_1 则是共用的资源
-    UART_0,                     
-    
+{
+    UART_0,
     UART_1,
-    
     UART_2,
-    
     UART_3,
-    
     UART_4,
-    
-    UART_5,
-    
-    UART_6,
 }uart_index_enum;
 
-uint8   uart_isr_mask                       (uart_index_enum uart_n);
-
+volatile stc_SCB_t* get_scb_module(uart_index_enum uart_n);
 
 //====================================================串口 基础函数====================================================
 void    uart_write_byte                     (uart_index_enum uartn, const uint8 dat);

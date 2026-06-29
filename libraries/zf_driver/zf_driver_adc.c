@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -68,21 +68,45 @@ static gpio_pin_enum get_adc_pin(adc_channel_enum vadc_chn)
         case ADC0_CH04_P06_4	: adc_pin = P06_4; break;
         case ADC0_CH05_P06_5	: adc_pin = P06_5; break;
         case ADC0_CH06_P06_6	: adc_pin = P06_6; break;
+        case ADC0_CH07_P06_7	: adc_pin = P06_7; break;
         case ADC0_CH16_P07_0	: adc_pin = P07_0; break;
         case ADC0_CH17_P07_1	: adc_pin = P07_1; break;
         case ADC0_CH18_P07_2	: adc_pin = P07_2; break;
+        case ADC0_CH19_P07_3	: adc_pin = P07_3; break;
+        case ADC0_CH20_P07_4	: adc_pin = P07_4; break;
+        case ADC0_CH21_P07_5	: adc_pin = P07_5; break;
+        case ADC0_CH22_P07_6	: adc_pin = P07_6; break;
+        case ADC0_CH23_P07_7	: adc_pin = P07_7; break;
         case ADC0_CH24_P08_1	: adc_pin = P08_1; break;
+        case ADC0_CH25_P08_2	: adc_pin = P08_2; break;
+        case ADC0_CH26_P08_3	: adc_pin = P08_3; break;
+        case ADC0_CH28_P09_0	: adc_pin = P09_0; break;
+        case ADC0_CH29_P09_1	: adc_pin = P09_1; break;
+        case ADC1_CH00_P10_4	: adc_pin = P10_4; break;
         case ADC1_CH04_P12_0	: adc_pin = P12_0; break;
         case ADC1_CH05_P12_1	: adc_pin = P12_1; break;
+        case ADC1_CH06_P12_2	: adc_pin = P12_2; break;
+        case ADC1_CH07_P12_3	: adc_pin = P12_3; break;
+        case ADC1_CH08_P12_4	: adc_pin = P12_4; break;
+        case ADC1_CH09_P12_5	: adc_pin = P12_5; break;
         case ADC1_CH12_P13_0	: adc_pin = P13_0; break;
         case ADC1_CH13_P13_1	: adc_pin = P13_1; break;
         case ADC1_CH14_P13_2	: adc_pin = P13_2; break;
         case ADC1_CH15_P13_3	: adc_pin = P13_3; break;
+        case ADC1_CH16_P13_4	: adc_pin = P13_4; break;
+        case ADC1_CH17_P13_5	: adc_pin = P13_5; break;
+        case ADC1_CH18_P13_6	: adc_pin = P13_6; break;
+        case ADC1_CH19_P13_7	: adc_pin = P13_7; break;
         case ADC1_CH20_P14_0	: adc_pin = P14_0; break;
         case ADC1_CH21_P14_1	: adc_pin = P14_1; break;
-        case ADC1_CH22_P14_2	: adc_pin = P14_2; break;
+        case ADC1_CH24_P14_4	: adc_pin = P14_4; break;
+        case ADC1_CH25_P14_5	: adc_pin = P14_5; break;
+        case ADC1_CH28_P15_0	: adc_pin = P15_0; break;
+        case ADC1_CH29_P15_1	: adc_pin = P15_1; break;
+        case ADC1_CH30_P15_2	: adc_pin = P15_2; break;
         case ADC2_CH00_P18_0	: adc_pin = P18_0; break;
         case ADC2_CH01_P18_1	: adc_pin = P18_1; break;
+        case ADC2_CH02_P18_2	: adc_pin = P18_2; break;
         case ADC2_CH03_P18_3	: adc_pin = P18_3; break;
         case ADC2_CH04_P18_4	: adc_pin = P18_4; break;
         case ADC2_CH05_P18_5	: adc_pin = P18_5; break;
@@ -110,8 +134,6 @@ uint16 adc_convert (adc_channel_enum adc_chn)
     offset_temp = 4 - (adc_resolution[adc_chn] * 2);
     
     sar_adc[adc_port]->CH[adc_channel].unTR_CMD.stcField.u1START = 1ul;
-	
-	while(sar_adc[adc_port]->unSTATUS.stcField.u1BUSY);
     
     adc_data = sar_adc[adc_port]->CH[adc_channel].unRESULT.stcField.u16RESULT;
     
@@ -174,9 +196,9 @@ void adc_init (adc_channel_enum adc_chn, adc_resolution_enum resolution)
     div_num = DIV_ROUND_UP(ADC_FREQ, ADC_OPERATION_FREQUENCY_MAX_IN_HZ);
     actual_adc_operation_freq = ADC_FREQ / div_num;
     
-    Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0), CY_SYSCLK_DIV_16_BIT, 1u);
-    Cy_SysClk_PeriphSetDivider(CY_SYSCLK_DIV_16_BIT, 1u, (div_num - 1));
-    Cy_SysClk_PeriphEnableDivider(CY_SYSCLK_DIV_16_BIT, 1u);
+    Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0), CY_SYSCLK_DIV_16_BIT, 0u);
+    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 0u, (div_num - 1));
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 0u);
 
     adc_config.msbStretchMode           = CY_ADC_MSB_STRETCH_MODE_1CYCLE;
     adc_config.sarMuxEnable             = true;

@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,7 +25,7 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
@@ -55,7 +55,7 @@ void func_get_sin_amplitude_table (uint32 *data_buffer, uint32 sample_max, uint3
     double amplitude = 0.0;
 
     offset_degree = offset_degree % 360;
-    offset_degree = (uint32)((float)offset_degree / 360.0f * sample_max);
+    offset_degree = (uint32)((float)offset_degree / 360.0 * sample_max);
 
     j = amplitude_max / 2;                                                      // 偏置幅值 默认为一半最大幅值
     rad = 3.1415926535898 * 2 / sample_max;                                     // 换算每个采样点的弧度差
@@ -303,7 +303,7 @@ float func_str_to_float (char *str)
         if('.' == *str)
         {
             str ++;
-            while(('0' <= *str) && ('9' >= *str) && 1000000.0f > point_bit)      // 确认这是个数字 并且精度控制还没到六位
+            while(('0' <= *str) && ('9' >= *str) && 1000000.0 > point_bit)      // 确认这是个数字 并且精度控制还没到六位
             {
                 temp_point = temp_point * 10 + ((uint8)(*str) - 0x30);          // 提取小数部分数值
                 point_bit *= 10;                                                // 计算这部分小数的除数
@@ -352,7 +352,7 @@ void func_float_to_str (char *str, float number, uint8 point_bit)
         {
             *str ++ = '-';
         }
-        else if(0.0f == number)                                                  // 如果是个 0
+        else if(0.0 == number)                                                  // 如果是个 0
         {
             *str ++ = '0';
             *str ++ = '.';

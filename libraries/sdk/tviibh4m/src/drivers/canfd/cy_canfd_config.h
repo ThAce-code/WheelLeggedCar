@@ -71,7 +71,7 @@ extern "C" {
 /** CANFD1 Channel 2 */             
 #define CY_CANFD1_2_TYPE                ((cy_pstc_canfd_type_t)CANFD1_CH2) 
 /** CANFD1 Channel 3*/              
-#define CY_CANFD1_3_TYPE                ((cy_pstc_canfd_type_t)CANFD1_CH3)
+#define CY_CANFD1_3_TYPE                ((cy_pstc_canfd_type_t)CANFD1_CH3) 
     
 #if defined(__cplusplus)
 }

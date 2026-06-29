@@ -57,20 +57,19 @@
 * <table class="doxtable">
 *   <tr><th>Version</th><th>Changes</th><th>Reason for Change</th></tr>
 *   <tr>
-*     <td>6.6.0</td>
-*     <td> Correction of enumeration values for SSCG depth of PLL 400. 
-*           \ref cy_en_pll_400M_ssgc_depth_t </td>
-*     <td> Enum value correction </td>
-*   </tr>
-*   <tr>
 *     <td>1.0</td>
 *     <td>Initial version</td>
 *     <td></td>
 *   </tr>
 *   <tr>
 *     <td>1.1</td>
+*     <td> Correction of enumeration values for SSCG depth of PLL 400. 
+*           \ref cy_en_pll_400M_ssgc_depth_t </td>
+*     <td> Enum value correction </td>
+*   </tr>
+*   <tr>
+*     <td>1.2</td>
 *     <td>Update ECO trim value calculation</td>
-*     <td></td>
 *   </tr>
 * </table>
 *
@@ -866,10 +865,10 @@ typedef enum
     CY_SYSCLK_CLKPATH_IN_IMO    =     0u, /**< Select the IMO as the output of the path mux */
     CY_SYSCLK_CLKPATH_IN_EXT    =     1u, /**< Select the EXT as the output of the path mux */
     CY_SYSCLK_CLKPATH_IN_ECO    =     2u, /**< Select the ECO as the output of the path mux */
+    CY_SYSCLK_CLKPATH_IN_DSIMUX =     4u, /**< Select the DSI MUX output as the output of the path mux */
 #if defined(SRSS_BACKUP_S40E_LPECO_PRESENT) && (SRSS_BACKUP_S40E_LPECO_PRESENT == 1)
     CY_SYSCLK_CLKPATH_IN_LPECO  =     5u, /**< Select the LPECO as the output of the path mux */
 #endif
-    CY_SYSCLK_CLKPATH_IN_DSIMUX =     4u, /**< Select the DSI MUX output as the output of the path mux */
     CY_SYSCLK_CLKPATH_IN_DSI0   = 0x100u, /**< Select a DSI signal 0 as the output of the DSI mux and path mux */
     CY_SYSCLK_CLKPATH_IN_DSI1   = 0x101u, /**< Select a DSI signal 1 as the output of the DSI mux and path mux */
     CY_SYSCLK_CLKPATH_IN_DSI2   = 0x102u, /**< Select a DSI signal 2 as the output of the DSI mux and path mux */
@@ -1986,6 +1985,25 @@ typedef enum
 {
     CY_SYSCLK_HFCLK_0  = 0u,
     CY_SYSCLK_HFCLK_1  = 1u,
+    CY_SYSCLK_HFCLK_2  = 2u,
+    CY_SYSCLK_HFCLK_3  = 3u,
+    CY_SYSCLK_HFCLK_4  = 4u,
+    CY_SYSCLK_HFCLK_5  = 5u,
+    CY_SYSCLK_HFCLK_6  = 6u,
+    CY_SYSCLK_HFCLK_7  = 7u,
+#if defined (tviic2d6m) || defined (tviic2d4m) || defined (tviic2d6mddr)
+    CY_SYSCLK_HFCLK_8  = 8u,
+    CY_SYSCLK_HFCLK_9  = 9u,
+    CY_SYSCLK_HFCLK_10 = 10u,
+    CY_SYSCLK_HFCLK_11 = 11u,
+    CY_SYSCLK_HFCLK_12 = 12u,
+    CY_SYSCLK_HFCLK_13 = 13u,
+#endif
+
+#if defined (tviic2d6mddr)
+    CY_SYSCLK_HFCLK_14 = 14u,
+    CY_SYSCLK_HFCLK_15 = 15u,
+#endif
     CY_SYSCLK_HFCLK_NUM,
 } cy_en_hfclk_t;
 
@@ -2232,40 +2250,176 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_HfClockDisableDirectMuxIMO(cy_en
 * \addtogroup group_sysclk_clk_fast_funcs
 * \{
 */
-__STATIC_INLINE void Cy_SysClk_FastClkSetDivider(uint32_t divider);
-__STATIC_INLINE uint32_t Cy_SysClk_FastClkGetDivider(void);
+__STATIC_INLINE void Cy_SysClk_Fast0ClkSetDivider(uint32_t u8IntDiv, uint32_t u5FracDiv);
+__STATIC_INLINE void Cy_SysClk_Fast0ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv);
+__STATIC_INLINE void Cy_SysClk_Fast1ClkSetDivider(uint32_t u8IntDiv, uint32_t u5FracDiv);
+__STATIC_INLINE void Cy_SysClk_Fast1ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv);
 
 /*******************************************************************************
-* Function Name: Cy_SysClk_FastClkSetDivider
+* Function Name: Cy_SysClk_Fast0ClkSetDivider
 ****************************************************************************//**
 *
-* Sets the clock divider for the fast clock, which sources the main processor.
-* The source of this divider is hf_clk[0].
+* Sets the clock divider for the fast 0 clock.
 *
-* \param divider divider value between 0 and 255.
+* \param u8IntDiv divider value between 0 and 255.
 * Causes integer division of (divider value + 1), or division by 1 to 256.
 *
+* \param u5FracDiv (This value) / 32 would be added as a fractional porsion of the divider
+*
 *******************************************************************************/
-__STATIC_INLINE void Cy_SysClk_FastClkSetDivider(uint32_t divider)
+__STATIC_INLINE void Cy_SysClk_Fast0ClkSetDivider(uint32_t u8IntDiv, uint32_t u5FracDiv)
 {
-    CPUSS->unCM4_CLOCK_CTL.stcField.u8FAST_INT_DIV = divider;
+    CPUSS->unFAST_0_CLOCK_CTL.stcField.u8INT_DIV  = u8IntDiv;
+    CPUSS->unFAST_0_CLOCK_CTL.stcField.u5FRAC_DIV = u5FracDiv;
 }
 
 /*******************************************************************************
-* Function Name: Cy_SysClk_FastClkGetDivider
+* Function Name: Cy_SysClk_Fast0ClkGetDivider
 ****************************************************************************//**
 *
-* Returns the clock divider for the fast clock.
+* Returns the clock divider for the fast 0 clock.
 *
 * \return The divider value for the fast clock.
 * The integer division done is by (divider value + 1), or division by 1 to 256.
+
+* \param pu8IntDiv a pointer in which integer portion of the divider would be stored.
+*
+* \param pu5FracDiv a pointer in which fractional portion of the divider would be stored.
+
 *
 *******************************************************************************/
-__STATIC_INLINE uint32_t Cy_SysClk_FastClkGetDivider(void)
+__STATIC_INLINE void Cy_SysClk_Fast0ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv)
 {
-    return CPUSS->unCM4_CLOCK_CTL.stcField.u8FAST_INT_DIV;
+    *pu8IntDiv = CPUSS->unFAST_0_CLOCK_CTL.stcField.u8INT_DIV;
+    *pu5FracDiv = CPUSS->unFAST_0_CLOCK_CTL.stcField.u5FRAC_DIV;
 }
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_Fast1ClkSetDivider
+****************************************************************************//**
+*
+* Sets the clock divider for the fast 1 clock.
+*
+* \param u8IntDiv divider value between 0 and 255.
+* Causes integer division of (divider value + 1), or division by 1 to 256.
+*
+* \param u5FracDiv (This value) / 32 would be added as a fractional porsion of the divider
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_Fast1ClkSetDivider(uint32_t u8IntDiv, uint32_t u5FracDiv)
+{
+    CPUSS->unFAST_1_CLOCK_CTL.stcField.u8INT_DIV  = u8IntDiv;
+    CPUSS->unFAST_1_CLOCK_CTL.stcField.u5FRAC_DIV = u5FracDiv;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_Fast1ClkGetDivider
+****************************************************************************//**
+*
+* Returns the clock divider for the fast 1 clock.
+*
+* \return The divider value for the fast clock.
+* The integer division done is by (divider value + 1), or division by 1 to 256.
+
+* \param pu8IntDiv a pointer in which integer portion of the divider would be stored.
+*
+* \param pu5FracDiv a pointer in which fractional portion of the divider would be stored.
+
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_Fast1ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv)
+{
+    *pu8IntDiv = CPUSS->unFAST_1_CLOCK_CTL.stcField.u8INT_DIV;
+    *pu5FracDiv = CPUSS->unFAST_1_CLOCK_CTL.stcField.u5FRAC_DIV;
+}
+
+#if defined (tviibh16m)
+/*******************************************************************************
+* Function Name: Cy_SysClk_Fast2ClkGetDivider
+****************************************************************************//**
+*
+* Returns the clock divider for the fast 2 clock.
+*
+* \return The divider value for the fast clock.
+* The integer division done is by (divider value + 1), or division by 1 to 256.
+
+* \param pu8IntDiv a pointer in which integer portion of the divider would be stored.
+*
+* \param pu5FracDiv a pointer in which fractional portion of the divider would be stored.
+
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_Fast2ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv)
+{
+    *pu8IntDiv = CPUSS->unFAST_2_CLOCK_CTL.stcField.u8INT_DIV;
+    *pu5FracDiv = CPUSS->unFAST_2_CLOCK_CTL.stcField.u5FRAC_DIV;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_Fast3ClkGetDivider
+****************************************************************************//**
+*
+* Returns the clock divider for the fast 3 clock.
+*
+* \return The divider value for the fast clock.
+* The integer division done is by (divider value + 1), or division by 1 to 256.
+
+* \param pu8IntDiv a pointer in which integer portion of the divider would be stored.
+*
+* \param pu5FracDiv a pointer in which fractional portion of the divider would be stored.
+
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_Fast3ClkGetDivider(uint32_t* pu8IntDiv, uint32_t* pu5FracDiv)
+{
+    *pu8IntDiv = CPUSS->unFAST_3_CLOCK_CTL.stcField.u8INT_DIV;
+    *pu5FracDiv = CPUSS->unFAST_3_CLOCK_CTL.stcField.u5FRAC_DIV;
+}
+#endif
+
 /** \} group_sysclk_clk_fast_funcs */
+
+/* ========================================================================== */
+/* =========================    clk_mem SECTION    ========================= */
+/* ========================================================================== */
+/**
+* \addtogroup group_sysclk_clk_mem_funcs
+* \{
+*/
+__STATIC_INLINE void Cy_SysClk_MemClkSetDivider(uint32_t u8IntDiv);
+__STATIC_INLINE uint32_t Cy_SysClk_MemClkGetDivider(void);
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_MemClkSetDivider
+****************************************************************************//**
+*
+* Sets the clock divider for the mem clock.
+*
+* \param u8IntDiv divider value between 0 and 255.
+* Causes integer division of (divider value + 1), or division by 1 to 256.
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_MemClkSetDivider(uint32_t u8IntDiv)
+{
+    CPUSS->unMEM_CLOCK_CTL.stcField.u8INT_DIV  = u8IntDiv;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_MemClkGetDivider
+****************************************************************************//**
+*
+* Returns the clock divider for the mem clock.
+*
+* \return The divider value for the mem clock.
+* The integer division done is by (divider value + 1), or division by 1 to 256.
+*
+*******************************************************************************/
+__STATIC_INLINE uint32_t Cy_SysClk_MemClkGetDivider(void)
+{
+    return (CPUSS->unMEM_CLOCK_CTL.stcField.u8INT_DIV);
+}
+
+/** \} group_sysclk_clk_mem_funcs */
 
 
 /* ========================================================================== */
@@ -2282,9 +2436,8 @@ __STATIC_INLINE uint8_t Cy_SysClk_PeriClkGetDivider(void);
 * Function Name: Cy_SysClk_PeriClkSetDivider
 ****************************************************************************//**
 *
-* Sets the clock divider for the peripheral clock tree. All peripheral clock
-* dividers are sourced from this clock. Also the Cortex M0+ clock divider is
-* sourced from this clock. The source of this divider is hf_clk[0]
+* Sets the clock divider for the peripheral clock tree.
+* The source of this divider is hf_clk[0]
 *
 * \param divider divider value between 0 and 255
 * Causes integer division of (divider value + 1), or division by 1 to 256.
@@ -2292,7 +2445,7 @@ __STATIC_INLINE uint8_t Cy_SysClk_PeriClkGetDivider(void);
 *******************************************************************************/
 __STATIC_INLINE void Cy_SysClk_PeriClkSetDivider(uint8_t divider)
 {
-    CPUSS->unCM0_CLOCK_CTL.stcField.u8PERI_INT_DIV = divider;
+    CPUSS->unPERI_CLOCK_CTL.stcField.u8INT_DIV = divider;
 }
 
 /*******************************************************************************
@@ -2307,7 +2460,7 @@ __STATIC_INLINE void Cy_SysClk_PeriClkSetDivider(uint8_t divider)
 *******************************************************************************/
 __STATIC_INLINE uint8_t Cy_SysClk_PeriClkGetDivider(void)
 {
-    return CPUSS->unCM0_CLOCK_CTL.stcField.u8PERI_INT_DIV;
+    return CPUSS->unPERI_CLOCK_CTL.stcField.u8INT_DIV;
 }
 /** \} group_sysclk_clk_peri_funcs */
 
@@ -2340,18 +2493,19 @@ typedef enum
     CY_DIVIDER_NOT_EXISTING = 1u,
 } cy_en_divider_existing_t;
 
-__STATIC_INLINE cy_en_divider_existing_t Cy_SysClk_CheckDividerExisting(cy_en_divider_types_t dividerType, uint32_t dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t dividerValue);
-__STATIC_INLINE uint32_t Cy_SysClk_PeriphGetDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t dividerIntValue, uint32_t dividerFracValue);
-__STATIC_INLINE void Cy_SysClk_PeriphGetFracDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t *dividerIntValue, uint32_t *dividerFracValue);
-__STATIC_INLINE bool Cy_SysClk_PeriphGetDividerEnabled(cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_divider_existing_t Cy_SysClk_CheckDividerExisting(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t dividerValue);
+__STATIC_INLINE uint32_t Cy_SysClk_PeriphGetDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t dividerIntValue, uint32_t dividerFracValue);
+__STATIC_INLINE void Cy_SysClk_PeriphGetFracDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum,uint32_t *dividerIntValue, uint32_t *dividerFracValue);
+__STATIC_INLINE bool Cy_SysClk_PeriphGetDividerEnabled(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
 __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphAssignDivider(en_clk_dst_t ipBlock, cy_en_divider_types_t dividerType, uint32_t dividerNum);
 __STATIC_INLINE void Cy_SysClk_PeriphGetAssignedDivider(en_clk_dst_t ipBlock, cy_en_divider_types_t *dividerType, uint32_t *dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphEnableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphDisableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseDisableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum);
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseAlignDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum, cy_en_divider_types_t dividerTypePA, uint32_t dividerNumPA);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphEnableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphDisableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseDisableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum);
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseAlignDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum,
+                                                       cy_en_divider_types_t dividerTypePA, uint32_t dividerNumPA);
 
 /*******************************************************************************
 * Function Name: Cy_SysClk_CheckDividerExisting
@@ -2366,43 +2520,21 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseAlignDivider(cy_en_di
 * \return \cy_en_divider_existing_t
 *
 *******************************************************************************/
-__STATIC_INLINE cy_en_divider_existing_t Cy_SysClk_CheckDividerExisting(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+extern const uint8_t divNumLocator[PERI_PERI_PCLK_PCLK_GROUP_NR][4];
+__STATIC_INLINE cy_en_divider_existing_t Cy_SysClk_CheckDividerExisting(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
-    switch(dividerType)
+    if(groupNum >= PERI_PERI_PCLK_PCLK_GROUP_NR)
     {
-#if PERI_DIV_8_NR != 0
-    case CY_SYSCLK_DIV_8_BIT:
-        if(dividerNum >= PERI_DIV_8_NR)
-        {
-            return CY_DIVIDER_NOT_EXISTING;
-        }
-        break;
-#endif
-#if PERI_DIV_16_NR != 0
-    case CY_SYSCLK_DIV_16_BIT:
-        if(dividerNum >= PERI_DIV_16_NR)
-        {
-            return CY_DIVIDER_NOT_EXISTING;
-        }
-        break;
-#endif
-#if PERI_DIV_16_5_NR != 0
-    case CY_SYSCLK_DIV_16_5_BIT:
-        if(dividerNum >= PERI_DIV_16_5_NR)
-        {
-            return CY_DIVIDER_NOT_EXISTING;
-        }
-        break;
-#endif
-#if PERI_DIV_24_5_NR != 0
-    case CY_SYSCLK_DIV_24_5_BIT:
-        if(dividerNum >= PERI_DIV_24_5_NR)
-        {
-            return CY_DIVIDER_NOT_EXISTING;
-        }
-        break;
-#endif
-    default:
+        return CY_DIVIDER_NOT_EXISTING;
+    }
+
+    if(dividerType >= CY_SYSCLK_DIV_TYPE_NUM)
+    {
+        return CY_DIVIDER_NOT_EXISTING;
+    }
+
+    if(dividerNum >= divNumLocator[groupNum][(uint8_t)dividerType])
+    {
         return CY_DIVIDER_NOT_EXISTING;
     }
 
@@ -2425,21 +2557,24 @@ __STATIC_INLINE cy_en_divider_existing_t Cy_SysClk_CheckDividerExisting(cy_en_di
 * (8-bit divider) or 1 to 65536 (16-bit divider).
 *
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(cy_en_divider_types_t dividerType,
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(uint32_t groupNum, cy_en_divider_types_t dividerType,
                                                 uint32_t dividerNum, uint32_t dividerValue)
 {
-    dividerValue = (dividerValue + 1) * 2 - 1; 
-    
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(groupNum > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
+
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
     if (dividerType == CY_SYSCLK_DIV_8_BIT)
     {
-        if (dividerValue <= (PERI_DIV_8_CTL_INT8_DIV_Msk >> PERI_DIV_8_CTL_INT8_DIV_Pos))
+        if (dividerValue <= (PERI_PCLK_GR_DIV_8_CTL_INT8_DIV_Msk >> PERI_PCLK_GR_DIV_8_CTL_INT8_DIV_Pos))
         {
-            PERI->unDIV_8_CTL[dividerNum].stcField.u8INT8_DIV = dividerValue;
+            PERI_PCLK->GR[groupNum].unDIV_8_CTL[dividerNum].stcField.u8INT8_DIV = dividerValue;
         }
         else
         {
@@ -2449,9 +2584,9 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(cy_en_divider_t
     }
     else if (dividerType == CY_SYSCLK_DIV_16_BIT)
     {
-        if(dividerValue <= (PERI_DIV_16_CTL_INT16_DIV_Msk >> PERI_DIV_16_CTL_INT16_DIV_Pos))
+        if(dividerValue <= (PERI_PCLK_GR_DIV_16_CTL_INT16_DIV_Msk >> PERI_PCLK_GR_DIV_16_CTL_INT16_DIV_Pos))
         {
-            PERI->unDIV_16_CTL[dividerNum].stcField.u16INT16_DIV =  dividerValue;
+            PERI_PCLK->GR[groupNum].unDIV_16_CTL[dividerNum].stcField.u16INT16_DIV =  dividerValue;
         }
         else
         {
@@ -2483,19 +2618,21 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetDivider(cy_en_divider_t
 * (8-bit divider) or 1 to 65536 (16-bit divider).
 *
 *******************************************************************************/
-__STATIC_INLINE uint32_t Cy_SysClk_PeriphGetDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+__STATIC_INLINE uint32_t Cy_SysClk_PeriphGetDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
-    uint32_t retval;
+    uint32_t retval = 0ul;
 
-    CY_ASSERT(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_EXISTING);
+    CY_ASSERT(groupNum < (uint32_t)PERI_PCLK_GROUP_NR);
+
+    CY_ASSERT(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_EXISTING);
 
     if (dividerType == CY_SYSCLK_DIV_8_BIT)
     {
-        retval = PERI->unDIV_8_CTL[dividerNum].stcField.u8INT8_DIV;
+        retval = PERI_PCLK->GR[groupNum].unDIV_8_CTL[dividerNum].stcField.u8INT8_DIV;
     }
     else if (dividerType == CY_SYSCLK_DIV_16_BIT)
     { /* 16-bit divider */
-        retval = PERI->unDIV_16_CTL[dividerNum].stcField.u16INT16_DIV;
+        retval = PERI_PCLK->GR[groupNum].unDIV_16_CTL[dividerNum].stcField.u16INT16_DIV;
     }
     else
     {
@@ -2528,21 +2665,26 @@ __STATIC_INLINE uint32_t Cy_SysClk_PeriphGetDivider(cy_en_divider_types_t divide
 * \return \ref cy_en_sysclk_status_t
 *
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum,
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum,
                                                     uint32_t dividerIntValue, uint32_t dividerFracValue)
 {
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(groupNum > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
+
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
     if (dividerType == CY_SYSCLK_DIV_16_5_BIT)
     {
-        if ((dividerIntValue <= (PERI_DIV_16_5_CTL_INT16_DIV_Msk >> PERI_DIV_16_5_CTL_INT16_DIV_Pos)) &&
-            (dividerFracValue <= (PERI_DIV_16_5_CTL_FRAC5_DIV_Msk >> PERI_DIV_16_5_CTL_FRAC5_DIV_Pos)))
+        if ((dividerIntValue <= (PERI_PCLK_GR_DIV_16_5_CTL_INT16_DIV_Msk >> PERI_PCLK_GR_DIV_16_5_CTL_INT16_DIV_Pos)) &&
+            (dividerFracValue <= (PERI_PCLK_GR_DIV_16_5_CTL_FRAC5_DIV_Msk >> PERI_PCLK_GR_DIV_16_5_CTL_FRAC5_DIV_Pos)))
         {
-            PERI->unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV = dividerIntValue;
-            PERI->unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV = dividerFracValue;
+            PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV = dividerIntValue;
+            PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV = dividerFracValue;
         }
         else
         {
@@ -2551,11 +2693,11 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(cy_en_divid
     }
     else if (dividerType == CY_SYSCLK_DIV_24_5_BIT)
     {
-        if ((dividerIntValue <= (PERI_DIV_24_5_CTL_INT24_DIV_Msk >> PERI_DIV_24_5_CTL_INT24_DIV_Pos)) &&
-            (dividerFracValue <= (PERI_DIV_24_5_CTL_FRAC5_DIV_Msk >> PERI_DIV_24_5_CTL_FRAC5_DIV_Pos)))
+        if ((dividerIntValue <= (PERI_PCLK_GR_DIV_24_5_CTL_INT24_DIV_Msk >> PERI_PCLK_GR_DIV_24_5_CTL_INT24_DIV_Pos)) &&
+            (dividerFracValue <= (PERI_PCLK_GR_DIV_24_5_CTL_FRAC5_DIV_Msk >> PERI_PCLK_GR_DIV_24_5_CTL_FRAC5_DIV_Pos)))
         {
-            PERI->unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV = dividerIntValue;
-            PERI->unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV = dividerFracValue;
+            PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV = dividerIntValue;
+            PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV = dividerFracValue;
         }
         else
         {
@@ -2587,21 +2729,22 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDivider(cy_en_divid
 * \return None. Loads pointed-to variables.
 *
 *******************************************************************************/
-__STATIC_INLINE void Cy_SysClk_PeriphGetFracDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum,
+__STATIC_INLINE void Cy_SysClk_PeriphGetFracDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum,
                                                     uint32_t *dividerIntValue, uint32_t *dividerFracValue)
 {
-    CY_ASSERT(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_EXISTING);
+    CY_ASSERT(groupNum < PERI_PCLK_GROUP_NR);
+    CY_ASSERT(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_EXISTING);
     CY_ASSERT((dividerIntValue != NULL) && (dividerFracValue != NULL));
 
     if (dividerType == CY_SYSCLK_DIV_16_5_BIT)
     {
-        *dividerIntValue  = PERI->unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV;
-        *dividerFracValue = PERI->unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV;
+        *dividerIntValue  = PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u16INT16_DIV;
+        *dividerFracValue = PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u5FRAC5_DIV;
     }
     else if (dividerType == CY_SYSCLK_DIV_24_5_BIT)
     { /* 24.5-bit divider */
-        *dividerIntValue  = PERI->unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV;
-        *dividerFracValue = PERI->unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV;
+        *dividerIntValue  = PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u24INT24_DIV;
+        *dividerFracValue = PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u5FRAC5_DIV;
     }
     else
     {
@@ -2621,31 +2764,46 @@ __STATIC_INLINE void Cy_SysClk_PeriphGetFracDivider(cy_en_divider_types_t divide
 *
 * \return The enabled/disabled state; 0 = disabled, 1 = enabled.
 *******************************************************************************/
-__STATIC_INLINE bool Cy_SysClk_PeriphGetDividerEnabled(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+__STATIC_INLINE bool Cy_SysClk_PeriphGetDividerEnabled(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
     uint32_t retval = 0ul;
 
-    CY_ASSERT(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_EXISTING);
+    CY_ASSERT(groupNum < PERI_PCLK_GROUP_NR);
+    CY_ASSERT(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_EXISTING);
 
     switch(dividerType)
     {
     case CY_SYSCLK_DIV_8_BIT:
-        retval = PERI->unDIV_8_CTL[dividerNum].stcField.u1EN;
+        retval  = PERI_PCLK->GR[groupNum].unDIV_8_CTL[dividerNum].stcField.u1EN;
         break;
     case CY_SYSCLK_DIV_16_BIT:
-        retval = PERI->unDIV_16_CTL[dividerNum].stcField.u1EN;
+        retval  = PERI_PCLK->GR[groupNum].unDIV_16_CTL[dividerNum].stcField.u1EN;
         break;
     case CY_SYSCLK_DIV_16_5_BIT:
-        retval = PERI->unDIV_16_5_CTL[dividerNum].stcField.u1EN;
+        retval  = PERI_PCLK->GR[groupNum].unDIV_16_5_CTL[dividerNum].stcField.u1EN;
         break;
     case CY_SYSCLK_DIV_24_5_BIT:
-        retval = PERI->unDIV_24_5_CTL[dividerNum].stcField.u1EN;
+        retval  = PERI_PCLK->GR[groupNum].unDIV_24_5_CTL[dividerNum].stcField.u1EN;
         break;
     default:
         CY_ASSERT(false);
         break;
     }
     return ((bool)retval);
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_GetClockGroup
+****************************************************************************//**
+*
+* Reports clock group according to input IP block.
+*
+* \return group No of the input IP
+*
+*******************************************************************************/
+__STATIC_INLINE uint8_t Cy_SysClk_GetClockGroup(en_clk_dst_t ipBlock)
+{
+    return (uint8_t)((ipBlock >> 0x08u) & 0x00FFu);
 }
 
 /* ========================================================================== */
@@ -2691,6 +2849,50 @@ __STATIC_INLINE uint8_t Cy_SysClk_GetClkGrDiv(uint32_t clkGR)
 }
 
 /** \} group_sysclk_clk_gr_funcs */
+
+/* ========================================================================== */
+/* =======================    clk_trc_dbg SECTION    ======================== */
+/* ========================================================================== */
+/**
+* \addtogroup group_sysclk_clk_trc_dbg_funcs
+* \{
+*/
+__STATIC_INLINE void Cy_SysClk_TrcDbgClkSetDivider(uint8_t divider);
+__STATIC_INLINE uint8_t Cy_SysClk_TrcDbgClkGetDivider(void);
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_TrcDbgClkSetDivider
+****************************************************************************//**
+*
+* Sets the clock divider for the trc dbg clock.
+*
+* \param divider divider value between 0 and 255.
+* Causes integer division of (divider value + 1), or division by 1 to 256.
+*
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_TrcDbgClkSetDivider(uint8_t divider)
+{
+    CPUSS->unTRC_DBG_CLOCK_CTL.stcField.u8INT_DIV = divider;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_TrcDbgClkGetDivider
+****************************************************************************//**
+*
+* Returns the clock divider for the trc dbg clock.
+*
+* \return The divider value for the trc dbg clock.
+* The integer division done is by (divider value + 1), or division by 1 to 256.
+*
+*******************************************************************************/
+__STATIC_INLINE uint8_t Cy_SysClk_TrcDbgClkGetDivider(void)
+{
+    return((uint8_t)CPUSS->unTRC_DBG_CLOCK_CTL.stcField.u8INT_DIV);
+}
+
+/** \} group_sysclk_clk_trc_dbg_funcs */
+
+
 /*******************************************************************************
 * Function Name: Cy_SysClk_PeriphAssignDivider
 ****************************************************************************//**
@@ -2707,16 +2909,24 @@ __STATIC_INLINE uint8_t Cy_SysClk_GetClkGrDiv(uint32_t clkGR)
 __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphAssignDivider(en_clk_dst_t ipBlock, cy_en_divider_types_t dividerType,
                                                    uint32_t dividerNum)
 {
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    uint8_t group_no = Cy_SysClk_GetClockGroup(ipBlock);
+    uint8_t peri_no  = (uint8_t)(ipBlock & 0x00FFu);
+
+    if(group_no > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
-    un_PERI_CLOCK_CTL_t tempCLOCK_CTL_RegValue;
-    tempCLOCK_CTL_RegValue.u32Register         = PERI->unCLOCK_CTL[ipBlock].u32Register;
+    if(Cy_SysClk_CheckDividerExisting(group_no, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
+
+    un_PERI_PCLK_GR_CLOCK_CTL_t tempCLOCK_CTL_RegValue;
+    tempCLOCK_CTL_RegValue.u32Register         = PERI_PCLK->GR[group_no].unCLOCK_CTL[peri_no].u32Register;
     tempCLOCK_CTL_RegValue.stcField.u2TYPE_SEL = dividerType;
     tempCLOCK_CTL_RegValue.stcField.u8DIV_SEL  = dividerNum;
-    PERI->unCLOCK_CTL[ipBlock].u32Register     = tempCLOCK_CTL_RegValue.u32Register;
+    PERI_PCLK->GR[group_no].unCLOCK_CTL[peri_no].u32Register = tempCLOCK_CTL_RegValue.u32Register;
 
     return CY_SYSCLK_SUCCESS;
 
@@ -2737,9 +2947,13 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphAssignDivider(en_clk_dst_t
 __STATIC_INLINE void Cy_SysClk_PeriphGetAssignedDivider(en_clk_dst_t ipBlock, cy_en_divider_types_t *dividerType,
                                                    uint32_t *dividerNum)
 {
-    CY_ASSERT(ipBlock < PERI_CLOCK_NR);
-    *dividerType = (cy_en_divider_types_t )PERI->unCLOCK_CTL[ipBlock].stcField.u2TYPE_SEL;
-    *dividerNum  = PERI->unCLOCK_CTL[ipBlock].stcField.u8DIV_SEL;
+    uint8_t group_no = Cy_SysClk_GetClockGroup(ipBlock);
+    uint8_t peri_no  = (uint8_t)(ipBlock & 0x00FFu);
+
+    CY_ASSERT(group_no < PERI_PCLK_GROUP_NR);
+
+    *dividerType = (cy_en_divider_types_t)PERI_PCLK->GR[group_no].unCLOCK_CTL[peri_no].stcField.u2TYPE_SEL;
+    *dividerNum  = PERI_PCLK->GR[group_no].unCLOCK_CTL[peri_no].stcField.u8DIV_SEL;
 
     return;
 }
@@ -2758,25 +2972,30 @@ __STATIC_INLINE void Cy_SysClk_PeriphGetAssignedDivider(en_clk_dst_t ipBlock, cy
 * divider is aligned to clk_peri. See \ref Cy_SysClk_PeriphPhaseDisableDivider()
 * for information on how to phase-align a divider after it is enabled.
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphEnableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphEnableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
+    if(groupNum > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
 
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
     /* specify the divider, make the reference = clk_peri, and enable the divider */
-    un_PERI_DIV_CMD_t tempDIV_CMD_RegValue;
-    tempDIV_CMD_RegValue.u32Register            = PERI->unDIV_CMD.u32Register;
+
+    un_PERI_PCLK_GR_DIV_CMD_t tempDIV_CMD_RegValue;
+    tempDIV_CMD_RegValue.u32Register            = PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register;
     tempDIV_CMD_RegValue.stcField.u1ENABLE      = 1ul;
     tempDIV_CMD_RegValue.stcField.u2PA_TYPE_SEL = 3ul;
     tempDIV_CMD_RegValue.stcField.u8PA_DIV_SEL  = 0xFFul;
     tempDIV_CMD_RegValue.stcField.u2TYPE_SEL    = dividerType;
     tempDIV_CMD_RegValue.stcField.u8DIV_SEL     = dividerNum;
-    PERI->unDIV_CMD.u32Register                 = tempDIV_CMD_RegValue.u32Register;
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register = tempDIV_CMD_RegValue.u32Register;
 
-    (void)PERI->unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
 
     return CY_SYSCLK_SUCCESS;
 }
@@ -2792,23 +3011,28 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphEnableDivider(cy_en_divide
 * \param dividerNum specifies which divider of the selected type to configure.
 *
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphDisableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphDisableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(groupNum > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
-    /* specify the divider, make the reference = clk_peri, and disable the divider */
-    un_PERI_DIV_CMD_t tempDIV_CMD_RegValue;
-    tempDIV_CMD_RegValue.u32Register            = PERI->unDIV_CMD.u32Register;
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
+
+    un_PERI_PCLK_GR_DIV_CMD_t tempDIV_CMD_RegValue;
+    tempDIV_CMD_RegValue.u32Register            = PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register;
     tempDIV_CMD_RegValue.stcField.u1DISABLE     = 1ul;
     tempDIV_CMD_RegValue.stcField.u2PA_TYPE_SEL = 3ul;
     tempDIV_CMD_RegValue.stcField.u8PA_DIV_SEL  = 0xFFul;
     tempDIV_CMD_RegValue.stcField.u2TYPE_SEL    = dividerType;
     tempDIV_CMD_RegValue.stcField.u8DIV_SEL     = dividerNum;
-    PERI->unDIV_CMD.u32Register                 = tempDIV_CMD_RegValue.u32Register;
-    (void)PERI->unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register = tempDIV_CMD_RegValue.u32Register;
+
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
 
     return CY_SYSCLK_SUCCESS;
 }
@@ -2832,21 +3056,27 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphDisableDivider(cy_en_divid
 * 3. Call Cy_SysClk_PeriphPhaseAlignDivider to enable the divider and do the phase
 *    alignment.
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseDisableDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum)
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseDisableDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum)
 {
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(groupNum > (uint32_t)(PERI_PCLK_GROUP_NR - 1u))
+    {
+        return CY_SYSCLK_BAD_PARAM;
+    }
+
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
     /* specify the divider and disable it */
-    un_PERI_DIV_CMD_t tempDIV_CMD_RegValue;
-    tempDIV_CMD_RegValue.u32Register         = PERI->unDIV_CMD.u32Register;
+    un_PERI_PCLK_GR_DIV_CMD_t tempDIV_CMD_RegValue;
+    tempDIV_CMD_RegValue.u32Register         = PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register;
     tempDIV_CMD_RegValue.stcField.u1DISABLE  = 1ul;
     tempDIV_CMD_RegValue.stcField.u2TYPE_SEL = dividerType;
     tempDIV_CMD_RegValue.stcField.u8DIV_SEL  = dividerNum;
-    PERI->unDIV_CMD.u32Register              = tempDIV_CMD_RegValue.u32Register;
-    (void)PERI->unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register = tempDIV_CMD_RegValue.u32Register;
+
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
 
     return CY_SYSCLK_SUCCESS;
 }
@@ -2871,31 +3101,31 @@ __STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseDisableDivider(cy_en_
 * To phase-align a divider to clk_peri, set dividerTypePA to 3 and dividerNumPA
 * to 63.
 *******************************************************************************/
-__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseAlignDivider(cy_en_divider_types_t dividerType, uint32_t dividerNum,
+__STATIC_INLINE cy_en_sysclk_status_t Cy_SysClk_PeriphPhaseAlignDivider(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum,
                                                        cy_en_divider_types_t dividerTypePA, uint32_t dividerNumPA)
 {
-    if(Cy_SysClk_CheckDividerExisting(dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerType, dividerNum) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
-    if(Cy_SysClk_CheckDividerExisting(dividerTypePA, dividerNumPA) == CY_DIVIDER_NOT_EXISTING)
+    if(Cy_SysClk_CheckDividerExisting(groupNum, dividerTypePA, dividerNumPA) == CY_DIVIDER_NOT_EXISTING)
     {
         return CY_SYSCLK_BAD_PARAM;
     }
 
     /* first disable the divider that is to be phase-aligned */
-    Cy_SysClk_PeriphPhaseDisableDivider(dividerType, dividerNum);
+    Cy_SysClk_PeriphPhaseDisableDivider(groupNum, dividerType, dividerNum);
     /* then specify the reference divider, and the divider, and enable the divider */
-    un_PERI_DIV_CMD_t tempDIV_CMD_RegValue;
-    tempDIV_CMD_RegValue.u32Register            = PERI->unDIV_CMD.u32Register;
-    tempDIV_CMD_RegValue.stcField.u1ENABLE      = 1ul;
-    tempDIV_CMD_RegValue.stcField.u2PA_TYPE_SEL = dividerTypePA;
-    tempDIV_CMD_RegValue.stcField.u8PA_DIV_SEL  = dividerNumPA;
-    tempDIV_CMD_RegValue.stcField.u2TYPE_SEL    = dividerType;
-    tempDIV_CMD_RegValue.stcField.u8DIV_SEL     = dividerNum;
-    PERI->unDIV_CMD.u32Register                 = tempDIV_CMD_RegValue.u32Register;
-    (void)PERI->unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
+    un_PERI_PCLK_GR_DIV_CMD_t tempDIV_CMD_RegValue;
+    tempDIV_CMD_RegValue.u32Register              = PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register;
+    tempDIV_CMD_RegValue.stcField.u1ENABLE        = 1ul;
+    tempDIV_CMD_RegValue.stcField.u2PA_TYPE_SEL   = dividerTypePA;
+    tempDIV_CMD_RegValue.stcField.u8PA_DIV_SEL    = dividerNumPA;
+    tempDIV_CMD_RegValue.stcField.u2TYPE_SEL      = dividerType;
+    tempDIV_CMD_RegValue.stcField.u8DIV_SEL       = dividerNum;
+    PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register = tempDIV_CMD_RegValue.u32Register;
+    (void)PERI_PCLK->GR[groupNum].unDIV_CMD.u32Register; /* dummy read to handle buffered writes */
 
     return CY_SYSCLK_SUCCESS;
 
@@ -2926,7 +3156,7 @@ __STATIC_INLINE uint32_t Cy_SysClk_SlowClkGetDivider(void);
 *******************************************************************************/
 __STATIC_INLINE void Cy_SysClk_SlowClkSetDivider(uint32_t divider)
 {
-    CPUSS->unCM0_CLOCK_CTL.stcField.u8SLOW_INT_DIV = divider;
+    CPUSS->unSLOW_CLOCK_CTL.stcField.u8INT_DIV = divider;
 }
 
 /*******************************************************************************
@@ -2941,7 +3171,7 @@ __STATIC_INLINE void Cy_SysClk_SlowClkSetDivider(uint32_t divider)
 *******************************************************************************/
 __STATIC_INLINE uint32_t Cy_SysClk_SlowClkGetDivider(void)
 {
-    return CPUSS->unCM0_CLOCK_CTL.stcField.u8SLOW_INT_DIV;
+    return (CPUSS->unSLOW_CLOCK_CTL.stcField.u8INT_DIV);
 }
 /** \} group_sysclk_clk_slow_funcs */
 
@@ -3006,7 +3236,7 @@ __STATIC_INLINE cy_en_lfclk_input_sources_t Cy_SysClk_LfClkGetSource(void)
 }
 /** \} group_sysclk_clk_lf_funcs */
 
-
+#if 0
 /* ========================================================================== */
 /* ========================    clk_timer SECTION    ========================= */
 /* ========================================================================== */
@@ -3128,7 +3358,7 @@ __STATIC_INLINE void Cy_SysClk_ClkTimerDisable(void)
     SRSS->unCLK_TIMER_CTL.stcField.u1ENABLE = 0ul; /* 0 = disable */
 }
 /** \} group_sysclk_clk_timer_funcs */
-
+#endif
 
 /* ========================================================================== */
 /* =========================    clk_pump SECTION    ========================= */
@@ -3297,6 +3527,49 @@ typedef enum
     CY_SYSCLK_BAK_IN_LPECO_PRESCALER = 3u, /**< Backup domain clock input is LPECO */
 #endif
 } cy_en_clkbak_input_sources_t;
+
+
+#if defined(SRSS_BACKUP_S40E_LPECO_PRESENT) && (SRSS_BACKUP_S40E_LPECO_PRESENT == 1)
+/**
+* Backup domain LPECO load capacitance range. See BACKUP->unLPECO_CTL register
+*/
+typedef enum
+{
+    CY_SYSCLK_BAK_LPECO_LCAP_5TO10PF    = 0u,   /**< Backup domain LPECO load is in range [5pF, 10pF] */
+    CY_SYSCLK_BAK_LPECO_LCAP_10TO15PF	= 1u,   /**< Backup domain LPECO load is in range [10pF, 15pF] */
+    CY_SYSCLK_BAK_LPECO_LCAP_15TO20PF 	= 2u,   /**< Backup domain LPECO load is in range [15pF, 20pF] */
+    CY_SYSCLK_BAK_LPECO_LCAP_20TO25PF 	= 3u,   /**< Backup domain LPECO load is in range [20pF, 25pF] */
+} cy_en_clkbak_lpeco_loadcap_range_t;
+
+/**
+* Backup domain LPECO crystal frequency range. See BACKUP->unLPECO_CTL register
+*/
+typedef enum
+{
+    CY_SYSCLK_BAK_LPECO_FREQ_4TO6MHZ 	= 0u,   /**< Backup domain LPECO frequency is in range [4MHz, 6MHz] */
+    CY_SYSCLK_BAK_LPECO_FREQ_6TO8MHZ 	= 1u,   /**< Backup domain LPECO frequency is in range [6MHz, 8MHz] */
+} cy_en_clkbak_lpeco_frequency_range_t;
+
+/**
+* Backup domain LPECO crystal oscillation amplitude . See BACKUP->unLPECO_CTL register
+*/
+typedef enum
+{
+    CY_SYSCLK_BAK_LPECO_AMP_MAX_1P35V   = 0u,   /**< Backup domain LPECO maximum amplitude is 1.35V. This is the lowest power setting. */
+    CY_SYSCLK_BAK_LPECO_AMP_MAX_1P8V 	= 1u,   /**< Backup domain LPECO maximum amplitude is 1.8V. This is the lowest jitter setting. */
+} cy_en_clkbak_lpeco_max_amplitude_t;
+
+/**
+* Backup domain LPECO minimum amplitude detection. See BACKUP->unLPECO_CTL register
+*/
+typedef enum
+{
+    CY_SYSCLK_BAK_LPECO_AMPDET_INIT_EN          = 0u,   /**< Initially enabled, and then automatically disabled when amplitude detector detects sufficient amplitude. */
+    CY_SYSCLK_BAK_LPECO_AMPDET_ALWAYS_EN 	= 1u,   /**< Keep minimum amplitude detector enabled as long as LPECO is enabled */
+} cy_en_clkbak_lpeco_amplitude_detect_t;
+
+#endif	/* SRSS_BACKUP_S40E_LPECO_PRESENT */
+
 /** \} group_sysclk_clk_bak_enums */
 
 /**
@@ -3305,6 +3578,20 @@ typedef enum
 */
 __STATIC_INLINE void Cy_SysClk_ClkBakSetSource(cy_en_clkbak_input_sources_t source);
 __STATIC_INLINE cy_en_clkbak_input_sources_t Cy_SysClk_ClkBakGetSource(void);
+
+#if defined(SRSS_BACKUP_S40E_LPECO_PRESENT) && (SRSS_BACKUP_S40E_LPECO_PRESENT == 1)
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetLoadCap(cy_en_clkbak_lpeco_loadcap_range_t capValue);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetFrequency(cy_en_clkbak_lpeco_frequency_range_t freqValue);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetAmplitude(cy_en_clkbak_lpeco_max_amplitude_t ampValue);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_EnableDivider(bool enable);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_EnableAmplitudeDetection(bool enable);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetPrescalar(uint8_t fracDiv, uint16_t intDiv);
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_Enable(bool enable);
+
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_PrescalarOkay(void);
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_AmplitudeOkay(void);
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_Ready(void);
+#endif	/* SRSS_BACKUP_S40E_LPECO_PRESENT */
 
 /*******************************************************************************
 * Function Name: Cy_SysClk_ClkBakSetSource
@@ -3337,6 +3624,195 @@ __STATIC_INLINE cy_en_clkbak_input_sources_t Cy_SysClk_ClkBakGetSource(void)
 {
     return (cy_en_clkbak_input_sources_t)BACKUP->unCTL.stcField.u2CLK_SEL;
 }
+
+#if defined(SRSS_BACKUP_S40E_LPECO_PRESENT) && (SRSS_BACKUP_S40E_LPECO_PRESENT == 1)
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_SetLoadCap
+****************************************************************************//**
+*
+* \brief Sets the load capacitance range for the LPECO crystal.
+*
+* \param capValue \ref cy_en_clkbak_lpeco_loadcap_range_t
+*
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetLoadCap(cy_en_clkbak_lpeco_loadcap_range_t capValue)
+{
+    BACKUP->unLPECO_CTL.stcField.u2LPECO_CRANGE = capValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_SetFrequency
+****************************************************************************//**
+*
+* \brief Sets the frequency range for the LPECO crystal.
+*
+* \param freqValue \ref cy_en_clkbak_lpeco_frequency_range_t
+*
+* \note for 6MHz please set value CY_SYSCLK_BAK_LPECO_FREQ_6TO8MHZ
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetFrequency(cy_en_clkbak_lpeco_frequency_range_t freqValue)
+{
+    BACKUP->unLPECO_CTL.stcField.u1LPECO_FRANGE = freqValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_SetAmplitude
+****************************************************************************//**
+*
+* \brief Sets the max oscillation amplitude value for the LPECO crystal.
+*
+* \param ampValue \ref cy_en_clkbak_lpeco_max_amplitude_t
+*
+* \note The crystal can be permanently damaged by selecting an amplitude that 
+* exceeds the crystal limits.
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetAmplitude(cy_en_clkbak_lpeco_max_amplitude_t ampValue)
+{
+    BACKUP->unLPECO_CTL.stcField.u1LPECO_AMP_SEL = ampValue;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_EnableDivider
+****************************************************************************//**
+*
+* \brief Sets the prescalar enable for the LPECO.
+*
+* \param enable the prescalar divider.
+*
+* \note Do not set this to '1' when LPECO_EN==0.  SW sets this field to '1' to 
+* enable the divider and HW sets this field to '0' to indicate that divider 
+* enabling has completed.
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_EnableDivider(bool enable)
+{
+    BACKUP->unLPECO_CTL.stcField.u1LPECO_DIV_ENABLE = enable;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_EnableAmplitudeDetection
+****************************************************************************//**
+*
+* \brief Enable or disable the minimum amplitude detector for the LPECO.
+*
+* \param enable \ref cy_en_clkbak_lpeco_max_amplitude_t.
+*
+* \note Ignored when LPECO_EN==0.
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_EnableAmplitudeDetection(bool enable)
+{
+    BACKUP->unLPECO_CTL.stcField.u1LPECO_AMPDET_EN = enable;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_Enable
+****************************************************************************//**
+*
+* \brief Master enable or disable the LPECO.
+*
+* \param enable the LPECO.
+*
+* \note This also disables the LPECO prescaler.
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_Enable(bool enable)
+{
+    BACKUP->unLPECO_CTL.stcField.u1LPECO_EN = enable;
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_SetPrescalar
+****************************************************************************//**
+*
+* \brief Prescalar integer and fractional divier to generate 32768Hz from LPECO.
+*
+* \param fracDiv Fractional divide value for prescalar.
+*        intDiv Integer divide value for prescalar.
+*
+* \note Subtract one from the integer divide value when writing this field. Do 
+* not change this setting when LPECO Prescaler is enabled.
+* 
+* \return none
+*******************************************************************************/
+__STATIC_INLINE void Cy_SysClk_ClkBak_LPECO_SetPrescalar(uint8_t fracDiv, uint16_t intDiv)
+{
+    if(BACKUP->unLPECO_PRESCALE.stcField.u1LPECO_DIV_ENABLED == 0)
+    {
+        BACKUP->unLPECO_PRESCALE.stcField.u8LPECO_FRAC_DIV = fracDiv;
+        BACKUP->unLPECO_PRESCALE.stcField.u10LPECO_INT_DIV = intDiv;
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_PrescalarOkay
+****************************************************************************//**
+*
+* \brief This will return the status from LPECO after setting prescalar divider.
+*
+* \param none
+*
+* \note This field does not update unless LPECO clock is toggling.
+* 
+* \return bool
+*******************************************************************************/
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_PrescalarOkay(void)
+{
+    if(BACKUP->unLPECO_PRESCALE.stcField.u1LPECO_DIV_ENABLED == 1)
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_AmplitudeOkay
+****************************************************************************//**
+*
+* \brief This api will return status of oscillation amplitude reported by LPECO 
+* amplitude detector.
+*
+* \param none
+*
+* \note This field will read as zero when the amplitude detector is off.
+* 
+* \return bool
+*******************************************************************************/
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_AmplitudeOkay(void)
+{
+    return (BACKUP->unLPECO_STATUS.stcField.u1LPECO_AMPDET_OK);
+}
+
+/*******************************************************************************
+* Function Name: Cy_SysClk_ClkBak_LPECO_Ready
+****************************************************************************//**
+*
+* \brief This api will return status of LPECO stablization.
+*
+* \param none
+*
+* \note This field is driven by a stabilization counter clocked by IMO.
+* 
+* \return bool
+*******************************************************************************/
+__STATIC_INLINE bool Cy_SysClk_ClkBak_LPECO_Ready(void)
+{
+    return (BACKUP->unLPECO_STATUS.stcField.u1LPECO_READY);
+}
+
+#endif /* SRSS_BACKUP_S40E_LPECO_PRESENT */
+
 /** \} group_sysclk_clk_bak_funcs */
 
 typedef enum
@@ -3408,21 +3884,21 @@ cy_en_sysclk_status_t Cy_SysClk_GetEcoPrescaleFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetLfFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetMTWDTFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetTimerFrequency(uint32_t *result);
-cy_en_sysclk_status_t Cy_SysClk_GetFastFrequency(uint32_t *result);
+cy_en_sysclk_status_t Cy_SysClk_GetFast0Frequency(uint32_t *result);
+cy_en_sysclk_status_t Cy_SysClk_GetFast1Frequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetClkPeriFrequency(uint32_t *result);
+cy_en_sysclk_status_t Cy_SysClk_GetClkMemFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetClkSlowFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetCoreFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetSystickFrequency(uint32_t *result);
+cy_en_sysclk_status_t Cy_SysClk_PeriphGetFrequency(en_clk_dst_t ipBlock, uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetGroupFrequency(uint32_t clkGR, uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetFlashInterfaceFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetRamFastFrequency(uint32_t ramNo, uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetRamSlowFrequency(uint32_t ramNo, uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetRomFastFrequency(uint32_t *result);
 cy_en_sysclk_status_t Cy_SysClk_GetRomSlowFrequency(uint32_t *result);
-cy_en_sysclk_status_t Cy_SysClk_PeriphGetFrequency(en_clk_dst_t ipBlock, uint32_t *result);
-cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t targetFreq, uint32_t *targetResutFreq);
-
-
+cy_en_sysclk_status_t Cy_SysClk_PeriphSetFracDividerAuto(uint32_t groupNum, cy_en_divider_types_t dividerType, uint32_t dividerNum, uint32_t targetFreq, uint32_t *targetResutFreq);
 
 
 #if defined(__cplusplus)

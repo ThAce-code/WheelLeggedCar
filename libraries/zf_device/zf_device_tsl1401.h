@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -51,11 +51,11 @@
 #include "zf_device_type.h"
 
 //=================================================定义 TSL1401 基本配置================================================
-#define TSL1401_AO_PIN1         (ADC2_CH04_P18_4)                               // 对应第一个 TSL1401 的 AO 引脚
-#define TSL1401_AO_PIN2         (ADC2_CH05_P18_5)                               // 对应第二个 TSL1401 的 AO 引脚
+#define TSL1401_AO_PIN          (ADC0_CH00_P06_0)                               // 对应第一个 TSL1401 的 AO 引脚
+#define TSL1401_AO_PIN1         (ADC0_CH01_P06_1)                               // 对应第二个 TSL1401 的 AO 引脚
 // TSL1401 的控制引脚定义 多个 TSL1401 建议将控制引脚直接并联
-#define TSL1401_CLK_PIN         (P18_1)                                         // TSL1401 的 CLK 引脚定义
-#define TSL1401_SI_PIN          (P18_3)                                         // TSL1401 的 SI 引脚定义
+#define TSL1401_CLK_PIN         (P18_0)                                         // TSL1401 的 CLK 引脚定义
+#define TSL1401_SI_PIN          (P18_1)                                         // TSL1401 的 SI 引脚定义
 #define TSL1401_CLK(x)          ((x) ? (gpio_high(TSL1401_CLK_PIN)) : (gpio_low(TSL1401_CLK_PIN)))
 #define TSL1401_SI(x)           ((x) ? (gpio_high(TSL1401_SI_PIN))  : (gpio_low(TSL1401_SI_PIN)))
 

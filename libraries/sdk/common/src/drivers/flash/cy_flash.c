@@ -773,7 +773,7 @@ cy_en_flashdrv_status_t Cy_Flash_ConfigureFMIntr(cy_un_flash_context_t* context,
 {
     /* Prepares arguments to be passed to SROM API */
     un_srom_api_args_t apiArgs = { 0ul };
-    apiArgs.ConfigFmIntr.arg0.opcode = CY_SROM_OP_FLASH_FM_INTR;
+    apiArgs.ConfigFmIntr.arg0.opcode = CY_SROM_OP_FLASH_FM_STATUS;
     apiArgs.ConfigFmIntr.arg0.option = (uint32_t)option;
 
     /* Call SROM API with blocking mode */
@@ -1601,7 +1601,7 @@ cy_en_flashdrv_status_t Cy_Flash_ConfigureFMIntr1(cy_un_flash_context_t* context
 {
     /* Prepares arguments to be passed to SROM API */
     un_srom_api_args_t apiArgs = { 0ul };
-    apiArgs.ConfigFmIntr.arg0.opcode = CY_SROM_OP_FLASH_FM_INTR2;    
+    apiArgs.ConfigFmIntr.arg0.opcode = CY_SROM_OP_FLASH_FM_STATUS2;    
     apiArgs.ConfigFmIntr.arg0.option = (uint32_t)option;
 
     /* Call SROM API with blocking mode */

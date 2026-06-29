@@ -96,7 +96,7 @@ typedef void (*cy_sw_tmr_wdg_handle_callout_t)(void);
 typedef enum
 {
     CY_SWTMR_SUCCESS   = 0x00u, /**< Returned successful */
-    CY_SWTMR_BAD_PARAM = 0x01u  /**< Bad parameter was passed */
+    CY_SWTMR_BAD_PARAM = 0x01u, /**< Bad parameter was passed */
 } cy_swtmr_en_result_t;
 
 /** \} group_mw_swtmr_enums */

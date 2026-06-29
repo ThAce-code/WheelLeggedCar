@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -48,7 +48,6 @@
 #include "zf_common_fifo.h"
 #include "zf_driver_delay.h"
 #include "zf_driver_uart.h"
-#include "zf_device_type.h"
 
 #include "zf_device_gnss.h"
 
@@ -552,7 +551,7 @@ void gnss_uart_callback (void)
 // 函数简介     GPS初始化
 // 参数说明     void
 // 返回参数     void
-// 使用示例     gnss_init(TAU1201);
+// 使用示例     gps_init();
 // 备注信息     
 //-------------------------------------------------------------------------------------------------------------------
 void gnss_init (gps_device_enum gps_device)
@@ -571,7 +570,6 @@ void gnss_init (gps_device_enum gps_device)
     const uint8 close_txt[]     = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x40, 0x00, 0x3A, 0x8F};
     const uint8 close_txt_ant[] = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x20, 0x00, 0x1A, 0x4F};
     
-    set_wireless_type(GNSS_WIRELESS_UART, gnss_uart_callback);
     if((TAU1201 == gps_device) || (GN42A == gps_device))
     {
         fifo_init(&gnss_receiver_fifo, FIFO_DATA_8BIT, gnss_receiver_buffer, GNSS_BUFFER_SIZE);

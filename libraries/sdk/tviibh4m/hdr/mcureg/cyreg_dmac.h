@@ -5,12 +5,12 @@
 * DMAC register definition header
 *
 * \note
-* Generator version: 1.6.0.217
-* Database revision: TVIIBE4M_WW2014_BTO
+* Generator version: 1.6.0.481
+* Database revision: TVIIBH4M_PR3_0
 *
 ********************************************************************************
 * \copyright
-* Copyright 2016-2020, Cypress Semiconductor Corporation. All rights reserved.
+* Copyright 2016-2021, Cypress Semiconductor Corporation. All rights reserved.
 * You may use this file only in accordance with the license, terms, conditions,
 * disclaimers, and limitations in the end user license agreement accompanying
 * the software package with which this file was provided.
@@ -19,7 +19,7 @@
 #ifndef _CYREG_DMAC_H_
 #define _CYREG_DMAC_H_
 
-#include "cyip_dmac_v2.h"
+#include "cyip_dmac.h"
 
 /**
   * \brief DMA controller channel (DMAC_CH0)
@@ -112,6 +112,98 @@
 #define CYREG_DMAC_CH3_INTR_SET         ((volatile un_DMAC_CH_INTR_SET_t*) 0x402A1384UL)
 #define CYREG_DMAC_CH3_INTR_MASK        ((volatile un_DMAC_CH_INTR_MASK_t*) 0x402A1388UL)
 #define CYREG_DMAC_CH3_INTR_MASKED      ((volatile un_DMAC_CH_INTR_MASKED_t*) 0x402A138CUL)
+
+/**
+  * \brief DMA controller channel (DMAC_CH4)
+  */
+#define CYREG_DMAC_CH4_CTL              ((volatile un_DMAC_CH_CTL_t*) 0x402A1400UL)
+#define CYREG_DMAC_CH4_IDX              ((volatile un_DMAC_CH_IDX_t*) 0x402A1410UL)
+#define CYREG_DMAC_CH4_SRC              ((volatile un_DMAC_CH_SRC_t*) 0x402A1414UL)
+#define CYREG_DMAC_CH4_DST              ((volatile un_DMAC_CH_DST_t*) 0x402A1418UL)
+#define CYREG_DMAC_CH4_CURR             ((volatile un_DMAC_CH_CURR_t*) 0x402A1420UL)
+#define CYREG_DMAC_CH4_TR_CMD           ((volatile un_DMAC_CH_TR_CMD_t*) 0x402A1428UL)
+#define CYREG_DMAC_CH4_DESCR_STATUS     ((volatile un_DMAC_CH_DESCR_STATUS_t*) 0x402A1440UL)
+#define CYREG_DMAC_CH4_DESCR_CTL        ((volatile un_DMAC_CH_DESCR_CTL_t*) 0x402A1460UL)
+#define CYREG_DMAC_CH4_DESCR_SRC        ((volatile un_DMAC_CH_DESCR_SRC_t*) 0x402A1464UL)
+#define CYREG_DMAC_CH4_DESCR_DST        ((volatile un_DMAC_CH_DESCR_DST_t*) 0x402A1468UL)
+#define CYREG_DMAC_CH4_DESCR_X_SIZE     ((volatile un_DMAC_CH_DESCR_X_SIZE_t*) 0x402A146CUL)
+#define CYREG_DMAC_CH4_DESCR_X_INCR     ((volatile un_DMAC_CH_DESCR_X_INCR_t*) 0x402A1470UL)
+#define CYREG_DMAC_CH4_DESCR_Y_SIZE     ((volatile un_DMAC_CH_DESCR_Y_SIZE_t*) 0x402A1474UL)
+#define CYREG_DMAC_CH4_DESCR_Y_INCR     ((volatile un_DMAC_CH_DESCR_Y_INCR_t*) 0x402A1478UL)
+#define CYREG_DMAC_CH4_DESCR_NEXT       ((volatile un_DMAC_CH_DESCR_NEXT_t*) 0x402A147CUL)
+#define CYREG_DMAC_CH4_INTR             ((volatile un_DMAC_CH_INTR_t*) 0x402A1480UL)
+#define CYREG_DMAC_CH4_INTR_SET         ((volatile un_DMAC_CH_INTR_SET_t*) 0x402A1484UL)
+#define CYREG_DMAC_CH4_INTR_MASK        ((volatile un_DMAC_CH_INTR_MASK_t*) 0x402A1488UL)
+#define CYREG_DMAC_CH4_INTR_MASKED      ((volatile un_DMAC_CH_INTR_MASKED_t*) 0x402A148CUL)
+
+/**
+  * \brief DMA controller channel (DMAC_CH5)
+  */
+#define CYREG_DMAC_CH5_CTL              ((volatile un_DMAC_CH_CTL_t*) 0x402A1500UL)
+#define CYREG_DMAC_CH5_IDX              ((volatile un_DMAC_CH_IDX_t*) 0x402A1510UL)
+#define CYREG_DMAC_CH5_SRC              ((volatile un_DMAC_CH_SRC_t*) 0x402A1514UL)
+#define CYREG_DMAC_CH5_DST              ((volatile un_DMAC_CH_DST_t*) 0x402A1518UL)
+#define CYREG_DMAC_CH5_CURR             ((volatile un_DMAC_CH_CURR_t*) 0x402A1520UL)
+#define CYREG_DMAC_CH5_TR_CMD           ((volatile un_DMAC_CH_TR_CMD_t*) 0x402A1528UL)
+#define CYREG_DMAC_CH5_DESCR_STATUS     ((volatile un_DMAC_CH_DESCR_STATUS_t*) 0x402A1540UL)
+#define CYREG_DMAC_CH5_DESCR_CTL        ((volatile un_DMAC_CH_DESCR_CTL_t*) 0x402A1560UL)
+#define CYREG_DMAC_CH5_DESCR_SRC        ((volatile un_DMAC_CH_DESCR_SRC_t*) 0x402A1564UL)
+#define CYREG_DMAC_CH5_DESCR_DST        ((volatile un_DMAC_CH_DESCR_DST_t*) 0x402A1568UL)
+#define CYREG_DMAC_CH5_DESCR_X_SIZE     ((volatile un_DMAC_CH_DESCR_X_SIZE_t*) 0x402A156CUL)
+#define CYREG_DMAC_CH5_DESCR_X_INCR     ((volatile un_DMAC_CH_DESCR_X_INCR_t*) 0x402A1570UL)
+#define CYREG_DMAC_CH5_DESCR_Y_SIZE     ((volatile un_DMAC_CH_DESCR_Y_SIZE_t*) 0x402A1574UL)
+#define CYREG_DMAC_CH5_DESCR_Y_INCR     ((volatile un_DMAC_CH_DESCR_Y_INCR_t*) 0x402A1578UL)
+#define CYREG_DMAC_CH5_DESCR_NEXT       ((volatile un_DMAC_CH_DESCR_NEXT_t*) 0x402A157CUL)
+#define CYREG_DMAC_CH5_INTR             ((volatile un_DMAC_CH_INTR_t*) 0x402A1580UL)
+#define CYREG_DMAC_CH5_INTR_SET         ((volatile un_DMAC_CH_INTR_SET_t*) 0x402A1584UL)
+#define CYREG_DMAC_CH5_INTR_MASK        ((volatile un_DMAC_CH_INTR_MASK_t*) 0x402A1588UL)
+#define CYREG_DMAC_CH5_INTR_MASKED      ((volatile un_DMAC_CH_INTR_MASKED_t*) 0x402A158CUL)
+
+/**
+  * \brief DMA controller channel (DMAC_CH6)
+  */
+#define CYREG_DMAC_CH6_CTL              ((volatile un_DMAC_CH_CTL_t*) 0x402A1600UL)
+#define CYREG_DMAC_CH6_IDX              ((volatile un_DMAC_CH_IDX_t*) 0x402A1610UL)
+#define CYREG_DMAC_CH6_SRC              ((volatile un_DMAC_CH_SRC_t*) 0x402A1614UL)
+#define CYREG_DMAC_CH6_DST              ((volatile un_DMAC_CH_DST_t*) 0x402A1618UL)
+#define CYREG_DMAC_CH6_CURR             ((volatile un_DMAC_CH_CURR_t*) 0x402A1620UL)
+#define CYREG_DMAC_CH6_TR_CMD           ((volatile un_DMAC_CH_TR_CMD_t*) 0x402A1628UL)
+#define CYREG_DMAC_CH6_DESCR_STATUS     ((volatile un_DMAC_CH_DESCR_STATUS_t*) 0x402A1640UL)
+#define CYREG_DMAC_CH6_DESCR_CTL        ((volatile un_DMAC_CH_DESCR_CTL_t*) 0x402A1660UL)
+#define CYREG_DMAC_CH6_DESCR_SRC        ((volatile un_DMAC_CH_DESCR_SRC_t*) 0x402A1664UL)
+#define CYREG_DMAC_CH6_DESCR_DST        ((volatile un_DMAC_CH_DESCR_DST_t*) 0x402A1668UL)
+#define CYREG_DMAC_CH6_DESCR_X_SIZE     ((volatile un_DMAC_CH_DESCR_X_SIZE_t*) 0x402A166CUL)
+#define CYREG_DMAC_CH6_DESCR_X_INCR     ((volatile un_DMAC_CH_DESCR_X_INCR_t*) 0x402A1670UL)
+#define CYREG_DMAC_CH6_DESCR_Y_SIZE     ((volatile un_DMAC_CH_DESCR_Y_SIZE_t*) 0x402A1674UL)
+#define CYREG_DMAC_CH6_DESCR_Y_INCR     ((volatile un_DMAC_CH_DESCR_Y_INCR_t*) 0x402A1678UL)
+#define CYREG_DMAC_CH6_DESCR_NEXT       ((volatile un_DMAC_CH_DESCR_NEXT_t*) 0x402A167CUL)
+#define CYREG_DMAC_CH6_INTR             ((volatile un_DMAC_CH_INTR_t*) 0x402A1680UL)
+#define CYREG_DMAC_CH6_INTR_SET         ((volatile un_DMAC_CH_INTR_SET_t*) 0x402A1684UL)
+#define CYREG_DMAC_CH6_INTR_MASK        ((volatile un_DMAC_CH_INTR_MASK_t*) 0x402A1688UL)
+#define CYREG_DMAC_CH6_INTR_MASKED      ((volatile un_DMAC_CH_INTR_MASKED_t*) 0x402A168CUL)
+
+/**
+  * \brief DMA controller channel (DMAC_CH7)
+  */
+#define CYREG_DMAC_CH7_CTL              ((volatile un_DMAC_CH_CTL_t*) 0x402A1700UL)
+#define CYREG_DMAC_CH7_IDX              ((volatile un_DMAC_CH_IDX_t*) 0x402A1710UL)
+#define CYREG_DMAC_CH7_SRC              ((volatile un_DMAC_CH_SRC_t*) 0x402A1714UL)
+#define CYREG_DMAC_CH7_DST              ((volatile un_DMAC_CH_DST_t*) 0x402A1718UL)
+#define CYREG_DMAC_CH7_CURR             ((volatile un_DMAC_CH_CURR_t*) 0x402A1720UL)
+#define CYREG_DMAC_CH7_TR_CMD           ((volatile un_DMAC_CH_TR_CMD_t*) 0x402A1728UL)
+#define CYREG_DMAC_CH7_DESCR_STATUS     ((volatile un_DMAC_CH_DESCR_STATUS_t*) 0x402A1740UL)
+#define CYREG_DMAC_CH7_DESCR_CTL        ((volatile un_DMAC_CH_DESCR_CTL_t*) 0x402A1760UL)
+#define CYREG_DMAC_CH7_DESCR_SRC        ((volatile un_DMAC_CH_DESCR_SRC_t*) 0x402A1764UL)
+#define CYREG_DMAC_CH7_DESCR_DST        ((volatile un_DMAC_CH_DESCR_DST_t*) 0x402A1768UL)
+#define CYREG_DMAC_CH7_DESCR_X_SIZE     ((volatile un_DMAC_CH_DESCR_X_SIZE_t*) 0x402A176CUL)
+#define CYREG_DMAC_CH7_DESCR_X_INCR     ((volatile un_DMAC_CH_DESCR_X_INCR_t*) 0x402A1770UL)
+#define CYREG_DMAC_CH7_DESCR_Y_SIZE     ((volatile un_DMAC_CH_DESCR_Y_SIZE_t*) 0x402A1774UL)
+#define CYREG_DMAC_CH7_DESCR_Y_INCR     ((volatile un_DMAC_CH_DESCR_Y_INCR_t*) 0x402A1778UL)
+#define CYREG_DMAC_CH7_DESCR_NEXT       ((volatile un_DMAC_CH_DESCR_NEXT_t*) 0x402A177CUL)
+#define CYREG_DMAC_CH7_INTR             ((volatile un_DMAC_CH_INTR_t*) 0x402A1780UL)
+#define CYREG_DMAC_CH7_INTR_SET         ((volatile un_DMAC_CH_INTR_SET_t*) 0x402A1784UL)
+#define CYREG_DMAC_CH7_INTR_MASK        ((volatile un_DMAC_CH_INTR_MASK_t*) 0x402A1788UL)
+#define CYREG_DMAC_CH7_INTR_MASKED      ((volatile un_DMAC_CH_INTR_MASKED_t*) 0x402A178CUL)
 
 /**
   * \brief DMAC (DMAC0)

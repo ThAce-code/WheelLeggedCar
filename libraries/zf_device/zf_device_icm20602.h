@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library 即（ CYT2BL3 开源库）是一个基于官方 SDK 接口的第三方开源库
+* CYT4BB Opensourec Library 即（ CYT4BB 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
-* 本文件是 CYT2BL3 开源库的一部分
+* 本文件是 CYT4BB 开源库的一部分
 *
-* CYT2BL3 开源库 是免费软件
+* CYT4BB 开源库 是免费软件
 * 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
 * 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
@@ -25,12 +25,12 @@
 * 公司名称          成都逐飞科技有限公司
 * 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
 * 开发环境          IAR 9.40.1
-* 适用平台          CYT2BL3
+* 适用平台          CYT4BB
 * 店铺链接          https://seekfree.taobao.com/
 *
 * 修改记录
 * 日期              作者                备注
-* 2024-11-19       pudding            first version
+* 2024-01-12       pudding           first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
 * 接线定义：
@@ -64,20 +64,20 @@
 #if ICM20602_USE_SOFT_IIC                                                       // 这两段 颜色正常的才是正确的 颜色灰的就是没有用的
 //====================================================软件 IIC 驱动====================================================
 #define ICM20602_SOFT_IIC_DELAY     (59 )                                       // 软件 IIC 的时钟延时周期 数值越小 IIC 通信速率越快
-#define ICM20602_SCL_PIN            (P14_2)                                    // 软件 IIC SCL 引脚 连接 ICM20602 的 SCL 引脚
-#define ICM20602_SDA_PIN            (P14_1)                                    // 软件 IIC SDA 引脚 连接 ICM20602 的 SDA 引脚
+#define ICM20602_SCL_PIN            (P15_2)                                    // 软件 IIC SCL 引脚 连接 ICM20602 的 SCL 引脚
+#define ICM20602_SDA_PIN            (P15_1)                                    // 软件 IIC SDA 引脚 连接 ICM20602 的 SDA 引脚
 //====================================================软件 IIC 驱动====================================================
 #else
 //====================================================硬件 SPI 驱动====================================================
 #define ICM20602_SPI_SPEED          (10 * 1000 * 1000)                          // 硬件 SPI 速率
-#define ICM20602_SPI                (SPI_4           )                          // 硬件 SPI 号
-#define ICM20602_SPC_PIN            (SPI4_CLK_P14_2  )                          // 硬件 SPI SCK 引脚
-#define ICM20602_SDI_PIN            (SPI4_MOSI_P14_1 )                          // 硬件 SPI MOSI 引脚
-#define ICM20602_SDO_PIN            (SPI4_MISO_P14_0 )                          // 硬件 SPI MISO 引脚
+#define ICM20602_SPI                (SPI_2           )                          // 硬件 SPI 号
+#define ICM20602_SPC_PIN            (SPI2_CLK_P15_2  )                          // 硬件 SPI SCK 引脚
+#define ICM20602_SDI_PIN            (SPI2_MOSI_P15_1 )                          // 硬件 SPI MOSI 引脚
+#define ICM20602_SDO_PIN            (SPI2_MISO_P15_0 )                          // 硬件 SPI MISO 引脚
 //====================================================硬件 SPI 驱动====================================================
 #endif
 
-#define ICM20602_CS_PIN             (P18_0)                                     // CS 片选引脚
+#define ICM20602_CS_PIN             (P15_3)                                     // CS 片选引脚
 #define ICM20602_CS(x)              ((x) ? (gpio_high(ICM20602_CS_PIN)) : (gpio_low(ICM20602_CS_PIN)))
 typedef enum
 {

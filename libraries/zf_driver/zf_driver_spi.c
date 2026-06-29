@@ -1,10 +1,10 @@
 /*********************************************************************************************************************
-* CYT2BL3 Opensourec Library ¼´£¨ CYT2BL3 ¿ªÔ´¿â£©ÊÇÒ»¸ö»ùÓÚ¹Ù·½ SDK ½Ó¿ÚµÄµÚÈý·½¿ªÔ´¿â
+* CYT4BB Opensourec Library ¼´£¨ CYT4BB ¿ªÔ´¿â£©ÊÇÒ»¸ö»ùÓÚ¹Ù·½ SDK ½Ó¿ÚµÄµÚÈý·½¿ªÔ´¿â
 * Copyright (c) 2022 SEEKFREE Öð·É¿Æ¼¼
 *
-* ±¾ÎÄ¼þÊÇ CYT2BL3 ¿ªÔ´¿âµÄÒ»²¿·Ö
+* ±¾ÎÄ¼þÊÇ CYT4BB ¿ªÔ´¿âµÄÒ»²¿·Ö
 *
-* CYT2BL3 ¿ªÔ´¿â ÊÇÃâ·ÑÈí¼þ
+* CYT4BB ¿ªÔ´¿â ÊÇÃâ·ÑÈí¼þ
 * Äú¿ÉÒÔ¸ù¾Ý×ÔÓÉÈí¼þ»ù½ð»á·¢²¼µÄ GPL£¨GNU General Public License£¬¼´ GNUÍ¨ÓÃ¹«¹²Ðí¿ÉÖ¤£©µÄÌõ¿î
 * ¼´ GPL µÄµÚ3°æ£¨¼´ GPL3.0£©»ò£¨ÄúÑ¡ÔñµÄ£©ÈÎºÎºóÀ´µÄ°æ±¾£¬ÖØÐÂ·¢²¼ºÍ/»òÐÞ¸ÄËü
 *
@@ -25,13 +25,12 @@
 * ¹«Ë¾Ãû³Æ          ³É¶¼Öð·É¿Æ¼¼ÓÐÏÞ¹«Ë¾
 * °æ±¾ÐÅÏ¢          ²é¿´ libraries/doc ÎÄ¼þ¼ÐÄÚ version ÎÄ¼þ °æ±¾ËµÃ÷
 * ¿ª·¢»·¾³          IAR 9.40.1
-* ÊÊÓÃÆ½Ì¨          CYT2BL3
+* ÊÊÓÃÆ½Ì¨          CYT4BB
 * µêÆÌÁ´½Ó          https://seekfree.taobao.com/
 *
 * ÐÞ¸Ä¼ÇÂ¼
 * ÈÕÆÚ              ×÷Õß                ±¸×¢
 * 2024-1-9       pudding            first version
-* 2024-3-6       pudding            ÐÞ¸´Óë´®¿ÚµÄÊ±ÖÓ³åÍ»ÎÊÌâ
 ********************************************************************************************************************/
 
 #include "scb/cy_scb_spi.h"
@@ -45,8 +44,8 @@
 
 #define SPI_FREQ       CY_INITIAL_TARGET_PERI_FREQ                             // ´®¿ÚÄ£¿éÊ±ÖÓ Ä¬ÈÏ80M
 
-volatile stc_SCB_t*        spi_module[4] = {SCB4, SCB5, SCB3, SCB2};
-spi_cs_pin_enum             cs_pin_save[4];
+volatile stc_SCB_t*        spi_module[3] = {SCB7, SCB8, SCB9};
+spi_cs_pin_enum             cs_pin_save[3];
 //-------------------------------------------------------------------------------------------------------------------
 // º¯Êý¼ò½é       SPI»ñÈ¡Ê±ÖÓÒý½ÅºÅ
 // ²ÎÊýËµÃ÷       clk_pin     Ê±ÖÓÒý½Å ²ÎÕÕ zf_driver_spi.h ÄÚ spi_clk_pin_enum Ã¶¾ÙÌå¶¨Òå
@@ -60,10 +59,9 @@ static gpio_pin_enum spi_get_clk_pin (spi_clk_pin_enum clk_pin)
     
     switch(clk_pin)
     {
-        case SPI1_CLK_P06_2: temp_clk_pin = P06_2; break;
-        case SPI2_CLK_P07_2: temp_clk_pin = P07_2; break;
-        case SPI3_CLK_P13_2: temp_clk_pin = P13_2; break;
-        case SPI4_CLK_P14_2: temp_clk_pin = P14_2; break;
+        case SPI0_CLK_P02_2: temp_clk_pin = P02_2; break;
+        case SPI1_CLK_P12_2: temp_clk_pin = P12_2; break;
+        case SPI2_CLK_P15_2: temp_clk_pin = P15_2; break;
     }
     
     return temp_clk_pin;
@@ -82,10 +80,9 @@ static gpio_pin_enum spi_get_mosi_pin (spi_mosi_pin_enum mosi_pin)
     
     switch(mosi_pin)
     {
-        case SPI1_MOSI_P06_1: temp_mosi_pin = P06_1; break;
-        case SPI2_MOSI_P07_1: temp_mosi_pin = P07_1; break;
-        case SPI3_MOSI_P13_1: temp_mosi_pin = P13_1; break;
-        case SPI4_MOSI_P14_1: temp_mosi_pin = P14_1; break;
+        case SPI0_MOSI_P02_1: temp_mosi_pin = P02_1; break;
+        case SPI1_MOSI_P12_1: temp_mosi_pin = P12_1; break;
+        case SPI2_MOSI_P15_1: temp_mosi_pin = P15_1; break;
     }
     
     return temp_mosi_pin;
@@ -104,11 +101,9 @@ static gpio_pin_enum spi_get_miso_pin (spi_miso_pin_enum miso_pin)
     
     switch(miso_pin)
     {
-        case SPI1_MISO_P06_0: temp_miso_pin = P06_0; break;
-        case SPI2_MISO_P07_0: temp_miso_pin = P07_0; break;
-        case SPI3_MISO_P13_0: temp_miso_pin = P13_0; break;
-        case SPI4_MISO_P14_0: temp_miso_pin = P14_0; break;
-        case SPI_MISO_NULL: break;
+        case SPI0_MISO_P02_0: temp_miso_pin = P02_0; break;
+        case SPI1_MISO_P12_0: temp_miso_pin = P12_0; break;
+        case SPI2_MISO_P15_0: temp_miso_pin = P15_0; break;
     }
     
     return temp_miso_pin;
@@ -126,11 +121,12 @@ static gpio_pin_enum spi_get_cs_pin (spi_cs_pin_enum cs_pin)
     gpio_pin_enum temp_cs_pin = NC;
     switch(cs_pin)
     {
-        case SPI1_CS0_P06_3: temp_cs_pin = P06_3; break;
-        case SPI2_CS0_P11_0: temp_cs_pin = P11_0; break;
-        case SPI3_CS0_P13_3: temp_cs_pin = P13_3; break;
-        case SPI4_CS0_P23_7: temp_cs_pin = P23_7; break;
-        case SPI_CS_NULL: break;
+        case SPI0_CS0_P02_3: temp_cs_pin = P02_3; break;
+        case SPI0_CS1_P02_4: temp_cs_pin = P02_4; break;
+        case SPI1_CS0_P12_3: temp_cs_pin = P12_3; break;
+        case SPI1_CS1_P12_4: temp_cs_pin = P12_4; break;
+        case SPI2_CS0_P15_3: temp_cs_pin = P15_3; break;
+        case SPI2_CS3_P05_1: temp_cs_pin = P05_1; break;
     }
     return temp_cs_pin;
 }
@@ -148,10 +144,9 @@ static en_hsiom_sel_t spi_get_clk_hsiom (spi_clk_pin_enum clk_pin)
     
     switch(clk_pin)
     {
-        case SPI1_CLK_P06_2: temp_clk_hsiom = P6_2_SCB4_SPI_CLK; break;     
-        case SPI2_CLK_P07_2: temp_clk_hsiom = P7_2_SCB5_SPI_CLK; break;    
-        case SPI3_CLK_P13_2: temp_clk_hsiom = P13_2_SCB3_SPI_CLK; break;    
-        case SPI4_CLK_P14_2: temp_clk_hsiom = P14_2_SCB2_SPI_CLK; break;    
+        case SPI0_CLK_P02_2: temp_clk_hsiom = P2_2_SCB7_SPI_CLK; break;     
+        case SPI1_CLK_P12_2: temp_clk_hsiom = P12_2_SCB8_SPI_CLK; break;    
+        case SPI2_CLK_P15_2: temp_clk_hsiom = P15_2_SCB9_SPI_CLK; break;    
     }
     
     return temp_clk_hsiom;
@@ -170,10 +165,9 @@ static en_hsiom_sel_t spi_get_mosi_hsiom (spi_mosi_pin_enum mosi_pin)
     
     switch(mosi_pin)
     {
-        case SPI1_MOSI_P06_1: temp_mosi_hsiom =  P6_1_SCB4_SPI_MOSI; break;      
-        case SPI2_MOSI_P07_1: temp_mosi_hsiom =  P7_1_SCB5_SPI_MOSI; break;     
-        case SPI3_MOSI_P13_1: temp_mosi_hsiom =  P13_1_SCB3_SPI_MOSI; break;     
-        case SPI4_MOSI_P14_1: temp_mosi_hsiom =  P14_1_SCB2_SPI_MOSI; break;     
+        case SPI0_MOSI_P02_1: temp_mosi_hsiom =  P2_1_SCB7_SPI_MOSI; break;      
+        case SPI1_MOSI_P12_1: temp_mosi_hsiom =  P12_1_SCB8_SPI_MOSI; break;     
+        case SPI2_MOSI_P15_1: temp_mosi_hsiom =  P15_1_SCB9_SPI_MOSI; break;     
     }
     
     return temp_mosi_hsiom;
@@ -192,11 +186,9 @@ static en_hsiom_sel_t spi_get_miso_hsiom (spi_miso_pin_enum miso_pin)
     
     switch(miso_pin)
     {
-        case SPI1_MISO_P06_0: temp_miso_hsiom =  P6_0_SCB4_SPI_MISO; break;       
-        case SPI2_MISO_P07_0: temp_miso_hsiom =  P7_0_SCB5_SPI_MISO; break;     
-        case SPI3_MISO_P13_0: temp_miso_hsiom =  P13_0_SCB3_SPI_MISO; break;  
-        case SPI4_MISO_P14_0: temp_miso_hsiom =  P14_0_SCB2_SPI_MISO; break; 
-        case SPI_MISO_NULL: break;
+        case SPI0_MISO_P02_0: temp_miso_hsiom =  P2_0_SCB7_SPI_MISO; break;       
+        case SPI1_MISO_P12_0: temp_miso_hsiom =  P12_0_SCB8_SPI_MISO; break;     
+        case SPI2_MISO_P15_0: temp_miso_hsiom =  P15_0_SCB9_SPI_MISO; break;     
     }
     
     return temp_miso_hsiom;
@@ -214,33 +206,14 @@ static en_hsiom_sel_t spi_get_cs_hsiom (spi_cs_pin_enum cs_pin)
     en_hsiom_sel_t temp_cs_hsiom = HSIOM_SEL_GPIO;
     switch(cs_pin)
     {
-        case SPI1_CS0_P06_3: temp_cs_hsiom =  P6_3_SCB4_SPI_SELECT0;  break;     
-        case SPI2_CS0_P11_0: temp_cs_hsiom =  P11_0_GPIO;  break;      
-        case SPI3_CS0_P13_3: temp_cs_hsiom =  P13_3_SCB3_SPI_SELECT0; break;     
-        case SPI4_CS0_P23_7: temp_cs_hsiom =  P23_7_GPIO; break; 
-        case SPI_CS_NULL: break;
+        case SPI0_CS0_P02_3: temp_cs_hsiom =  P2_3_SCB7_SPI_SELECT0;  break;     
+        case SPI0_CS1_P02_4: temp_cs_hsiom =  P2_4_SCB7_SPI_SELECT1;  break;      
+        case SPI1_CS0_P12_3: temp_cs_hsiom =  P12_3_SCB8_SPI_SELECT0; break;     
+        case SPI1_CS1_P12_4: temp_cs_hsiom =  P12_4_SCB8_SPI_SELECT1; break;     
+        case SPI2_CS0_P15_3: temp_cs_hsiom =  P15_3_SCB9_SPI_SELECT0; break;     
+        case SPI2_CS3_P05_1: temp_cs_hsiom =  P5_1_SCB9_SPI_SELECT3; break;      
     }
     return temp_cs_hsiom;
-}
-
-//-------------------------------------------------------------------------------------------------------------------
-// º¯Êý¼ò½é       SPI»ñÈ¡CSÒý½Å¸´ÓÃ¹ØÏµ
-// ²ÎÊýËµÃ÷       cs_pin     Ê±ÖÓÒý½Å ²ÎÕÕ zf_driver_spi.h ÄÚ spi_clk_pin_enum Ã¶¾ÙÌå¶¨Òå
-// ·µ»Ø²ÎÊý       void
-// Ê¹ÓÃÊ¾Àý       spi_get_clk_pin(SPI0_CS0_P02_3);
-// ±¸×¢ÐÅÏ¢       ÄÚ²¿µ÷ÓÃ£¬ÓÃ»§ÎÞÐè¹ØÐÄ
-//-------------------------------------------------------------------------------------------------------------------
-static en_clk_dst_t spi_get_module_clock (spi_index_enum spi_n)
-{
-    en_clk_dst_t temp_spi_module;
-    switch(spi_n)
-    {
-        case SPI_1: temp_spi_module =  PCLK_SCB4_CLOCK;  break;     
-        case SPI_2: temp_spi_module =  PCLK_SCB5_CLOCK;  break;      
-        case SPI_3: temp_spi_module =  PCLK_SCB3_CLOCK; break;     
-        case SPI_4: temp_spi_module =  PCLK_SCB2_CLOCK; break; 
-    }
-    return temp_spi_module;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -253,31 +226,25 @@ static en_clk_dst_t spi_get_module_clock (spi_index_enum spi_n)
 //-------------------------------------------------------------------------------------------------------------------
 static void switch_transition_length(spi_index_enum spi_n, uint8 length)
 {
-  static uint8 now_length[SPI_4 + 1] = {0};
-  
-    if(now_length[spi_n] != length)
+    switch(length)
     {
-        switch(length)
+        case 8:
         {
-            case 8:
-            {
-                spi_module[spi_n]->unCTRL.u32Register &= 0xffff3fff;
-                spi_module[spi_n]->unTX_CTRL.u32Register &= 0xffffffe0;
-                spi_module[spi_n]->unTX_CTRL.u32Register |= 0x00000007;
-                spi_module[spi_n]->unRX_CTRL.u32Register &= 0xffffffe0;
-                spi_module[spi_n]->unRX_CTRL.u32Register |= 0x00000007;
-            }break;
-            case 16:
-            {
-                spi_module[spi_n]->unCTRL.u32Register &= 0xffff3fff;
-                spi_module[spi_n]->unCTRL.u32Register |= 0x00004000;
-                spi_module[spi_n]->unTX_CTRL.u32Register &= 0xffffffe0;
-                spi_module[spi_n]->unTX_CTRL.u32Register |= 0x0000000F;
-                spi_module[spi_n]->unRX_CTRL.u32Register &= 0xffffffe0;
-                spi_module[spi_n]->unRX_CTRL.u32Register |= 0x0000000F;
-            }break;
-        }
-        now_length[spi_n] = length;
+            spi_module[spi_n]->unCTRL.u32Register &= 0xffff3fff;
+            spi_module[spi_n]->unTX_CTRL.u32Register &= 0xffffffe0;
+            spi_module[spi_n]->unTX_CTRL.u32Register |= 0x00000007;
+            spi_module[spi_n]->unRX_CTRL.u32Register &= 0xffffffe0;
+            spi_module[spi_n]->unRX_CTRL.u32Register |= 0x00000007;
+        }break;
+        case 16:
+        {
+            spi_module[spi_n]->unCTRL.u32Register &= 0xffff3fff;
+            spi_module[spi_n]->unCTRL.u32Register |= 0x00004000;
+            spi_module[spi_n]->unTX_CTRL.u32Register &= 0xffffffe0;
+            spi_module[spi_n]->unTX_CTRL.u32Register |= 0x0000000F;
+            spi_module[spi_n]->unRX_CTRL.u32Register &= 0xffffffe0;
+            spi_module[spi_n]->unRX_CTRL.u32Register |= 0x0000000F;
+        }break;
     }
 }
 
@@ -296,12 +263,12 @@ void spi_write_8bit (spi_index_enum spi_n, const uint8 data)
     {
         gpio_low(cs_pin_save[spi_n]);
     }
-    Cy_SCB_SPI_ClearRxFifo(spi_module[spi_n]);					// Çå³ý½ÓÊÕ»º³åÇø
+    
     Cy_SCB_WriteTxFifo(spi_module[spi_n], data);                                // ·¢ËÍÊý¾Ý
     while(Cy_SCB_GetFifoSize(spi_module[spi_n]) == Cy_SCB_GetNumInTxFifo(spi_module[spi_n]));       // »º³åÇøÂúÔòµÈ´ý
     
-	while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
-    while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý
+    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
+    
     if(cs_pin_save[spi_n] != SPI_CS_NULL)					// ÈôCS²»Îª¿Õ ÔòÀ­¸ßCS
     {
         gpio_high(cs_pin_save[spi_n]);
@@ -428,7 +395,6 @@ void spi_write_8bit_register (spi_index_enum spi_n, const uint8 register_name, c
     while(Cy_SCB_GetFifoSize(spi_module[spi_n]) == Cy_SCB_GetNumInTxFifo(spi_module[spi_n]));           // »º³åÇøÂúÔòµÈ´ý
     
     while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
-    while(spi_module[spi_n]->unSPI_STATUS.stcField.u1BUS_BUSY);
     
     if(cs_pin_save[spi_n] != SPI_CS_NULL)					// ÈôCS²»Îª¿Õ ÔòÀ­¸ßCS
     {
@@ -564,7 +530,6 @@ uint8 spi_read_8bit (spi_index_enum spi_n)
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                                   // ·¢ËÍ¿ÕÊý¾Ý
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý
     
     read_data = (uint8)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);		// ¶ÁÈ¡Êý¾Ý
@@ -599,7 +564,6 @@ void spi_read_8bit_array (spi_index_enum spi_n, uint8 *data, uint32 len)
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                               // ·¢ËÍ¿ÕÊý¾Ý
-        while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý
         *data ++ = (uint8)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);	// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -633,7 +597,6 @@ uint16 spi_read_16bit (spi_index_enum spi_n)
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                                   // ·¢ËÍ¿ÕÊý¾Ý
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý
     read_data = (uint16)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);		// ¶ÁÈ¡Êý¾Ý
     
@@ -667,7 +630,6 @@ void spi_read_16bit_array (spi_index_enum spi_n, uint16 *data, uint32 len)
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                               // ·¢ËÍ¿ÕÊý¾Ý
-        while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý
         *data ++ = (uint16)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);	// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -700,16 +662,11 @@ uint8 spi_read_8bit_register (spi_index_enum spi_n, const uint8 register_name)
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], register_name);                       // ·¢ËÍ¼Ä´æÆ÷µØÖ·
-
-	while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É 
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý    
     
     Cy_SCB_SPI_ClearRxFifo(spi_module[spi_n]);					// Çå³ý½ÓÊÕ»º³åÇø
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                                   // ·¢ËÍ¿ÕÊý¾Ý
-    
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
-    
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý
     read_data = (uint8)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);		// ¶ÁÈ¡Êý¾Ý
     
@@ -741,15 +698,12 @@ void spi_read_8bit_registers (spi_index_enum spi_n, const uint8 register_name, u
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], register_name);                       // ·¢ËÍ¼Ä´æÆ÷µØÖ·
-	while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý  
     
     Cy_SCB_SPI_ClearRxFifo(spi_module[spi_n]);					// Çå³ý½ÓÊÕ»º³åÇø
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                               // ·¢ËÍ¿ÕÊý¾Ý
-        
-while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý
         *data ++ = (uint8)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);	// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -771,7 +725,7 @@ while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊ
 //-------------------------------------------------------------------------------------------------------------------
 uint16 spi_read_16bit_register (spi_index_enum spi_n, const uint16 register_name)
 {
-    uint16 read_data = 0;
+    uint8 read_data = 0;
     
     switch_transition_length(spi_n, 16);					// ÇÐ»»µ¥´ÎÍ¨ÐÅ³¤¶ÈÎª16Î»
     
@@ -781,19 +735,12 @@ uint16 spi_read_16bit_register (spi_index_enum spi_n, const uint16 register_name
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], register_name);                       // ·¢ËÍ¼Ä´æÆ÷µØÖ·
-    
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
-    
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý    
     
     Cy_SCB_SPI_ClearRxFifo(spi_module[spi_n]);					// Çå³ý½ÓÊÕ»º³åÇø
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                                   // ·¢ËÍ¿ÕÊý¾Ý
-    
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
-    
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý
-    
     read_data = (uint16)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);		// ¶ÁÈ¡Êý¾Ý
     
     if(cs_pin_save[spi_n] != SPI_CS_NULL)					// ÈôCS²»Îª¿Õ ÔòÀ­¸ßCS
@@ -825,14 +772,12 @@ void spi_read_16bit_registers (spi_index_enum spi_n, const uint16 register_name,
     }
     
     Cy_SCB_WriteTxFifo(spi_module[spi_n], register_name);                       // ·¢ËÍ¼Ä´æÆ÷µØÖ·
-    while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                         // µÈ´ýÊý¾Ý·¢ËÍÍê³É
     while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		        // µÈ´ý½ÓÊÕµ½Êý¾Ý  
     
     Cy_SCB_SPI_ClearRxFifo(spi_module[spi_n]);					// Çå³ý½ÓÊÕ»º³åÇø
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], 0);                               // ·¢ËÍ¿ÕÊý¾Ý
-        while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý
         *data ++ = (uint16)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);	// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -867,7 +812,6 @@ void spi_transfer_8bit (spi_index_enum spi_n, const uint8 *write_buffer, uint8 *
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], *write_buffer ++);                // ·¢ËÍÊý¾Ý
-        while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý  
         *read_buffer ++ = (uint8)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);	// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -902,7 +846,6 @@ void spi_transfer_16bit (spi_index_enum spi_n, const uint16 *write_buffer, uint1
     
     do{
         Cy_SCB_WriteTxFifo(spi_module[spi_n], *write_buffer ++);                // ·¢ËÍÊý¾Ý
-        while(Cy_SCB_IsTxComplete(spi_module[spi_n]) == 0);                     // µÈ´ýÊý¾Ý·¢ËÍÍê³É
         while(Cy_SCB_SPI_GetNumInRxFifo(spi_module[spi_n]) == 0);		// µÈ´ý½ÓÊÕµ½Êý¾Ý  
         *read_buffer ++ = (uint16)(spi_module[spi_n]->unRX_FIFO_RD.u32Register);// ¶ÁÈ¡Êý¾Ý
         len -= 1;
@@ -929,10 +872,9 @@ void spi_transfer_16bit (spi_index_enum spi_n, const uint16 *write_buffer, uint1
 //-------------------------------------------------------------------------------------------------------------------
 void spi_init (spi_index_enum spi_n, spi_mode_enum mode, uint32 baud, spi_clk_pin_enum clk_pin, spi_mosi_pin_enum mosi_pin, spi_miso_pin_enum miso_pin, spi_cs_pin_enum cs_pin)
 {
-    uint16                      oversample_num                  = 4;
-    uint32                      targetFreq                      = oversample_num * baud;
-    uint32                      divSetting_int                  = (SPI_FREQ * 2) / targetFreq;
-    uint32                      divSetting_float                = (uint32)((double)((SPI_FREQ * 2) - divSetting_int * targetFreq) / (double)targetFreq * 32.0f);
+    uint64_t                    targetFreq                      = 4 * baud;
+    uint64_t                    sourceFreq_fp5                  = ((uint64_t)SPI_FREQ << 5ull);
+    uint32_t                    divSetting_fp5                  = (uint32_t)(sourceFreq_fp5 / targetFreq);
     cy_stc_gpio_pin_config_t    spi_pin_cfg                     = {0};
     cy_stc_scb_spi_config_t     spi_config                      = {0};
     
@@ -961,21 +903,14 @@ void spi_init (spi_index_enum spi_n, spi_mode_enum mode, uint32 baud, spi_clk_pi
         Cy_GPIO_Pin_Init(get_port(spi_get_cs_pin(cs_pin)), (spi_get_cs_pin(cs_pin) % 8), &spi_pin_cfg);
     }
     
-    Cy_SysClk_PeriphAssignDivider(spi_get_module_clock(spi_n), CY_SYSCLK_DIV_24_5_BIT, ((uint8)spi_n + 1));
-    Cy_SysClk_PeriphSetFracDivider(CY_SYSCLK_DIV_24_5_BIT, ((uint8)spi_n + 1), (divSetting_int - 1), divSetting_float);
-    Cy_SysClk_PeriphEnableDivider(CY_SYSCLK_DIV_24_5_BIT, ((uint8)spi_n + 1));
-    
-    switch(mode)
-    {
-        case SPI_MODE0:spi_config.sclkMode = CY_SCB_SPI_CPHA0_CPOL0;      break;
-        case SPI_MODE1:spi_config.sclkMode = CY_SCB_SPI_CPHA0_CPOL1;      break;
-        case SPI_MODE2:spi_config.sclkMode = CY_SCB_SPI_CPHA1_CPOL0;      break;
-        case SPI_MODE3:spi_config.sclkMode = CY_SCB_SPI_CPHA1_CPOL1;      break;
-    }
+    Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)((uint32)PCLK_SCB7_CLOCK + (uint32)spi_n), CY_SYSCLK_DIV_24_5_BIT, 1ul);
+    Cy_SysClk_PeriphSetFracDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((uint32)PCLK_SCB7_CLOCK + (uint32)spi_n)), CY_SYSCLK_DIV_24_5_BIT, 1ul, ((divSetting_fp5 & 0x1FFFFFE0ul) >> 5ul), (divSetting_fp5 & 0x0000001Ful));
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((uint32)PCLK_SCB7_CLOCK + (uint32)spi_n)), CY_SYSCLK_DIV_24_5_BIT, 1ul);
     
     spi_config.spiMode                    = CY_SCB_SPI_MASTER     ;
     spi_config.subMode                    = CY_SCB_SPI_MOTOROLA   ;
-    spi_config.oversample                 = oversample_num        ;
+    spi_config.sclkMode                   = CY_SCB_SPI_CPHA0_CPOL0;
+    spi_config.oversample                 = 4                     ;
     spi_config.rxDataWidth                = 8                     ;
     spi_config.txDataWidth                = 8                     ;
     spi_config.enableMsbFirst             = true                  ;

@@ -88,7 +88,7 @@ uint32_t Cy_Tcpwm_QuadDec_Init(volatile stc_TCPWM_GRP_CNT_t *ptscTCPWM, cy_stc_t
         workTR_IN_EDGE_SEL.stcField.u2RELOAD_EDGE = config->indexInputMode;
         workTR_IN_EDGE_SEL.stcField.u2STOP_EDGE   = config->stopInputMode;
         workTR_IN_EDGE_SEL.stcField.u2COUNT_EDGE  = 0ul;
-        workTR_IN_EDGE_SEL.stcField.u2START_EDGE  = 0ul;
+        workTR_IN_EDGE_SEL.stcField.u2START_EDGE  = 0ul; 
         if (CY_TCPWM_QUADDEC_RANGE_1_CAPT == config->range_mode)
         {
             workTR_IN_EDGE_SEL.stcField.u2CAPTURE0_EDGE = config->capture0InputMode;

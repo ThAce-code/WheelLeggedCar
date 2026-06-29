@@ -1141,6 +1141,12 @@
             <file>
                 <name>$PROJ_DIR$\..\..\code\app_scheduler.h</name>
             </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_safety.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_safety.h</name>
+            </file>
         </group>
         <group>
             <name>sensor</name>
@@ -1173,6 +1179,24 @@
             </file>
             <file>
                 <name>$PROJ_DIR$\..\..\code\actuator_servo.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_motor.h</name>
+            </file>
+        </group>
+        <group>
+            <name>control</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\leg_config.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\leg_config.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_leg.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_leg.h</name>
             </file>
         </group>
         <file>

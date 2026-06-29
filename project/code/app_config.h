@@ -42,4 +42,21 @@
 #define APP_SERVO2_PWM_CH               TCPWM_CH11_P01_1
 #define APP_SERVO3_PWM_CH               TCPWM_CH09_P05_0
 
+#define APP_SAFETY_PERIOD_MS            (1U)
+#define APP_LEG_CONTROL_PERIOD_MS       (10U)
+
+#define APP_LEG_CALIB_ENABLE            (0U)
+#define APP_LEG_CALIB_SERVO_ID          LEG_SERVO_FL
+#define APP_LEG_CALIB_OFFSET_DEG        (0.0f)
+
+#define APP_LEG_VERIFY_ENABLE           (0U)
+#define APP_LEG_VERIFY_DELAY_MS         (2000U)
+#define APP_LEG_VERIFY_HEIGHT_CMD       (0.0f)
+#define APP_LEG_VERIFY_PITCH_CMD        (25.0f)
+#define APP_LEG_VERIFY_ROLL_CMD         (0.0f)
+
+#if (APP_LEG_CALIB_ENABLE && APP_LEG_VERIFY_ENABLE)
+#error "APP_LEG_CALIB_ENABLE and APP_LEG_VERIFY_ENABLE cannot both be enabled"
+#endif
+
 #endif

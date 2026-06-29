@@ -6,7 +6,9 @@
 #include "app_scheduler.h"
 #include "app_config.h"
 #include "app_types.h"
+#include "app_safety.h"
 #include "sensor_imu.h"
+#include "control_leg.h"
 #include "actuator_servo.h"
 #include "telemetry.h"
 
@@ -38,7 +40,9 @@ void app_scheduler_tick_1ms(void)
 void app_scheduler_run_pending(void)
 {
     static uint32 imu_last_ms = 0;
+    static uint32 safety_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
+    static uint32 leg_last_ms = 0;
     static uint32 servo_last_ms = 0;
     uint32 now_ms;
 
@@ -54,9 +58,37 @@ void app_scheduler_run_pending(void)
         sensor_imu_update(now_ms);
     }
 
+    /* IMU staleness detection */
+    {
+        static uint8 imu_stale_active = APP_FALSE;
+
+        if((now_ms - sensor_imu_get_last_update_ms()) > APP_IMU_STALE_TIMEOUT_MS)
+        {
+            if(APP_FALSE == imu_stale_active)
+            {
+                sensor_imu_mark_stale();
+                imu_stale_active = APP_TRUE;
+            }
+        }
+        else
+        {
+            imu_stale_active = APP_FALSE;
+        }
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &safety_last_ms, APP_SAFETY_PERIOD_MS))
+    {
+        app_safety_update(now_ms);
+    }
+
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {
         telemetry_update(now_ms);
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
+    {
+        control_leg_update(now_ms);
     }
 
     if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))

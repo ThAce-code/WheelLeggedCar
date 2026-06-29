@@ -1183,6 +1183,15 @@
             <file>
                 <name>$PROJ_DIR$\..\..\code\actuator_motor.h</name>
             </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_motor.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\bldc_foc_uart.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\bldc_foc_uart.h</name>
+            </file>
         </group>
         <group>
             <name>control</name>

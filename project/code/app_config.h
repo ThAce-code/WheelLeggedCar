@@ -42,6 +42,27 @@
 #define APP_SERVO2_PWM_CH               TCPWM_CH11_P01_1
 #define APP_SERVO3_PWM_CH               TCPWM_CH09_P05_0
 
+/* --- Motor actuator configuration --- */
+#define APP_MOTOR_PERIOD_MS             (1U)
+#define APP_MOTOR_CMD_LIMIT             (10000.0f)
+
+#define APP_BLDC_UART_INDEX             (UART_1)
+#define APP_BLDC_UART_BAUDRATE          (460800)
+#define APP_BLDC_UART_TX_PIN            (UART1_TX_P04_1)
+#define APP_BLDC_UART_RX_PIN            (UART1_RX_P04_0)
+
+#define APP_BLDC_DUTY_LIMIT             (10000)
+#define APP_BLDC_SAFE_START_ENABLE      (1U)
+#define APP_BLDC_SAFE_START_LIMIT       (1000.0f)
+#define APP_BLDC_SEND_PERIOD_MS         (1U)
+#define APP_BLDC_START_FEEDBACK         (0U)
+
+#define APP_BLDC_TEST_ENABLE            (0U)
+#define APP_BLDC_TEST_START_DELAY_MS    (2000U)
+#define APP_BLDC_TEST_DUTY              (500)
+#define APP_BLDC_TEST_STEP_MS           (3000U)
+#define APP_BLDC_TEST_REPEAT            (0U)
+
 #define APP_SAFETY_PERIOD_MS            (1U)
 #define APP_LEG_CONTROL_PERIOD_MS       (10U)
 

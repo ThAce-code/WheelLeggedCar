@@ -11,6 +11,7 @@
 #include "sensor_imu.h"
 #include "control_leg.h"
 #include "actuator_servo.h"
+#include "actuator_motor.h"
 #include "telemetry.h"
 
 uint8 app_init(void)
@@ -23,6 +24,7 @@ uint8 app_init(void)
 
     control_leg_init();
     actuator_servo_init();
+    actuator_motor_init();
     telemetry_init();
 
     result |= sensor_imu_init();

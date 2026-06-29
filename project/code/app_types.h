@@ -44,6 +44,13 @@ typedef struct
 
 typedef struct
 {
+    float left_target;
+    float right_target;
+    uint8 enable;
+}motor_cmd_struct;
+
+typedef struct
+{
     float angle_deg[4];
     uint8 enable[4];
 }servo_cmd_struct;

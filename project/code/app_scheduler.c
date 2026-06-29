@@ -10,6 +10,7 @@
 #include "sensor_imu.h"
 #include "control_leg.h"
 #include "actuator_servo.h"
+#include "actuator_motor.h"
 #include "telemetry.h"
 
 static volatile uint32 app_tick_ms = 0;
@@ -41,6 +42,7 @@ void app_scheduler_run_pending(void)
 {
     static uint32 imu_last_ms = 0;
     static uint32 safety_last_ms = 0;
+    static uint32 motor_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
     static uint32 leg_last_ms = 0;
     static uint32 servo_last_ms = 0;
@@ -79,6 +81,11 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == app_task_elapsed(now_ms, &safety_last_ms, APP_SAFETY_PERIOD_MS))
     {
         app_safety_update(now_ms);
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &motor_last_ms, APP_MOTOR_PERIOD_MS))
+    {
+        actuator_motor_update(now_ms);
     }
 
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))

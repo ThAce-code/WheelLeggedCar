@@ -1115,6 +1115,66 @@
     </configuration>
     <group>
         <name>code</name>
+        <group>
+            <name>app</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_config.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_types.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_state.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_state.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_scheduler.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\app_scheduler.h</name>
+            </file>
+        </group>
+        <group>
+            <name>sensor</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_imu.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\sensor_imu.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.h</name>
+            </file>
+        </group>
+        <group>
+            <name>telemetry</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\telemetry.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\telemetry.h</name>
+            </file>
+        </group>
+        <group>
+            <name>actuator</name>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_servo.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\actuator_servo.h</name>
+            </file>
+        </group>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>
@@ -1849,27 +1909,6 @@
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\user\main_cm7_0.c</name>
-        </file>
-    </group>
-    <group>
-        <name>app</name>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\app.c</name>
-        </file>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\app_scheduler.c</name>
-        </file>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\app_state.c</name>
-        </file>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
-        </file>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\sensor_imu.c</name>
-        </file>
-        <file>
-            <name>$PROJ_DIR$\..\..\code\telemetry.c</name>
         </file>
     </group>
     <group>

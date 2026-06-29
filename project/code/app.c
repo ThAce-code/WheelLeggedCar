@@ -8,6 +8,7 @@
 #include "app_state.h"
 #include "app_scheduler.h"
 #include "sensor_imu.h"
+#include "actuator_servo.h"
 #include "telemetry.h"
 
 uint8 app_init(void)
@@ -17,6 +18,7 @@ uint8 app_init(void)
     app_state_init();
     app_scheduler_init();
     telemetry_init();
+    actuator_servo_init();
 
     result |= sensor_imu_init();
     if(0U == result)

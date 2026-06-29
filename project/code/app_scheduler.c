@@ -7,6 +7,7 @@
 #include "app_config.h"
 #include "app_types.h"
 #include "sensor_imu.h"
+#include "actuator_servo.h"
 #include "telemetry.h"
 
 static volatile uint32 app_tick_ms = 0;
@@ -38,6 +39,7 @@ void app_scheduler_run_pending(void)
 {
     static uint32 imu_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
+    static uint32 servo_last_ms = 0;
     uint32 now_ms;
 
     if(APP_FALSE == app_scheduler_pending)
@@ -55,6 +57,11 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {
         telemetry_update(now_ms);
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))
+    {
+        actuator_servo_update(now_ms);
     }
 }
 

@@ -55,6 +55,7 @@
 #define APP_BLDC_SAFE_START_ENABLE      (1U)
 #define APP_BLDC_SAFE_START_LIMIT       (1000.0f)
 #define APP_BLDC_SEND_PERIOD_MS         (1U)
+#define APP_BLDC_FEEDBACK_TIMEOUT_MS    (100U)
 #define APP_BLDC_START_FEEDBACK         (0U)
 
 #define APP_BLDC_TEST_ENABLE            (0U)

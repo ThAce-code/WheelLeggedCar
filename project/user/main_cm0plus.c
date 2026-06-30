@@ -39,7 +39,7 @@
 int main(void)
 {
     SystemInit();                                                               // 系统初始化 含系统时钟、系统电源、中断等
-    debug_init();                                                               // 初始化默认调试串口
+    /* UART0/VOFA belongs to CM7_0. CM0+ only starts application cores. */
     Cy_SysEnableApplCore(CORE_CM7_0, CY_CORTEX_M7_0_APPL_ADDR);                 // 启动M7核心0
     Cy_SysEnableApplCore(CORE_CM7_1, CY_CORTEX_M7_1_APPL_ADDR);                 // 启动M7核心1
 

@@ -1,43 +1,13 @@
 /*********************************************************************************************************************
-* CYT4BB Opensourec Library ���� CYT4BB ��Դ�⣩��һ�����ڹٷ� SDK �ӿڵĵ�������Դ��
-* Copyright (c) 2022 SEEKFREE ��ɿƼ�
-*
-* ���ļ��� CYT4BB ��Դ���һ����
-*
-* CYT4BB ��Դ�� ���������
-* �����Ը���������������ᷢ���� GPL��GNU General Public License���� GNUͨ�ù�������֤��������
-* �� GPL �ĵ�3�棨�� GPL3.0������ѡ��ģ��κκ����İ汾�����·�����/���޸���
-*
-* ����Դ��ķ�����ϣ�����ܷ������ã�����δ�������κεı�֤
-* ����û�������������Ի��ʺ��ض���;�ı�֤
-* ����ϸ����μ� GPL
-*
-* ��Ӧ�����յ�����Դ���ͬʱ�յ�һ�� GPL �ĸ���
-* ���û�У������<https://www.gnu.org/licenses/>
-*
-* ����ע����
-* ����Դ��ʹ�� GPL3.0 ��Դ����֤Э�� ������������Ϊ���İ汾
-* ��������Ӣ�İ��� libraries/doc �ļ����µ� GPL3_permission_statement.txt �ļ���
-* ����֤������ libraries �ļ����� �����ļ����µ� LICENSE �ļ�
-* ��ӭ��λʹ�ò����������� ���޸�����ʱ���뱣����ɿƼ��İ�Ȩ����������������
-*
-* �ļ�����          isr_arm_7_0
-* ��˾����          �ɶ���ɿƼ����޹�˾
-* �汾��Ϣ          �鿴 libraries/doc �ļ����� version �ļ� �汾˵��
-* ��������          IAR 9.40.1
-* ����ƽ̨          CYT4BB
-* ��������          https://seekfree.taobao.com/
-*
-* �޸ļ�¼
-* ����              ����                ��ע
-* 2024-1-9      pudding            first version
+* File: cm7_0_isr.c
+* Description: Interrupt handlers for the CM7_0 application core.
 ********************************************************************************************************************/
 
 
 #include "zf_common_headfile.h"
 #include "app_scheduler.h"
 #include "bldc_foc_uart.h"
-// **************************** PIT�жϺ��� ****************************
+// **************************** PIT interrupt handlers ****************************
 void pit0_ch0_isr()
 {
     pit_isr_flag_clear(PIT_CH0);
@@ -68,10 +38,70 @@ void pit0_ch2_isr()
 	
 	
 }
-// **************************** PIT�жϺ��� ****************************
+
+void pit0_ch10_isr()
+{
+    pit_isr_flag_clear(PIT_CH10);
+}
+
+void pit0_ch11_isr()
+{
+    pit_isr_flag_clear(PIT_CH11);
+}
+
+void pit0_ch12_isr()
+{
+    pit_isr_flag_clear(PIT_CH12);
+}
+
+void pit0_ch13_isr()
+{
+    pit_isr_flag_clear(PIT_CH13);
+}
+
+void pit0_ch14_isr()
+{
+    pit_isr_flag_clear(PIT_CH14);
+}
+
+void pit0_ch15_isr()
+{
+    pit_isr_flag_clear(PIT_CH15);
+}
+
+void pit0_ch16_isr()
+{
+    pit_isr_flag_clear(PIT_CH16);
+}
+
+void pit0_ch17_isr()
+{
+    pit_isr_flag_clear(PIT_CH17);
+}
+
+void pit0_ch18_isr()
+{
+    pit_isr_flag_clear(PIT_CH18);
+}
+
+void pit0_ch19_isr()
+{
+    pit_isr_flag_clear(PIT_CH19);
+}
+
+void pit0_ch20_isr()
+{
+    pit_isr_flag_clear(PIT_CH20);
+}
+
+void pit0_ch21_isr()
+{
+    pit_isr_flag_clear(PIT_CH21);
+}
+// **************************** PIT interrupt handlers ****************************
 
 
-// **************************** �ⲿ�жϺ��� ****************************
+// **************************** GPIO external interrupt handlers ****************************
 void gpio_0_exti_isr()
 {
     
@@ -81,7 +111,7 @@ void gpio_0_exti_isr()
 
 void gpio_1_exti_isr()
 {
-    if(exti_flag_get(P01_0))				// ʾ��P1_0�˿��ⲿ�ж��ж�
+    if(exti_flag_get(P01_0))
     {
 
       
@@ -257,9 +287,9 @@ void gpio_23_exti_isr()
 
 
 }
-// **************************** �ⲿ�жϺ��� ****************************
+// **************************** GPIO external interrupt handlers ****************************
 
-//// **************************** DMA�жϺ��� ****************************
+//// **************************** DMA interrupt handler ****************************
 //void dma_event_callback(void* callback_arg, cyhal_dma_event_t event)
 //{
 //    CY_UNUSED_PARAMETER(event);
@@ -268,107 +298,56 @@ void gpio_23_exti_isr()
 //	
 //	
 //}
-// **************************** DMA�жϺ��� ****************************
+// **************************** DMA interrupt handler ****************************
 
-// **************************** �����жϺ��� ****************************
-// ����0Ĭ����Ϊ���Դ���
+// **************************** UART interrupt handlers ****************************
+// UART0 is the default debug UART.
 void uart0_isr (void)
 {
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_0)) & CY_SCB_UART_RX_NOT_EMPTY)            // ����0�����ж�
+    if(uart_isr_mask(UART_0))
     {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_0), CY_SCB_UART_RX_NOT_EMPTY);              // ��������жϱ�־λ
-        
-#if DEBUG_UART_USE_INTERRUPT                        				                // ������� debug �����ж�
-        debug_interrupr_handler();                  				                // ���� debug ���ڽ��մ������� ���ݻᱻ debug ���λ�������ȡ
-#endif                                              				                // ����޸��� DEBUG_UART_INDEX ����δ�����Ҫ�ŵ���Ӧ�Ĵ����ж�ȥ
-      
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_0)) & CY_SCB_UART_TX_DONE)            // ����0�����ж�
-    {           
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_0), CY_SCB_UART_TX_DONE);                   // ��������жϱ�־λ
-        
-        
-        
+#if DEBUG_UART_USE_INTERRUPT
+        debug_interrupr_handler();
+#endif
     }
 }
 
 void uart1_isr (void)
 {
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_1)) & CY_SCB_UART_RX_NOT_EMPTY)            // ����1�����ж�
+    if(uart_isr_mask(UART_1))
     {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_1), CY_SCB_UART_RX_NOT_EMPTY);              // ��������жϱ�־λ
-
         bldc_foc_uart_rx_isr();
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_1)) & CY_SCB_UART_TX_DONE)            // ����1�����ж�
-    {
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_1), CY_SCB_UART_TX_DONE);                   // ��������жϱ�־λ
-        
-        
-        
     }
 }
 
 void uart2_isr (void)
 {
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_2)) & CY_SCB_UART_RX_NOT_EMPTY)            // ����2�����ж�
+    if(uart_isr_mask(UART_2))
     {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_2), CY_SCB_UART_RX_NOT_EMPTY);              // ��������жϱ�־λ
-
         gnss_uart_callback();
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_2)) & CY_SCB_UART_TX_DONE)            // ����2�����ж�
-    {
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_2), CY_SCB_UART_TX_DONE);                   // ��������жϱ�־λ
-        
-        
-        
     }
 }
 
 void uart3_isr (void)
 {
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_3)) & CY_SCB_UART_RX_NOT_EMPTY)            // ����3�����ж�
-    {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_3), CY_SCB_UART_RX_NOT_EMPTY);              // ��������жϱ�־λ
-
-        
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_3)) & CY_SCB_UART_TX_DONE)            // ����3�����ж�
-    {
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_3), CY_SCB_UART_TX_DONE);                   // ��������жϱ�־λ
-        
-        
-        
-    }
+    (void)uart_isr_mask(UART_3);
 }
 
 void uart4_isr (void)
 {
-    
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_4)) & CY_SCB_UART_RX_NOT_EMPTY)            // ����4�����ж�
+    if(uart_isr_mask(UART_4))
     {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_4), CY_SCB_UART_RX_NOT_EMPTY);              // ��������жϱ�־λ
-
-        
-        uart_receiver_handler();                                                                // ���ڽ��ջ��ص�����
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_4)) & CY_SCB_UART_TX_DONE)            // ����4�����ж�
-    {
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_4), CY_SCB_UART_TX_DONE);                   // ��������жϱ�־λ
-        
-        
-        
+        uart_receiver_handler();
     }
 }
-// **************************** �����жϺ��� ****************************
+
+void uart5_isr (void)
+{
+    (void)uart_isr_mask(UART_5);
+}
+
+void uart6_isr (void)
+{
+    (void)uart_isr_mask(UART_6);
+}
+// **************************** UART interrupt handlers ****************************

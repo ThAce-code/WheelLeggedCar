@@ -6,6 +6,7 @@
 #include "bldc_foc_uart.h"
 #include "app_config.h"
 #include "app_scheduler.h"
+#include "zf_driver_gpio.h"
 
 #define BLDC_FOC_FRAME_HEAD             (0xA5U)
 #define BLDC_FOC_FRAME_LEN              (7U)
@@ -25,6 +26,8 @@ static uint8 bldc_foc_packet_index = 0;
 static char bldc_foc_ascii_line[BLDC_FOC_ASCII_LINE_MAX];
 static uint8 bldc_foc_ascii_index = 0;
 
+static void bldc_foc_send_string(const char *str);
+
 static void bldc_foc_clear_feedback(void)
 {
     uint8 i;
@@ -35,9 +38,13 @@ static void bldc_foc_clear_feedback(void)
     bldc_foc_feedback.right_angle = 0;
     bldc_foc_feedback.left_reduced_angle = 0;
     bldc_foc_feedback.right_reduced_angle = 0;
+    bldc_foc_feedback.last_tx_left = 0;
+    bldc_foc_feedback.last_tx_right = 0;
     bldc_foc_feedback.last_rx_ms = 0;
     bldc_foc_feedback.checksum_error_count = 0;
     bldc_foc_feedback.unknown_frame_count = 0;
+    bldc_foc_feedback.tx_frame_count = 0;
+    bldc_foc_feedback.last_tx_func = 0;
     bldc_foc_feedback.online = APP_FALSE;
 
     for(i = 0; i < BLDC_FOC_ASCII_LINE_MAX; i++)
@@ -73,6 +80,97 @@ static void bldc_foc_pack_int16(uint8 *high, uint8 *low, int16 value)
     *low = (uint8)(raw & 0xFFU);
 }
 
+static void bldc_foc_append_text(char *buffer, uint8 *index, const char *text)
+{
+    while('\0' != *text)
+    {
+        buffer[*index] = *text;
+        (*index)++;
+        text++;
+    }
+}
+
+static void bldc_foc_append_int16(char *buffer, uint8 *index, int16 value)
+{
+    char digits[6];
+    uint8 digit_count = 0;
+    int32 temp;
+
+    temp = (int32)value;
+    if(0 > temp)
+    {
+        buffer[*index] = '-';
+        (*index)++;
+        temp = -temp;
+    }
+
+    do
+    {
+        digits[digit_count] = (char)('0' + (temp % 10));
+        digit_count++;
+        temp /= 10;
+    }while(0 != temp);
+
+    while(0U < digit_count)
+    {
+        digit_count--;
+        buffer[*index] = digits[digit_count];
+        (*index)++;
+    }
+}
+
+static void bldc_foc_send_ascii_duty(int16 left_value, int16 right_value)
+{
+    char command[40];
+    uint8 index = 0;
+
+    bldc_foc_append_text(command, &index, "SET-DUTY,");
+    bldc_foc_append_int16(command, &index, left_value);
+    command[index] = ',';
+    index++;
+    bldc_foc_append_int16(command, &index, right_value);
+    command[index] = '\r';
+    index++;
+    command[index] = '\0';
+
+    bldc_foc_send_string(command);
+}
+
+static uint8 bldc_foc_send_ascii_command(uint8 func, int16 left_value, int16 right_value)
+{
+    switch(func)
+    {
+        case BLDC_FOC_FUNC_SET_DUTY:
+            bldc_foc_send_ascii_duty(left_value, right_value);
+            break;
+
+        case BLDC_FOC_FUNC_UPLOAD_SPEED:
+            bldc_foc_send_string("GET-SPEED\r");
+            break;
+
+        case BLDC_FOC_FUNC_ZERO_CALIBRATE:
+            bldc_foc_send_string("SET-ZERO\r");
+            break;
+
+        case BLDC_FOC_FUNC_UPLOAD_ANGLE:
+            bldc_foc_send_string("GET-ANGLE\r");
+            break;
+
+        case BLDC_FOC_FUNC_UPLOAD_RDT_ANGLE:
+            bldc_foc_send_string("GET-RDT-ANGLE\r");
+            break;
+
+        case BLDC_FOC_FUNC_SET_ANGLE_ZERO:
+            bldc_foc_send_string("SET-ANGLE-ZERO\r");
+            break;
+
+        default:
+            return APP_FALSE;
+    }
+
+    return APP_TRUE;
+}
+
 static void bldc_foc_send_frame(uint8 func, int16 left_value, int16 right_value)
 {
     uint8 frame[BLDC_FOC_FRAME_LEN];
@@ -87,6 +185,23 @@ static void bldc_foc_send_frame(uint8 func, int16 left_value, int16 right_value)
     bldc_foc_pack_int16(&frame[2], &frame[3], left_value);
     bldc_foc_pack_int16(&frame[4], &frame[5], right_value);
     frame[6] = bldc_foc_checksum(frame);
+
+    bldc_foc_feedback.last_tx_func = func;
+    bldc_foc_feedback.last_tx_left = left_value;
+    bldc_foc_feedback.last_tx_right = right_value;
+    bldc_foc_feedback.tx_frame_count++;
+
+#if APP_BLDC_TX_GPIO_PROBE_ENABLE
+    gpio_toggle_level(P04_1);
+    return;
+#endif
+
+#if APP_BLDC_USE_ASCII_COMMANDS
+    if(APP_TRUE == bldc_foc_send_ascii_command(func, left_value, right_value))
+    {
+        return;
+    }
+#endif
 
     uart_write_buffer(APP_BLDC_UART_INDEX, frame, BLDC_FOC_FRAME_LEN);
 }
@@ -168,7 +283,6 @@ static void bldc_foc_process_packet(void)
         case BLDC_FOC_FUNC_UPLOAD_ANGLE:
             bldc_foc_feedback.left_angle = left_value;
             bldc_foc_feedback.right_angle = right_value;
-            bldc_foc_mark_rx();
             break;
 
         case BLDC_FOC_FUNC_UPLOAD_RDT_ANGLE:
@@ -214,6 +328,12 @@ void bldc_foc_uart_init(void)
     bldc_foc_packet_index = 0;
     bldc_foc_ascii_index = 0;
 
+#if APP_BLDC_TX_GPIO_PROBE_ENABLE
+    gpio_init(P04_1, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+    bldc_foc_initialized = APP_TRUE;
+    return;
+#endif
+
     uart_init(APP_BLDC_UART_INDEX,
               APP_BLDC_UART_BAUDRATE,
               APP_BLDC_UART_TX_PIN,
@@ -242,7 +362,7 @@ void bldc_foc_uart_start_feedback(void)
 
 void bldc_foc_uart_stop_feedback(void)
 {
-    bldc_foc_send_string("STOP-SEND\r\n");
+    bldc_foc_send_string("STOP-SEND\r");
 }
 
 void bldc_foc_uart_zero_calibrate(void)

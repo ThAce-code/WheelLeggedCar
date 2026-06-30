@@ -18,10 +18,14 @@ typedef struct
     int16 right_angle;
     int16 left_reduced_angle;
     int16 right_reduced_angle;
+    int16 last_tx_left;
+    int16 last_tx_right;
     char  last_unknown_ascii[BLDC_FOC_ASCII_LINE_MAX];
     uint32 last_rx_ms;
     uint32 checksum_error_count;
     uint32 unknown_frame_count;
+    uint32 tx_frame_count;
+    uint8 last_tx_func;
     uint8 online;
 }bldc_foc_feedback_struct;
 

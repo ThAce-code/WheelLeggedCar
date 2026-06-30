@@ -1,6 +1,6 @@
 /*********************************************************************************************************************
 * File: app_config.h
-* Description: Project-level timing and configuration — IMU polling test.
+* Description: Project-level timing and configuration.
 ********************************************************************************************************************/
 
 #ifndef _app_config_h_
@@ -9,17 +9,19 @@
 #include "zf_common_headfile.h"
 
 #define APP_TICK_PERIOD_MS              (1U)
-#define APP_SCHEDULER_IMU_ONLY          (1U)
+#define APP_SCHEDULER_IMU_ONLY          (0U)
 #define APP_HEARTBEAT_PERIOD_MS         (250U)
 
 #define APP_IMU_PERIOD_MS               (5U)
 #define APP_IMU_USE_INT1                (0U)
 #define APP_IMU_STALE_TIMEOUT_MS        (100U)
 
-#define APP_TELEMETRY_PERIOD_MS         (10U)
+#define APP_TELEMETRY_PERIOD_MS         (5U)
+#define APP_TELEMETRY_ENABLE            (1U)
 
 #define APP_ROLL_LIMIT_DEG              (45.0f)
 #define APP_PITCH_LIMIT_DEG             (45.0f)
+#define APP_SAFETY_ARM_DELAY_MS         (1000U)
 
 /* --- Servo actuator configuration --- */
 #define APP_SERVO_COUNT                 (4U)
@@ -50,19 +52,21 @@
 #define APP_BLDC_UART_BAUDRATE          (460800)
 #define APP_BLDC_UART_TX_PIN            (UART1_TX_P04_1)
 #define APP_BLDC_UART_RX_PIN            (UART1_RX_P04_0)
+#define APP_BLDC_TX_GPIO_PROBE_ENABLE   (0U)
+#define APP_BLDC_USE_ASCII_COMMANDS     (0U)
 
 #define APP_BLDC_DUTY_LIMIT             (10000)
 #define APP_BLDC_SAFE_START_ENABLE      (1U)
 #define APP_BLDC_SAFE_START_LIMIT       (1000.0f)
-#define APP_BLDC_SEND_PERIOD_MS         (1U)
+#define APP_BLDC_SEND_PERIOD_MS         (20U)
 #define APP_BLDC_FEEDBACK_TIMEOUT_MS    (100U)
 #define APP_BLDC_START_FEEDBACK         (0U)
 
-#define APP_BLDC_TEST_ENABLE            (0U)
+#define APP_BLDC_TEST_ENABLE            (1U)
 #define APP_BLDC_TEST_START_DELAY_MS    (2000U)
 #define APP_BLDC_TEST_DUTY              (500)
 #define APP_BLDC_TEST_STEP_MS           (3000U)
-#define APP_BLDC_TEST_REPEAT            (0U)
+#define APP_BLDC_TEST_REPEAT            (1U)
 
 #define APP_SAFETY_PERIOD_MS            (1U)
 #define APP_LEG_CONTROL_PERIOD_MS       (10U)

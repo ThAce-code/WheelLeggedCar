@@ -62,7 +62,7 @@ int main(void)
     uint32 led_last_ms = 0;
 
     clock_init(SYSTEM_CLOCK_250M);
-    debug_info_init();
+    debug_init();
 
     // P19.0 板载LED, 低电平有效, 初始高电平=灭
     gpio_init(P19_0, GPO, GPIO_HIGH, GPO_PUSH_PULL);

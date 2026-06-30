@@ -135,6 +135,8 @@ uint16 adc_convert (adc_channel_enum adc_chn)
     
     sar_adc[adc_port]->CH[adc_channel].unTR_CMD.stcField.u1START = 1ul;
     
+    while(sar_adc[adc_port]->unSTATUS.stcField.u1BUSY);
+    
     adc_data = sar_adc[adc_port]->CH[adc_channel].unRESULT.stcField.u16RESULT;
     
     adc_data = adc_data >> offset_temp;
@@ -196,9 +198,9 @@ void adc_init (adc_channel_enum adc_chn, adc_resolution_enum resolution)
     div_num = DIV_ROUND_UP(ADC_FREQ, ADC_OPERATION_FREQUENCY_MAX_IN_HZ);
     actual_adc_operation_freq = ADC_FREQ / div_num;
     
-    Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0), CY_SYSCLK_DIV_16_BIT, 0u);
-    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 0u, (div_num - 1));
-    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 0u);
+    Cy_SysClk_PeriphAssignDivider((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0), CY_SYSCLK_DIV_16_BIT, 2u);
+    Cy_SysClk_PeriphSetDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 2u, (div_num - 1));
+    Cy_SysClk_PeriphEnableDivider(Cy_SysClk_GetClockGroup((en_clk_dst_t)((adc_chn / 32) + PCLK_PASS0_CLOCK_SAR0)), CY_SYSCLK_DIV_16_BIT, 2u);
 
     adc_config.msbStretchMode           = CY_ADC_MSB_STRETCH_MODE_1CYCLE;
     adc_config.sarMuxEnable             = true;

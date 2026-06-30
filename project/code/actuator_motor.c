@@ -13,6 +13,9 @@ static motor_diag_struct actuator_motor_diag;
 static uint8 actuator_motor_output_active = APP_FALSE;
 static uint32 actuator_motor_last_send_ms = 0;
 
+static void actuator_motor_send_duty(int16 left_duty, int16 right_duty);
+static void actuator_motor_send_duty_periodic(uint32 now_ms, int16 left_duty, int16 right_duty);
+
 #if APP_BLDC_TEST_ENABLE
 #include "app_state.h"
 
@@ -28,13 +31,13 @@ static void actuator_motor_test_update(uint32 now_ms)
 
     if(APP_STATE_FAULT == app_state_get())
     {
-        bldc_foc_uart_set_duty(0, 0);
+        actuator_motor_send_duty_periodic(now_ms, 0, 0);
         return;
     }
 
     if(now_ms < APP_BLDC_TEST_START_DELAY_MS)
     {
-        bldc_foc_uart_set_duty(0, 0);
+        actuator_motor_send_duty_periodic(now_ms, 0, 0);
         actuator_motor_test_active = APP_TRUE;
         actuator_motor_test_step = 0;
         actuator_motor_test_step_start_ms = APP_BLDC_TEST_START_DELAY_MS;
@@ -101,7 +104,7 @@ static void actuator_motor_test_update(uint32 now_ms)
         default: left_duty = 0;           right_duty = 0;          break;
     }
 
-    bldc_foc_uart_set_duty(left_duty, right_duty);
+    actuator_motor_send_duty_periodic(now_ms, left_duty, right_duty);
 }
 #endif
 
@@ -119,8 +122,12 @@ static void actuator_motor_clear_snapshot(void)
 
     actuator_motor_diag.left_raw_angle = 0;
     actuator_motor_diag.right_raw_angle = 0;
+    actuator_motor_diag.last_tx_left = 0;
+    actuator_motor_diag.last_tx_right = 0;
     actuator_motor_diag.checksum_error_count = 0;
     actuator_motor_diag.unknown_frame_count = 0;
+    actuator_motor_diag.tx_frame_count = 0;
+    actuator_motor_diag.last_tx_func = 0;
     for(i = 0; i < MOTOR_DIAG_ASCII_LINE_MAX; i++)
     {
         actuator_motor_diag.last_unknown_ascii[i] = '\0';
@@ -166,8 +173,12 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
 
     actuator_motor_diag.left_raw_angle = raw->left_angle;
     actuator_motor_diag.right_raw_angle = raw->right_angle;
+    actuator_motor_diag.last_tx_left = raw->last_tx_left;
+    actuator_motor_diag.last_tx_right = raw->last_tx_right;
     actuator_motor_diag.checksum_error_count = raw->checksum_error_count;
     actuator_motor_diag.unknown_frame_count = raw->unknown_frame_count;
+    actuator_motor_diag.tx_frame_count = raw->tx_frame_count;
+    actuator_motor_diag.last_tx_func = raw->last_tx_func;
     actuator_motor_copy_ascii_diag(raw->last_unknown_ascii);
 }
 
@@ -205,6 +216,26 @@ static int16 actuator_motor_float_to_duty(float value)
         return (int16)(value + 0.5f);
     }
     return (int16)(value - 0.5f);
+}
+
+static void actuator_motor_send_duty(int16 left_duty, int16 right_duty)
+{
+    actuator_motor_cmd.left_target = (float)left_duty;
+    actuator_motor_cmd.right_target = (float)right_duty;
+    actuator_motor_cmd.enable = ((0 != left_duty) || (0 != right_duty)) ? APP_TRUE : APP_FALSE;
+    bldc_foc_uart_set_duty(left_duty, right_duty);
+    actuator_motor_output_active = actuator_motor_cmd.enable;
+}
+
+static void actuator_motor_send_duty_periodic(uint32 now_ms, int16 left_duty, int16 right_duty)
+{
+    if(((float)left_duty != actuator_motor_cmd.left_target) ||
+       ((float)right_duty != actuator_motor_cmd.right_target) ||
+       (APP_BLDC_SEND_PERIOD_MS <= (now_ms - actuator_motor_last_send_ms)))
+    {
+        actuator_motor_last_send_ms = now_ms;
+        actuator_motor_send_duty(left_duty, right_duty);
+    }
 }
 
 static void actuator_motor_send_current(void)

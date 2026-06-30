@@ -1,6 +1,6 @@
 /*********************************************************************************************************************
 * File: app_scheduler.c
-* Description: Cooperative fixed-period scheduler — IMU polling + telemetry.
+* Description: Cooperative fixed-period scheduler.
 ********************************************************************************************************************/
 
 #include "app_scheduler.h"

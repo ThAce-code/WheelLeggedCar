@@ -126,7 +126,6 @@ static void bldc_foc_save_ascii_line(void)
     }
     bldc_foc_ascii_index = 0;
     bldc_foc_feedback.unknown_frame_count++;
-    bldc_foc_mark_rx();
 }
 
 static void bldc_foc_parse_ascii_byte(uint8 dat)
@@ -163,24 +162,25 @@ static void bldc_foc_process_packet(void)
         case BLDC_FOC_FUNC_UPLOAD_SPEED:
             bldc_foc_feedback.left_speed = left_value;
             bldc_foc_feedback.right_speed = right_value;
+            bldc_foc_mark_rx();
             break;
 
         case BLDC_FOC_FUNC_UPLOAD_ANGLE:
             bldc_foc_feedback.left_angle = left_value;
             bldc_foc_feedback.right_angle = right_value;
+            bldc_foc_mark_rx();
             break;
 
         case BLDC_FOC_FUNC_UPLOAD_RDT_ANGLE:
             bldc_foc_feedback.left_reduced_angle = left_value;
             bldc_foc_feedback.right_reduced_angle = right_value;
+            bldc_foc_mark_rx();
             break;
 
         default:
             bldc_foc_feedback.unknown_frame_count++;
             break;
     }
-
-    bldc_foc_mark_rx();
 }
 
 static void bldc_foc_parse_byte(uint8 dat)
@@ -218,7 +218,7 @@ void bldc_foc_uart_init(void)
               APP_BLDC_UART_BAUDRATE,
               APP_BLDC_UART_TX_PIN,
               APP_BLDC_UART_RX_PIN);
-    uart_rx_interrupt(APP_BLDC_UART_INDEX, 1);
+    uart_rx_interrupt(APP_BLDC_UART_INDEX, 0);
     bldc_foc_initialized = APP_TRUE;
 }
 
@@ -234,6 +234,7 @@ void bldc_foc_uart_stop(void)
 
 void bldc_foc_uart_start_feedback(void)
 {
+    uart_rx_interrupt(APP_BLDC_UART_INDEX, 1);
     bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_SPEED, 0, 0);
     bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_ANGLE, 0, 0);
     bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_RDT_ANGLE, 0, 0);

@@ -49,6 +49,28 @@ typedef struct
     uint8 enable;
 }motor_cmd_struct;
 
+#define MOTOR_DIAG_ASCII_LINE_MAX       (64U)
+
+typedef struct
+{
+    int16 left_speed;
+    int16 right_speed;
+    int16 left_reduced_angle;
+    int16 right_reduced_angle;
+    uint32 last_rx_ms;
+    uint32 age_ms;
+    uint8 online;
+}wheel_feedback_struct;
+
+typedef struct
+{
+    int16 left_raw_angle;
+    int16 right_raw_angle;
+    uint32 checksum_error_count;
+    uint32 unknown_frame_count;
+    char last_unknown_ascii[MOTOR_DIAG_ASCII_LINE_MAX];
+}motor_diag_struct;
+
 typedef struct
 {
     float angle_deg[4];

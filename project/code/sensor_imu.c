@@ -30,6 +30,10 @@ static void sensor_imu_copy_angle(uint32 now_ms)
     sensor_imu_state.roll = angle->roll;
     sensor_imu_state.pitch = angle->pitch;
     sensor_imu_state.yaw = angle->yaw;
+    sensor_imu_state.gyro_x_dps = angle->gyro_x;
+    sensor_imu_state.gyro_y_dps = angle->gyro_y;
+    sensor_imu_state.gyro_z_dps = angle->gyro_z;
+    sensor_imu_state.pitch_rate_dps = angle->gyro_y;
     sensor_imu_state.quat_w = angle->quat_w;
     sensor_imu_state.quat_x = angle->quat_x;
     sensor_imu_state.quat_y = angle->quat_y;
@@ -42,6 +46,14 @@ uint8 sensor_imu_init(void)
     uint16 retry;
 
     sensor_imu_state.healthy = APP_FALSE;
+    sensor_imu_state.timestamp_ms = 0U;
+    sensor_imu_state.roll = 0.0f;
+    sensor_imu_state.pitch = 0.0f;
+    sensor_imu_state.yaw = 0.0f;
+    sensor_imu_state.gyro_x_dps = 0.0f;
+    sensor_imu_state.gyro_y_dps = 0.0f;
+    sensor_imu_state.gyro_z_dps = 0.0f;
+    sensor_imu_state.pitch_rate_dps = 0.0f;
     lsm6dsv16x_spi_init();
 
     for(retry = 0; retry < SENSOR_IMU_WHO_AM_I_RETRY; retry++)
@@ -62,6 +74,8 @@ uint8 sensor_imu_init(void)
     {
         return SENSOR_IMU_ERR_INIT;
     }
+
+    lsm6dsv16x_gyro_offset_init();
 
     if(0U == lsm6dsv16x_sflp_init())
     {
@@ -93,6 +107,7 @@ void sensor_imu_update(uint32 now_ms)
     {
         if(0U == lsm6dsv16x_sflp_update())
         {
+            lsm6dsv16x_gyro_update();
             sensor_imu_copy_angle(now_ms);
         }
     }

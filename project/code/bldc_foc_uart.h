@@ -12,8 +12,8 @@
 
 typedef struct
 {
-    int16 left_speed;
-    int16 right_speed;
+    int16 left_motor_rpm;
+    int16 right_motor_rpm;
     int16 left_angle;
     int16 right_angle;
     int16 left_reduced_angle;

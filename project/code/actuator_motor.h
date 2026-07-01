@@ -10,13 +10,15 @@
 
 void actuator_motor_init(void);
 void actuator_motor_set_cmd(const motor_cmd_struct *cmd);
-void actuator_motor_set_speed_target(float left_speed, float right_speed, uint8 enable);
+void actuator_motor_set_motor_rpm_target(float left_motor_rpm, float right_motor_rpm, uint8 enable);
+void actuator_motor_set_open_loop_duty(float left_duty, float right_duty, uint8 enable);
+void actuator_motor_set_rpm_pid_gain(uint8 left_enable, uint8 right_enable, float kp, float ki, float kd);
 void actuator_motor_record_command_error(uint8 is_error);
 void actuator_motor_update(uint32 now_ms);
 void actuator_motor_stop(void);
 const motor_cmd_struct *actuator_motor_get_cmd(void);
 const wheel_feedback_struct *actuator_motor_get_feedback(void);
 const motor_diag_struct *actuator_motor_get_diag(void);
-const motor_speed_loop_diag_struct *actuator_motor_get_speed_loop_diag(void);
+const motor_rpm_loop_diag_struct *actuator_motor_get_motor_rpm_loop_diag(void);
 
 #endif

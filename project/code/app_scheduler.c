@@ -12,6 +12,7 @@
 #include "actuator_servo.h"
 #include "actuator_motor.h"
 #include "telemetry.h"
+#include "host_command.h"
 
 static volatile uint32 app_tick_ms = 0;
 static volatile uint8 app_scheduler_pending = APP_FALSE;
@@ -44,6 +45,7 @@ void app_scheduler_run_pending(void)
     static uint32 safety_last_ms = 0;
     static uint32 motor_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
+    static uint32 host_command_last_ms = 0;
     static uint32 leg_last_ms = 0;
     static uint32 servo_last_ms = 0;
     uint32 now_ms;
@@ -54,6 +56,11 @@ void app_scheduler_run_pending(void)
     }
     app_scheduler_pending = APP_FALSE;
     now_ms = app_tick_ms;
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &host_command_last_ms, APP_HOST_COMMAND_PERIOD_MS))
+    {
+        host_command_update(now_ms);
+    }
 
     if(APP_TRUE == app_task_elapsed(now_ms, &imu_last_ms, APP_IMU_PERIOD_MS))
     {

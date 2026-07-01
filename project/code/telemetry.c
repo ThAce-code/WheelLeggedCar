@@ -5,9 +5,6 @@
 
 #include "telemetry.h"
 #include "app_config.h"
-#include "app_safety.h"
-#include "app_state.h"
-#include "sensor_imu.h"
 #include "actuator_motor.h"
 
 void telemetry_init(void)
@@ -18,49 +15,21 @@ void telemetry_update(uint32 now_ms)
 {
 #if APP_TELEMETRY_ENABLE
     static const uint8 tail[4] = {0x00, 0x00, 0x80, 0x7F};
-    const imu_state_struct *imu;
-    const motor_cmd_struct *motor_cmd;
     const wheel_feedback_struct *wheel;
-    const motor_diag_struct *motor_diag;
-    float vofa_data[32];
+    const motor_rpm_loop_diag_struct *rpm_diag;
+    float vofa_data[8];
 
-    imu = sensor_imu_get_state();
-    motor_cmd = actuator_motor_get_cmd();
     wheel = actuator_motor_get_feedback();
-    motor_diag = actuator_motor_get_diag();
+    rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
 
-    vofa_data[0] = imu->roll;
-    vofa_data[1] = imu->pitch;
-    vofa_data[2] = imu->yaw;
-    vofa_data[3] = imu->quat_w;
-    vofa_data[4] = imu->quat_x;
-    vofa_data[5] = imu->quat_y;
-    vofa_data[6] = imu->quat_z;
-    vofa_data[7] = (float)(now_ms - sensor_imu_get_last_update_ms());
-    vofa_data[8] = (float)sensor_imu_get_int_count();
-    vofa_data[9] = (float)sensor_imu_get_stale_count();
-    vofa_data[10] = (float)wheel->online;
-    vofa_data[11] = (float)wheel->age_ms;
-    vofa_data[12] = (float)wheel->left_speed;
-    vofa_data[13] = (float)wheel->right_speed;
-    vofa_data[14] = (float)wheel->left_reduced_angle;
-    vofa_data[15] = (float)wheel->right_reduced_angle;
-    vofa_data[16] = (float)motor_diag->left_raw_angle;
-    vofa_data[17] = (float)motor_diag->right_raw_angle;
-    vofa_data[18] = (float)motor_diag->checksum_error_count;
-    vofa_data[19] = (float)motor_diag->unknown_frame_count;
-    vofa_data[20] = (float)motor_cmd->enable;
-    vofa_data[21] = motor_cmd->left_target;
-    vofa_data[22] = motor_cmd->right_target;
-    vofa_data[23] = (float)motor_diag->tx_frame_count;
-    vofa_data[24] = (float)motor_diag->last_tx_func;
-    vofa_data[25] = (float)motor_diag->last_tx_left;
-    vofa_data[26] = (float)motor_diag->last_tx_right;
-    vofa_data[27] = (float)app_state_get();
-    vofa_data[28] = (float)app_safety_is_fault();
-    vofa_data[29] = (float)imu->healthy;
-    vofa_data[30] = imu->roll;
-    vofa_data[31] = imu->pitch;
+    vofa_data[0] = (float)now_ms;
+    vofa_data[1] = (float)rpm_diag->enable;
+    vofa_data[2] = rpm_diag->target_motor_rpm;
+    vofa_data[3] = rpm_diag->left_motor_rpm;
+    vofa_data[4] = rpm_diag->right_motor_rpm;
+    vofa_data[5] = rpm_diag->left_duty;
+    vofa_data[6] = rpm_diag->right_duty;
+    vofa_data[7] = (float)wheel->online;
 
     debug_send_buffer((const uint8 *)vofa_data, sizeof(vofa_data));
     debug_send_buffer(tail, sizeof(tail));

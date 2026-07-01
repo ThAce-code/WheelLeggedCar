@@ -32,8 +32,8 @@ static void bldc_foc_clear_feedback(void)
 {
     uint8 i;
 
-    bldc_foc_feedback.left_speed = 0;
-    bldc_foc_feedback.right_speed = 0;
+    bldc_foc_feedback.left_motor_rpm = 0;
+    bldc_foc_feedback.right_motor_rpm = 0;
     bldc_foc_feedback.left_angle = 0;
     bldc_foc_feedback.right_angle = 0;
     bldc_foc_feedback.left_reduced_angle = 0;
@@ -275,8 +275,8 @@ static void bldc_foc_process_packet(void)
     switch(bldc_foc_packet[1])
     {
         case BLDC_FOC_FUNC_UPLOAD_SPEED:
-            bldc_foc_feedback.left_speed = left_value;
-            bldc_foc_feedback.right_speed = right_value;
+            bldc_foc_feedback.left_motor_rpm = left_value;
+            bldc_foc_feedback.right_motor_rpm = right_value;
             bldc_foc_mark_rx();
             break;
 
@@ -356,8 +356,6 @@ void bldc_foc_uart_start_feedback(void)
 {
     uart_rx_interrupt(APP_BLDC_UART_INDEX, 1);
     bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_SPEED, 0, 0);
-    bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_ANGLE, 0, 0);
-    bldc_foc_send_frame(BLDC_FOC_FUNC_UPLOAD_RDT_ANGLE, 0, 0);
 }
 
 void bldc_foc_uart_stop_feedback(void)

@@ -12,6 +12,7 @@
 #include "control_leg.h"
 #include "actuator_servo.h"
 #include "actuator_motor.h"
+#include "host_command.h"
 #include "telemetry.h"
 
 uint8 app_init(void)
@@ -21,6 +22,7 @@ uint8 app_init(void)
     app_state_init();
     app_safety_init();
     app_scheduler_init();
+    host_command_init();
 
     control_leg_init();
     actuator_servo_init();

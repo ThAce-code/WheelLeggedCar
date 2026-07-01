@@ -1207,6 +1207,18 @@
             <file>
                 <name>$PROJ_DIR$\..\..\code\control_leg.h</name>
             </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_pid.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_pid.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\host_command.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\host_command.h</name>
+            </file>
         </group>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>

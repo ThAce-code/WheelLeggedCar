@@ -44,8 +44,8 @@ typedef struct
 
 typedef struct
 {
-    float left_target;
-    float right_target;
+    float left_target_motor_rpm;
+    float right_target_motor_rpm;
     uint8 enable;
 }motor_cmd_struct;
 
@@ -53,8 +53,8 @@ typedef struct
 
 typedef struct
 {
-    int16 left_speed;
-    int16 right_speed;
+    int16 left_motor_rpm;
+    int16 right_motor_rpm;
     int16 left_reduced_angle;
     int16 right_reduced_angle;
     uint32 last_rx_ms;
@@ -74,6 +74,29 @@ typedef struct
     uint8 last_tx_func;
     char last_unknown_ascii[MOTOR_DIAG_ASCII_LINE_MAX];
 }motor_diag_struct;
+
+typedef struct
+{
+    uint8 enable;
+    float target_motor_rpm;
+    float left_target_motor_rpm;
+    float right_target_motor_rpm;
+    float left_motor_rpm;
+    float right_motor_rpm;
+    float left_rpm_error;
+    float right_rpm_error;
+    float left_duty;
+    float right_duty;
+    float left_integral;
+    float right_integral;
+    float left_kp;
+    float left_ki;
+    float left_kd;
+    float right_kp;
+    float right_ki;
+    float right_kd;
+    uint32 command_error_count;
+}motor_rpm_loop_diag_struct;
 
 typedef struct
 {

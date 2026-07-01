@@ -175,9 +175,11 @@ static void actuator_motor_copy_ascii_diag(const char *src)
 
 static void actuator_motor_refresh_feedback(uint32 now_ms)
 {
+    bldc_foc_feedback_struct raw_snapshot;
     const bldc_foc_feedback_struct *raw;
 
-    raw = bldc_foc_uart_get_feedback();
+    bldc_foc_uart_copy_feedback(&raw_snapshot);
+    raw = &raw_snapshot;
     actuator_motor_feedback.left_motor_rpm = raw->left_motor_rpm;
     actuator_motor_feedback.right_motor_rpm = raw->right_motor_rpm;
     actuator_motor_feedback.left_reduced_angle = raw->left_reduced_angle;

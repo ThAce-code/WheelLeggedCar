@@ -37,6 +37,7 @@ void bldc_foc_uart_stop_feedback(void);
 void bldc_foc_uart_zero_calibrate(void);
 void bldc_foc_uart_set_angle_zero(void);
 void bldc_foc_uart_rx_isr(void);
+void bldc_foc_uart_copy_feedback(bldc_foc_feedback_struct *snapshot);
 const bldc_foc_feedback_struct *bldc_foc_uart_get_feedback(void);
 
 #endif

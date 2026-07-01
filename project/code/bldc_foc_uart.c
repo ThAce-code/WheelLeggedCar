@@ -6,6 +6,7 @@
 #include "bldc_foc_uart.h"
 #include "app_config.h"
 #include "app_scheduler.h"
+#include "zf_common_interrupt.h"
 #include "zf_driver_gpio.h"
 
 #define BLDC_FOC_FRAME_HEAD             (0xA5U)
@@ -258,6 +259,23 @@ static void bldc_foc_parse_ascii_byte(uint8 dat)
     }
 }
 
+static void bldc_foc_resync_after_bad_packet(void)
+{
+    uint8 i;
+
+    for(i = 1U; i < BLDC_FOC_FRAME_LEN; i++)
+    {
+        if(BLDC_FOC_FRAME_HEAD == bldc_foc_packet[i])
+        {
+            bldc_foc_packet[0] = BLDC_FOC_FRAME_HEAD;
+            bldc_foc_packet_index = 1U;
+            return;
+        }
+    }
+
+    bldc_foc_packet_index = 0U;
+}
+
 static void bldc_foc_process_packet(void)
 {
     int16 left_value;
@@ -266,6 +284,7 @@ static void bldc_foc_process_packet(void)
     if(bldc_foc_packet[BLDC_FOC_FRAME_LEN - 1U] != bldc_foc_checksum(bldc_foc_packet))
     {
         bldc_foc_feedback.checksum_error_count++;
+        bldc_foc_resync_after_bad_packet();
         return;
     }
 
@@ -295,6 +314,8 @@ static void bldc_foc_process_packet(void)
             bldc_foc_feedback.unknown_frame_count++;
             break;
     }
+
+    bldc_foc_packet_index = 0U;
 }
 
 static void bldc_foc_parse_byte(uint8 dat)
@@ -318,7 +339,10 @@ static void bldc_foc_parse_byte(uint8 dat)
     if(BLDC_FOC_FRAME_LEN <= bldc_foc_packet_index)
     {
         bldc_foc_process_packet();
-        bldc_foc_packet_index = 0;
+        if(BLDC_FOC_FRAME_LEN <= bldc_foc_packet_index)
+        {
+            bldc_foc_packet_index = 0;
+        }
     }
 }
 
@@ -381,6 +405,15 @@ void bldc_foc_uart_rx_isr(void)
     {
         bldc_foc_parse_byte(dat);
     }
+}
+
+void bldc_foc_uart_copy_feedback(bldc_foc_feedback_struct *snapshot)
+{
+    uint32 primask;
+
+    primask = interrupt_global_disable();
+    *snapshot = bldc_foc_feedback;
+    interrupt_global_enable(primask);
 }
 
 const bldc_foc_feedback_struct *bldc_foc_uart_get_feedback(void)

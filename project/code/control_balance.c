@@ -121,7 +121,7 @@ void control_balance_init(void)
     control_balance_ident_amp_rpm = 0.0f;
     control_balance_ident_period_ms = 0U;
     control_balance_ident_start_ms = 0U;
-    control_balance_pitch_setpoint_deg = 0.0f;
+    control_balance_pitch_setpoint_deg = APP_BALANCE_PITCH_SETPOINT_DEG;
     control_balance_last_update_ms = 0;
 }
 

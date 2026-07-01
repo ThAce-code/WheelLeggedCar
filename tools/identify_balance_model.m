@@ -223,8 +223,14 @@ end
 if condPhi > 1.0e8
     warning("Regressor condition is high: %.3g. Gains may be unreliable.", condPhi);
 end
-if clippedGain(1) ~= firmwareGain(1) || clippedGain(2) ~= firmwareGain(2)
-    warning("Angle/rate gains were clipped. Treat the command as a cautious first test, not final tuning.");
+bestRaw = [candidates.r_angle(best), candidates.r_rate(best), ...
+           candidates.r_speed(best), candidates.r_pos(best)];
+bestClip = [candidates.c_angle(best), candidates.c_rate(best), ...
+            candidates.c_speed(best), candidates.c_pos(best)];
+if any(bestRaw ~= bestClip)
+    warning("Gains were clipped. Raw=[%.3f %.3f %.3f %.3f] -> Clip=[%.3f %.3f %.3f %.3f]. Treat as cautious first test.", ...
+        bestRaw(1), bestRaw(2), bestRaw(3), bestRaw(4), ...
+        bestClip(1), bestClip(2), bestClip(3), bestClip(4));
 end
 
 function [K, P, iterations] = local_dlqr(A, B, Q, R)

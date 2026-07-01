@@ -129,7 +129,6 @@ fprintf("Rank phi: %d,  Cond phi: %.3g\n\n", rankPhi, condPhi);
 %% LQR candidate sweep — try multiple Q to find usable gains
 % Goal: K_angle > 0, K_rate > 0 (positive damping is REQUIRED for inverted pendulum)
 % We sweep the pitch_rate weight Q(2,2) from small to large to force damping positive.
-candidates = table();
 qRateList  = [0.2, 0.8, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 200.0, 500.0];
 qAngle     = 10.0;
 qSpeed     = 0.02;
@@ -137,30 +136,36 @@ qPos       = 2.0;
 R          = 0.08;
 clipLims   = [0.0 6.0;  0.0 0.4;  -0.2 0.2;  -1.0 1.0];
 
-for qi = 1:numel(qRateList)
+nQ = numel(qRateList);
+raw_arr = zeros(nQ, 4);
+clip_arr = zeros(nQ, 4);
+dare_iters_arr = zeros(nQ, 1);
+
+for qi = 1:nQ
     Q_try = diag([qAngle, qRateList(qi), qSpeed, qPos]);
     [K_lqr, ~, iters] = local_dlqr(A, B, Q_try, R); %#ok<AGROW>
     raw = -K_lqr;
-    clip = raw;
+    clp = raw;
     for ci = 1:4
-        clip(ci) = min(max(clip(ci), clipLims(ci,1)), clipLims(ci,2));
+        clp(ci) = min(max(clp(ci), clipLims(ci,1)), clipLims(ci,2));
     end
-    candidates = [candidates; table(qRateList(qi), iters, ...
-        raw(1), raw(2), raw(3), raw(4), ...
-        clip(1), clip(2), clip(3), clip(4), ...
-        "VariableNames", ["q_rate", "dare_iters", ...
-        "r_angle", "r_rate", "r_speed", "r_pos", ...
-        "c_angle", "c_rate", "c_speed", "c_pos"])]; %#ok<AGROW>
+    raw_arr(qi, :) = raw;
+    clip_arr(qi, :) = clp;
+    dare_iters_arr(qi) = iters;
 end
+
+candidates = table(qRateList', dare_iters_arr, ...
+    raw_arr(:,1), raw_arr(:,2), raw_arr(:,3), raw_arr(:,4), ...
+    clip_arr(:,1), clip_arr(:,2), clip_arr(:,3), clip_arr(:,4), ...
+    'VariableNames', {'q_rate', 'dare_iters', ...
+    'r_angle', 'r_rate', 'r_speed', 'r_pos', ...
+    'c_angle', 'c_rate', 'c_speed', 'c_pos'});
 
 %% Select best candidate: largest q_rate that still has r_rate > 0
 validRows = candidates.r_rate > 0.0;
 if any(validRows)
-    best = find(validRows, 1, 'first');
-    % Then pick from valid ones the one with most damping
     best = find(validRows, 1, 'last');
 else
-    % Fallback: pick the least-negative rate gain and clip to zero with warning
     [~, best] = max(candidates.r_rate);
     fprintf("WARNING: No Q produced positive K_rate. Picking least-negative.\n");
 end

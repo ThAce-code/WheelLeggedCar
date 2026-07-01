@@ -221,6 +221,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     {
         if(0.0f == value)
         {
+            control_chassis_stop(now_ms);
             control_balance_set_mode(BALANCE_MODE_OFF);
             actuator_motor_record_command_error(APP_FALSE);
             return;

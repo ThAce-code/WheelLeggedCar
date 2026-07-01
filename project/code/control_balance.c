@@ -106,9 +106,25 @@ void control_balance_update(uint32 now_ms)
     control_balance_last_update_ms = now_ms;
     control_balance_diag.pitch_rate_dps = pitch_rate_dps;
 
+    /* OFF or STANDBY: update telemetry only, do not touch motor output.
+       M / D direct actuator debug commands must not be overridden. */
+    if(BALANCE_MODE_BALANCE_TEST != control_balance_mode)
+    {
+        control_balance_diag.safety_blocked = APP_TRUE;
+        control_balance_diag.balance_rpm = 0.0f;
+        control_balance_diag.output_left_rpm = 0.0f;
+        control_balance_diag.output_right_rpm = 0.0f;
+        control_balance_diag.output_enable = APP_FALSE;
+        if(APP_TRUE == dt_valid)
+        {
+            control_balance_reset_derivative();
+        }
+        return;
+    }
+
+    /* BALANCE_TEST only from here: safety gates + motor output */
     control_balance_diag.safety_blocked = APP_FALSE;
-    if((BALANCE_MODE_BALANCE_TEST != control_balance_mode) ||
-       (APP_STATE_FAULT == app_state_get()) ||
+    if((APP_STATE_FAULT == app_state_get()) ||
        (APP_FALSE == imu->healthy) ||
        (APP_FALSE == wheel->online) ||
        (APP_FALSE == chassis->enable) ||

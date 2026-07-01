@@ -1219,6 +1219,18 @@
             <file>
                 <name>$PROJ_DIR$\..\..\code\host_command.h</name>
             </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_chassis.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_chassis.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_balance.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\control_balance.h</name>
+            </file>
         </group>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>

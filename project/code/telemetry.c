@@ -23,7 +23,7 @@ void telemetry_update(uint32 now_ms)
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
 
     vofa_data[0] = (float)now_ms;
-    vofa_data[1] = (float)rpm_diag->enable;
+    vofa_data[1] = (float)rpm_diag->mode;
     vofa_data[2] = rpm_diag->target_motor_rpm;
     vofa_data[3] = rpm_diag->left_motor_rpm;
     vofa_data[4] = rpm_diag->right_motor_rpm;

@@ -124,40 +124,77 @@ pred = theta * phi;
 err = allY - pred;
 rmse = sqrt(mean(err .^ 2, 2));
 
-Q = diag([10.0, 0.2, 0.02, 2.0]);
-R = 0.08;
-[K_lqr, P, dareIters] = local_dlqr(A, B, Q, R); %#ok<ASGLU>
-firmwareGain = -K_lqr;
-clippedGain = firmwareGain;
-clippedGain(1) = min(max(clippedGain(1), 0.0), 6.0);
-clippedGain(2) = min(max(clippedGain(2), 0.0), 0.4);
-clippedGain(3) = min(max(clippedGain(3), -0.2), 0.2);
-clippedGain(4) = min(max(clippedGain(4), -1.0), 1.0);
+fprintf("Rank phi: %d,  Cond phi: %.3g\n\n", rankPhi, condPhi);
 
-modelSummary = table(rankPhi, condPhi, rmse(1), rmse(2), rmse(3), rmse(4), ...
-    firmwareGain(1), firmwareGain(2), firmwareGain(3), firmwareGain(4), ...
-    clippedGain(1), clippedGain(2), clippedGain(3), clippedGain(4), dareIters, ...
-    "VariableNames", ["rank_phi", "cond_phi", "rmse_pitch_deg", ...
-    "rmse_pitch_rate_dps", "rmse_wheel_rpm", "rmse_wheel_pos_rev", ...
-    "raw_k_angle", "raw_k_rate", "raw_k_speed", "raw_k_pos", ...
-    "clip_k_angle", "clip_k_rate", "clip_k_speed", "clip_k_pos", "dare_iters"]);
-writetable(modelSummary, fullfile(dataDir, "balance_model_summary.csv"));
+%% LQR candidate sweep — try multiple Q to find usable gains
+% Goal: K_angle > 0, K_rate > 0 (positive damping is REQUIRED for inverted pendulum)
+% We sweep the pitch_rate weight Q(2,2) from small to large to force damping positive.
+candidates = table();
+qRateList  = [0.2, 0.8, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 200.0, 500.0];
+qAngle     = 10.0;
+qSpeed     = 0.02;
+qPos       = 2.0;
+R          = 0.08;
+clipLims   = [0.0 6.0;  0.0 0.4;  -0.2 0.2;  -1.0 1.0];
+
+for qi = 1:numel(qRateList)
+    Q_try = diag([qAngle, qRateList(qi), qSpeed, qPos]);
+    [K_lqr, ~, iters] = local_dlqr(A, B, Q_try, R); %#ok<AGROW>
+    raw = -K_lqr;
+    clip = raw;
+    for ci = 1:4
+        clip(ci) = min(max(clip(ci), clipLims(ci,1)), clipLims(ci,2));
+    end
+    candidates = [candidates; table(qRateList(qi), iters, ...
+        raw(1), raw(2), raw(3), raw(4), ...
+        clip(1), clip(2), clip(3), clip(4), ...
+        "VariableNames", ["q_rate", "dare_iters", ...
+        "r_angle", "r_rate", "r_speed", "r_pos", ...
+        "c_angle", "c_rate", "c_speed", "c_pos"])]; %#ok<AGROW>
+end
+
+%% Select best candidate: largest q_rate that still has r_rate > 0
+validRows = candidates.r_rate > 0.0;
+if any(validRows)
+    best = find(validRows, 1, 'first');
+    % Then pick from valid ones the one with most damping
+    best = find(validRows, 1, 'last');
+else
+    % Fallback: pick the least-negative rate gain and clip to zero with warning
+    [~, best] = max(candidates.r_rate);
+    fprintf("WARNING: No Q produced positive K_rate. Picking least-negative.\n");
+end
+
+fprintf("=== LQR candidate sweep (varying Q(2,2) = pitch_rate penalty) ===\n");
+fprintf("q_rate  iters raw_angle raw_rate raw_speed raw_pos  clip_angle clip_rate clip_speed clip_pos\n");
+for qi = 1:numel(qRateList)
+    mark = "";
+    if qi == best, mark = " <-- BEST"; end
+    fprintf("%6.1f  %3d    %8.3f %8.3f %8.3f %8.3f   %8.3f  %8.3f  %8.3f  %8.3f%s\n", ...
+        candidates.q_rate(qi), candidates.dare_iters(qi), ...
+        candidates.r_angle(qi), candidates.r_rate(qi), ...
+        candidates.r_speed(qi), candidates.r_pos(qi), ...
+        candidates.c_angle(qi), candidates.c_rate(qi), ...
+        candidates.c_speed(qi), candidates.c_pos(qi), mark);
+end
+
+fprintf("\n=== Best candidate: BL,%.3f,%.3f,%.3f,%.3f ===\n", ...
+    candidates.c_angle(best), candidates.c_rate(best), ...
+    candidates.c_speed(best), candidates.c_pos(best));
+fprintf("(q_rate = %.1f, DARE iters = %d)\n", ...
+    candidates.q_rate(best), candidates.dare_iters(best));
+
+writetable(candidates, fullfile(dataDir, "balance_model_summary.csv"));
 writetable(summary, fullfile(dataDir, "balance_model_input_summary.csv"));
 
-disp("Input captures used for model:");
-disp(summary(:, ["note", "file", "rows_model", "pitch_abs_p95", "balance_rpm_abs_p95"]));
+fprintf("\n--- Model diagnostics ---\n");
 disp("Identified A:");
 disp(A);
 disp("Identified B:");
 disp(B);
-disp("One-step RMSE [pitch, pitch_rate, wheel_rpm, wheel_pos]:");
-disp(rmse');
-disp("Raw firmware BL gains:");
-disp(firmwareGain);
-disp("Clipped firmware BL gains:");
-disp(clippedGain);
-fprintf("Suggested command: BL,%.3f,%.3f,%.3f,%.3f\n", ...
-    clippedGain(1), clippedGain(2), clippedGain(3), clippedGain(4));
+fprintf("One-step RMSE [pitch, pitch_rate, wheel_rpm, wheel_pos]: ");
+fprintf("%.4f  ", rmse);
+fprintf("\n");
 
 figure("Name", "Balance model one-step fit", "Color", "w");
 tiledlayout(4, 1, "TileSpacing", "compact");

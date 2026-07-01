@@ -523,8 +523,14 @@ static void actuator_motor_update_open_loop(uint32 now_ms)
     int16 left_duty_i;
     int16 right_duty_i;
 
-    if((APP_STATE_FAULT == app_state_get()) ||
-       (APP_FALSE == actuator_motor_open_loop_enable))
+    if(APP_STATE_FAULT == app_state_get())
+    {
+        actuator_motor_send_duty_periodic(now_ms, 0, 0);
+        actuator_motor_stop();
+        return;
+    }
+
+    if(APP_FALSE == actuator_motor_open_loop_enable)
     {
         actuator_motor_send_duty_periodic(now_ms, 0, 0);
         actuator_motor_rpm_diag.left_duty = 0.0f;

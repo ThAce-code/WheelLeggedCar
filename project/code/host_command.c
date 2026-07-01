@@ -290,6 +290,14 @@ static void host_command_process_line(char *line, uint32 now_ms)
         return;
     }
 
+    if(('B' == line[0]) && ('S' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_number(&line[3], &value)))
+    {
+        control_balance_set_pitch_setpoint(value);
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
     if(('B' == line[0]) && ('I' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_two_numbers(&line[3], &value, &period_ms_f)))
     {

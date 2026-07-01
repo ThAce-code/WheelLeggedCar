@@ -21,6 +21,7 @@ static float control_balance_wheel_pos_rev;
 static float control_balance_ident_amp_rpm;
 static uint32 control_balance_ident_period_ms;
 static uint32 control_balance_ident_start_ms;
+static float control_balance_pitch_setpoint_deg;
 
 static float control_balance_absf(float value)
 {
@@ -120,6 +121,7 @@ void control_balance_init(void)
     control_balance_ident_amp_rpm = 0.0f;
     control_balance_ident_period_ms = 0U;
     control_balance_ident_start_ms = 0U;
+    control_balance_pitch_setpoint_deg = 0.0f;
     control_balance_last_update_ms = 0;
 }
 
@@ -207,7 +209,7 @@ void control_balance_update(uint32 now_ms)
                                                               APP_BALANCE_WHEEL_POS_LIMIT_REV);
     control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
 
-    balance_rpm = (control_balance_pitch_kp * imu->pitch) +
+    balance_rpm = (control_balance_pitch_kp * (imu->pitch - control_balance_pitch_setpoint_deg)) +
                   (control_balance_pitch_rate_kd * pitch_rate_dps) +
                   (control_balance_wheel_speed_ks * wheel_speed_rpm) +
                   (control_balance_wheel_pos_kp * control_balance_wheel_pos_rev);
@@ -292,6 +294,16 @@ uint8 control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float w
 void control_balance_reset_motion_state_public(void)
 {
     control_balance_reset_motion_state();
+}
+
+void control_balance_set_pitch_setpoint(float offset_deg)
+{
+    if((APP_FALSE == control_balance_is_finite(offset_deg)) ||
+       (APP_BALANCE_GAIN_ABS_LIMIT < control_balance_absf(offset_deg)))
+    {
+        return;
+    }
+    control_balance_pitch_setpoint_deg = offset_deg;
 }
 
 uint8 control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint32 now_ms)

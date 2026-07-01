@@ -394,6 +394,9 @@ void actuator_motor_set_motor_rpm_target(float left_motor_rpm, float right_motor
     {
         actuator_motor_rpm_diag.target_motor_rpm = 0.5f * (limited_left + limited_right);
     }
+
+    actuator_motor_actuator_cmd.mode = MOTOR_MODE_RPM_CLOSED_LOOP;
+    actuator_motor_rpm_diag.mode = MOTOR_MODE_RPM_CLOSED_LOOP;
 }
 
 void actuator_motor_set_open_loop_duty(float left_duty, float right_duty, uint8 enable)
@@ -416,6 +419,9 @@ void actuator_motor_set_open_loop_duty(float left_duty, float right_duty, uint8 
     actuator_motor_rpm_diag.left_target_motor_rpm = 0.0f;
     actuator_motor_rpm_diag.right_target_motor_rpm = 0.0f;
     actuator_motor_reset_rpm_loop();
+
+    actuator_motor_actuator_cmd.mode = MOTOR_MODE_OPEN_DUTY;
+    actuator_motor_rpm_diag.mode = MOTOR_MODE_OPEN_DUTY;
 }
 
 void actuator_motor_set_rpm_pid_gain(uint8 left_enable, uint8 right_enable, float kp, float ki, float kd)
@@ -462,9 +468,7 @@ static void actuator_motor_update_rpm_loop(uint32 now_ms)
        (APP_FALSE == actuator_motor_feedback.online))
     {
         actuator_motor_send_duty_periodic(now_ms, 0, 0);
-        actuator_motor_reset_rpm_loop();
-        actuator_motor_actuator_cmd.mode = MOTOR_MODE_STOP;
-        actuator_motor_rpm_diag.mode = MOTOR_MODE_STOP;
+        actuator_motor_stop();
         return;
     }
 
@@ -523,6 +527,9 @@ static void actuator_motor_update_open_loop(uint32 now_ms)
        (APP_FALSE == actuator_motor_open_loop_enable))
     {
         actuator_motor_send_duty_periodic(now_ms, 0, 0);
+        actuator_motor_rpm_diag.left_duty = 0.0f;
+        actuator_motor_rpm_diag.right_duty = 0.0f;
+        actuator_motor_rpm_diag.mode = MOTOR_MODE_STOP;
         return;
     }
 

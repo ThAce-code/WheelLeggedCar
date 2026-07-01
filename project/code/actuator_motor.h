@@ -15,6 +15,7 @@ void actuator_motor_set_mode_stop(void);
 void actuator_motor_set_mode_open_duty(float left_duty, float right_duty);
 void actuator_motor_set_mode_motor_rpm(float left_motor_rpm, float right_motor_rpm);
 void actuator_motor_record_host_motion(uint32 now_ms);
+/* Compatibility wrappers — prefer actuator_motor_set_mode_*() for new code */
 void actuator_motor_set_motor_rpm_target(float left_motor_rpm, float right_motor_rpm, uint8 enable);
 void actuator_motor_set_open_loop_duty(float left_duty, float right_duty, uint8 enable);
 void actuator_motor_set_rpm_pid_gain(uint8 left_enable, uint8 right_enable, float kp, float ki, float kd);

@@ -12,9 +12,7 @@
 
 static balance_mode_enum control_balance_mode;
 static balance_diag_struct control_balance_diag;
-static float control_balance_last_pitch_deg;
 static uint32 control_balance_last_update_ms;
-static uint8 control_balance_derivative_valid;
 static float control_balance_pitch_kp;
 static float control_balance_pitch_rate_kd;
 static float control_balance_wheel_speed_ks;
@@ -62,17 +60,10 @@ static uint8 control_balance_is_finite(float value)
     return APP_TRUE;
 }
 
-static void control_balance_reset_derivative(void)
-{
-    control_balance_last_pitch_deg = 0.0f;
-    control_balance_last_update_ms = 0;
-    control_balance_derivative_valid = APP_FALSE;
-}
-
 static void control_balance_reset_motion_state(void)
 {
     control_balance_wheel_pos_rev = 0.0f;
-    control_balance_reset_derivative();
+    control_balance_last_update_ms = 0;
     control_balance_diag.wheel_speed_rpm = 0.0f;
     control_balance_diag.wheel_pos_rev = 0.0f;
 }
@@ -129,7 +120,7 @@ void control_balance_init(void)
     control_balance_ident_amp_rpm = 0.0f;
     control_balance_ident_period_ms = 0U;
     control_balance_ident_start_ms = 0U;
-    control_balance_reset_derivative();
+    control_balance_last_update_ms = 0;
 }
 
 void control_balance_update(uint32 now_ms)
@@ -143,10 +134,10 @@ void control_balance_update(uint32 now_ms)
     float ident_rpm;
     float output_left_rpm;
     float output_right_rpm;
-    uint8 dt_valid;
     const motor_rpm_loop_diag_struct *rpm_diag;
     float wheel_speed_rpm;
     float wheel_pos_delta_rev;
+    uint32 imu_age_ms;
 
     imu = sensor_imu_get_state();
     wheel = actuator_motor_get_feedback();
@@ -158,21 +149,21 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.chassis_left_rpm = chassis->left_base_rpm;
     control_balance_diag.chassis_right_rpm = chassis->right_base_rpm;
 
-    pitch_rate_dps = 0.0f;
-    dt_valid = APP_FALSE;
-    if((APP_TRUE == control_balance_derivative_valid) && (now_ms > control_balance_last_update_ms))
+    pitch_rate_dps = imu->pitch_rate_dps;
+    control_balance_diag.pitch_rate_dps = pitch_rate_dps;
+
+    /* Wrap-safe dt_s for wheel position integration */
+    if(0U == control_balance_last_update_ms)
     {
-        dt_s = (float)(now_ms - control_balance_last_update_ms) / 1000.0f;
-        pitch_rate_dps = (imu->pitch - control_balance_last_pitch_deg) / dt_s;
-        dt_valid = APP_TRUE;
+        dt_s = (float)APP_BALANCE_PERIOD_MS / 1000.0f;
     }
     else
     {
-        control_balance_derivative_valid = APP_TRUE;
+        dt_s = (float)(now_ms - control_balance_last_update_ms) / 1000.0f;
     }
-    control_balance_last_pitch_deg = imu->pitch;
     control_balance_last_update_ms = now_ms;
-    control_balance_diag.pitch_rate_dps = pitch_rate_dps;
+
+    imu_age_ms = now_ms - imu->timestamp_ms;
 
     wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);
     control_balance_diag.wheel_speed_rpm = wheel_speed_rpm;
@@ -186,10 +177,6 @@ void control_balance_update(uint32 now_ms)
         control_balance_diag.output_left_rpm = 0.0f;
         control_balance_diag.output_right_rpm = 0.0f;
         control_balance_diag.output_enable = APP_FALSE;
-        if(APP_TRUE == dt_valid)
-        {
-            control_balance_reset_derivative();
-        }
         return;
     }
 
@@ -201,17 +188,14 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == wheel->left_online) ||
        (APP_FALSE == wheel->right_online) ||
        (APP_FALSE == chassis->enable) ||
-       (APP_FALSE == dt_valid) ||
+       (APP_BALANCE_IMU_MAX_AGE_MS < imu_age_ms) ||
        (APP_FALSE == control_balance_is_finite(imu->pitch)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_dps)) ||
        (APP_FALSE == control_balance_is_finite(wheel_speed_rpm)) ||
        (APP_BALANCE_TEST_PITCH_LIMIT_DEG < control_balance_absf(imu->pitch)))
     {
         control_balance_diag.safety_blocked = APP_TRUE;
-        if(APP_TRUE == dt_valid)
-        {
-            control_balance_reset_motion_state();
-        }
+        control_balance_reset_motion_state();
         control_balance_stop_output();
         return;
     }
@@ -281,9 +265,7 @@ void control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
 
 void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp)
 {
-    if((0.0f > pitch_kp) ||
-       (0.0f > pitch_rate_kd) ||
-       (APP_FALSE == control_balance_is_finite(pitch_kp)) ||
+    if((APP_FALSE == control_balance_is_finite(pitch_kp)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_kd)) ||
        (APP_FALSE == control_balance_is_finite(wheel_speed_ks)) ||
        (APP_FALSE == control_balance_is_finite(wheel_pos_kp)) ||

@@ -294,23 +294,17 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('B' == line[0]) && ('L' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_four_numbers(&line[3], &kp, &ki, &ks, &pos_kp)))
     {
-        if((0.0f <= kp) && (0.0f <= ki))
-        {
-            control_balance_set_full_gain(kp, ki, ks, pos_kp);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
+        control_balance_set_full_gain(kp, ki, ks, pos_kp);
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
     }
 
     if(('B' == line[0]) && ('P' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_two_numbers(&line[3], &kp, &ki)))
     {
-        if((0.0f <= kp) && (0.0f <= ki))
-        {
-            control_balance_set_gain(kp, ki);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
+        control_balance_set_gain(kp, ki);
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
     }
 
     if(('B' == line[0]) && (',' == line[1]) &&

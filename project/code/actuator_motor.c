@@ -585,7 +585,11 @@ static uint8 actuator_motor_host_motion_timed_out(uint32 now_ms)
     actuator_motor_rpm_diag.host_motion_active = APP_TRUE;
     actuator_motor_rpm_diag.host_motion_age_ms = now_ms - actuator_motor_last_host_motion_ms;
 
+#if (0U == APP_HOST_COMMAND_TIMEOUT_MS)
+    return APP_FALSE;
+#else
     return (APP_HOST_COMMAND_TIMEOUT_MS < actuator_motor_rpm_diag.host_motion_age_ms) ? APP_TRUE : APP_FALSE;
+#endif
 }
 
 void actuator_motor_update(uint32 now_ms)

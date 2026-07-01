@@ -130,6 +130,59 @@ static uint8 host_command_parse_two_numbers(const char *text, float *first, floa
     return APP_TRUE;
 }
 
+static uint8 host_command_parse_four_numbers(const char *text, float *first, float *second, float *third, float *fourth)
+{
+    char number_text[16];
+    float values[4];
+    uint8 value_index = 0;
+    uint8 number_index = 0;
+    uint8 read_index = 0;
+
+    while('\0' != text[read_index])
+    {
+        if(',' == text[read_index])
+        {
+            if((0U == number_index) || (3U <= value_index))
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = '\0';
+            if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+            {
+                return APP_FALSE;
+            }
+            value_index++;
+            number_index = 0;
+        }
+        else
+        {
+            if((sizeof(number_text) - 1U) <= number_index)
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = text[read_index];
+            number_index++;
+        }
+        read_index++;
+    }
+
+    if((0U == number_index) || (3U != value_index))
+    {
+        return APP_FALSE;
+    }
+    number_text[number_index] = '\0';
+    if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+    {
+        return APP_FALSE;
+    }
+
+    *first = values[0];
+    *second = values[1];
+    *third = values[2];
+    *fourth = values[3];
+    return APP_TRUE;
+}
+
 static uint8 host_command_parse_pid_gain(const char *text, float *kp, float *ki, float *kd)
 {
     char number_text[16];
@@ -193,6 +246,8 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float kp;
     float ki;
     float kd;
+    float ks;
+    float pos_kp;
     uint8 read_index = 0;
     uint8 write_index = 0;
 
@@ -214,6 +269,24 @@ static void host_command_process_line(char *line, uint32 now_ms)
         actuator_motor_set_mode_stop();
         actuator_motor_record_command_error(APP_FALSE);
         return;
+    }
+
+    if(('B' == line[0]) && ('Z' == line[1]) && ('\0' == line[2]))
+    {
+        control_balance_reset_motion_state_public();
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(('B' == line[0]) && ('L' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_four_numbers(&line[3], &kp, &ki, &ks, &pos_kp)))
+    {
+        if((0.0f <= kp) && (0.0f <= ki))
+        {
+            control_balance_set_full_gain(kp, ki, ks, pos_kp);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
     }
 
     if(('B' == line[0]) && ('P' == line[1]) && (',' == line[2]) &&

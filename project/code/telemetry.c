@@ -23,7 +23,7 @@ void telemetry_update(uint32 now_ms)
     const balance_diag_struct *balance;
     const imu_state_struct *imu;
     uint32 imu_age_ms;
-    float vofa_data[14];
+    float vofa_data[16];
 #else
     float vofa_data[8];
 #endif
@@ -47,8 +47,10 @@ void telemetry_update(uint32 now_ms)
     vofa_data[9] = rpm_diag->right_motor_rpm;
     vofa_data[10] = rpm_diag->left_duty;
     vofa_data[11] = rpm_diag->right_duty;
-    vofa_data[12] = (float)imu_age_ms;
-    vofa_data[13] = (float)sensor_imu_get_int_count();
+    vofa_data[12] = balance->pitch_kp;
+    vofa_data[13] = balance->pitch_rate_kd;
+    vofa_data[14] = (float)imu_age_ms;
+    vofa_data[15] = (float)sensor_imu_get_int_count();
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

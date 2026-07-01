@@ -11,8 +11,8 @@
 void control_balance_init(void);
 void control_balance_update(uint32 now_ms);
 void control_balance_set_mode(balance_mode_enum mode);
-void control_balance_set_gain(float pitch_kp, float pitch_rate_kd);
-void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp);
+uint8 control_balance_set_gain(float pitch_kp, float pitch_rate_kd);
+uint8 control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp);
 void control_balance_reset_motion_state_public(void);
 uint8 control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint32 now_ms);
 balance_mode_enum control_balance_get_mode(void);

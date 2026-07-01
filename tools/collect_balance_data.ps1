@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 14
+$FloatCount = 16
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,pitch_deg,pitch_rate_dps,chassis_left_rpm,chassis_right_rpm,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,pitch_deg,pitch_rate_dps,chassis_left_rpm,chassis_right_rpm,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,imu_age_ms,imu_int_count,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -134,6 +134,8 @@ function Pop-BalanceFrames {
                 right_duty = $values[11]
                 balance_kp = $values[12]
                 balance_kd = $values[13]
+                imu_age_ms = $values[14]
+                imu_int_count = $values[15]
             })
         }
 
@@ -245,6 +247,8 @@ try {
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F6}" -f $frame.balance_kp),
                     ("{0:F6}" -f $frame.balance_kd),
+                    ("{0:F3}" -f $frame.imu_age_ms),
+                    ("{0:F0}" -f $frame.imu_int_count),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

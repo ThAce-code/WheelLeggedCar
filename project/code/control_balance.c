@@ -258,12 +258,12 @@ void control_balance_set_mode(balance_mode_enum mode)
     }
 }
 
-void control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
+uint8 control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
 {
-    control_balance_set_full_gain(pitch_kp, pitch_rate_kd, 0.0f, 0.0f);
+    return control_balance_set_full_gain(pitch_kp, pitch_rate_kd, 0.0f, 0.0f);
 }
 
-void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp)
+uint8 control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp)
 {
     if((APP_FALSE == control_balance_is_finite(pitch_kp)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_kd)) ||
@@ -274,7 +274,7 @@ void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wh
        (APP_BALANCE_GAIN_ABS_LIMIT < control_balance_absf(wheel_speed_ks)) ||
        (APP_BALANCE_GAIN_ABS_LIMIT < control_balance_absf(wheel_pos_kp)))
     {
-        return;
+        return APP_FALSE;
     }
 
     control_balance_pitch_kp = pitch_kp;
@@ -286,6 +286,7 @@ void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wh
     control_balance_diag.wheel_speed_ks = control_balance_wheel_speed_ks;
     control_balance_diag.wheel_pos_kp = control_balance_wheel_pos_kp;
     control_balance_reset_motion_state();
+    return APP_TRUE;
 }
 
 void control_balance_reset_motion_state_public(void)

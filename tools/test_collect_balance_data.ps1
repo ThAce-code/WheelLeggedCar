@@ -34,7 +34,7 @@ Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
 
-$values = [single[]](1234.0, 2.0, 4.5, -12.25, 50.0, 50.0, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2)
+$values = [single[]](1234.0, 2.0, 4.5, -12.25, 50.0, 50.0, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 8.0, 150.0)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -62,6 +62,8 @@ Assert-Near $frames[0].left_duty -120.0 0.001 "left_duty"
 Assert-Near $frames[0].right_duty -118.0 0.001 "right_duty"
 Assert-Near $frames[0].balance_kp 4.0 0.001 "balance_kp"
 Assert-Near $frames[0].balance_kd 0.2 0.001 "balance_kd"
+Assert-Near $frames[0].imu_age_ms 8.0 0.001 "imu_age_ms"
+Assert-Near $frames[0].imu_int_count 150.0 0.001 "imu_int_count"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

@@ -7,6 +7,7 @@
 #include "actuator_motor.h"
 #include "control_chassis.h"
 #include "control_balance.h"
+#include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
 
 #define HOST_COMMAND_RX_BUFFER_LEN       (32U)
@@ -269,6 +270,15 @@ static void host_command_process_line(char *line, uint32 now_ms)
         control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(('I' == line[0]) && ('M' == line[1]) && ('U' == line[2]) &&
+       ('_' == line[3]) && ('Z' == line[4]) && ('E' == line[5]) &&
+       ('R' == line[6]) && ('O' == line[7]) && ('\0' == line[8]))
+    {
+        lsm6dsv16x_gyro_offset_init();
         actuator_motor_record_command_error(APP_FALSE);
         return;
     }

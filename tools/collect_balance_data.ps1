@@ -16,7 +16,7 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 16
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,pitch_deg,pitch_rate_dps,chassis_left_rpm,chassis_right_rpm,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,imu_age_ms,imu_int_count,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,chassis_left_rpm,chassis_right_rpm,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -122,10 +122,10 @@ function Pop-BalanceFrames {
             $frames.Add([pscustomobject]@{
                 time_ms = $values[0]
                 balance_mode = $values[1]
-                pitch_deg = $values[2]
-                pitch_rate_dps = $values[3]
-                chassis_left_rpm = $values[4]
-                chassis_right_rpm = $values[5]
+                roll_deg = $values[2]
+                pitch_deg = $values[3]
+                yaw_deg = $values[4]
+                pitch_rate_dps = $values[5]
                 balance_rpm = $values[6]
                 feedback_online = $values[7]
                 left_motor_rpm = $values[8]
@@ -134,8 +134,8 @@ function Pop-BalanceFrames {
                 right_duty = $values[11]
                 balance_kp = $values[12]
                 balance_kd = $values[13]
-                imu_age_ms = $values[14]
-                imu_int_count = $values[15]
+                chassis_left_rpm = $values[14]
+                chassis_right_rpm = $values[15]
             })
         }
 
@@ -235,10 +235,10 @@ try {
                     (Convert-CsvField $lastCommand),
                     ("{0:F3}" -f $frame.time_ms),
                     ("{0:F3}" -f $frame.balance_mode),
+                    ("{0:F6}" -f $frame.roll_deg),
                     ("{0:F6}" -f $frame.pitch_deg),
+                    ("{0:F6}" -f $frame.yaw_deg),
                     ("{0:F6}" -f $frame.pitch_rate_dps),
-                    ("{0:F3}" -f $frame.chassis_left_rpm),
-                    ("{0:F3}" -f $frame.chassis_right_rpm),
                     ("{0:F3}" -f $frame.balance_rpm),
                     ("{0:F3}" -f $frame.feedback_online),
                     ("{0:F3}" -f $frame.left_motor_rpm),
@@ -247,8 +247,8 @@ try {
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F6}" -f $frame.balance_kp),
                     ("{0:F6}" -f $frame.balance_kd),
-                    ("{0:F3}" -f $frame.imu_age_ms),
-                    ("{0:F0}" -f $frame.imu_int_count),
+                    ("{0:F3}" -f $frame.chassis_left_rpm),
+                    ("{0:F3}" -f $frame.chassis_right_rpm),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

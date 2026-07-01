@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 8
+$FloatCount = 14
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,pitch_deg,pitch_rate_dps,chassis_left_rpm,chassis_right_rpm,balance_rpm,feedback_online,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,pitch_deg,pitch_rate_dps,chassis_left_rpm,chassis_right_rpm,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -128,6 +128,12 @@ function Pop-BalanceFrames {
                 chassis_right_rpm = $values[5]
                 balance_rpm = $values[6]
                 feedback_online = $values[7]
+                left_motor_rpm = $values[8]
+                right_motor_rpm = $values[9]
+                left_duty = $values[10]
+                right_duty = $values[11]
+                balance_kp = $values[12]
+                balance_kd = $values[13]
             })
         }
 
@@ -233,6 +239,12 @@ try {
                     ("{0:F3}" -f $frame.chassis_right_rpm),
                     ("{0:F3}" -f $frame.balance_rpm),
                     ("{0:F3}" -f $frame.feedback_online),
+                    ("{0:F3}" -f $frame.left_motor_rpm),
+                    ("{0:F3}" -f $frame.right_motor_rpm),
+                    ("{0:F3}" -f $frame.left_duty),
+                    ("{0:F3}" -f $frame.right_duty),
+                    ("{0:F6}" -f $frame.balance_kp),
+                    ("{0:F6}" -f $frame.balance_kd),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

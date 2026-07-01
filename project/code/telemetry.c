@@ -18,7 +18,11 @@ void telemetry_update(uint32 now_ms)
     static const uint8 tail[4] = {0x00, 0x00, 0x80, 0x7F};
     const wheel_feedback_struct *wheel;
     const motor_rpm_loop_diag_struct *rpm_diag;
+#if APP_TELEMETRY_BALANCE_ENABLE
+    float vofa_data[14];
+#else
     float vofa_data[8];
+#endif
 
     wheel = actuator_motor_get_feedback();
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
@@ -35,6 +39,12 @@ void telemetry_update(uint32 now_ms)
     vofa_data[5] = balance->chassis_right_rpm;
     vofa_data[6] = balance->balance_rpm;
     vofa_data[7] = (float)wheel->online;
+    vofa_data[8] = rpm_diag->left_motor_rpm;
+    vofa_data[9] = rpm_diag->right_motor_rpm;
+    vofa_data[10] = rpm_diag->left_duty;
+    vofa_data[11] = rpm_diag->right_duty;
+    vofa_data[12] = balance->pitch_kp;
+    vofa_data[13] = balance->pitch_rate_kd;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

@@ -29,6 +29,13 @@ typedef enum
     APP_STATE_FAULT
 }app_run_state_enum;
 
+typedef enum
+{
+    MOTOR_MODE_STOP = 0,
+    MOTOR_MODE_RPM_CLOSED_LOOP = 1,
+    MOTOR_MODE_OPEN_DUTY = 2
+}motor_mode_enum;
+
 typedef struct
 {
     uint32 timestamp_ms;
@@ -48,6 +55,16 @@ typedef struct
     float right_target_motor_rpm;
     uint8 enable;
 }motor_cmd_struct;
+
+typedef struct
+{
+    motor_mode_enum mode;
+    float left_motor_rpm;
+    float right_motor_rpm;
+    float left_open_duty;
+    float right_open_duty;
+    uint8 enable;
+}motor_actuator_cmd_struct;
 
 #define MOTOR_DIAG_ASCII_LINE_MAX       (64U)
 
@@ -78,6 +95,9 @@ typedef struct
 typedef struct
 {
     uint8 enable;
+    motor_mode_enum mode;
+    uint8 host_motion_active;
+    uint32 host_motion_age_ms;
     float target_motor_rpm;
     float left_target_motor_rpm;
     float right_target_motor_rpm;

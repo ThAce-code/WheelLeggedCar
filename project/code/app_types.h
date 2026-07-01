@@ -118,6 +118,42 @@ typedef struct
     uint32 command_error_count;
 }motor_rpm_loop_diag_struct;
 
+typedef enum
+{
+    BALANCE_MODE_OFF = 0,
+    BALANCE_MODE_STANDBY,
+    BALANCE_MODE_BALANCE_TEST
+}balance_mode_enum;
+
+typedef struct
+{
+    float forward_rpm;
+    float turn_rpm;
+    uint8 enable;
+    uint32 last_cmd_ms;
+}chassis_cmd_struct;
+
+typedef struct
+{
+    float left_base_rpm;
+    float right_base_rpm;
+    uint8 enable;
+}chassis_output_struct;
+
+typedef struct
+{
+    balance_mode_enum mode;
+    float pitch_deg;
+    float pitch_rate_dps;
+    float chassis_left_rpm;
+    float chassis_right_rpm;
+    float balance_rpm;
+    float output_left_rpm;
+    float output_right_rpm;
+    uint8 output_enable;
+    uint8 safety_blocked;
+}balance_diag_struct;
+
 typedef struct
 {
     float angle_deg[4];

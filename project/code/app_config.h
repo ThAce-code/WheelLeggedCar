@@ -11,6 +11,8 @@
 #define APP_TICK_PERIOD_MS              (1U)
 #define APP_SCHEDULER_IMU_ONLY          (0U)
 #define APP_HEARTBEAT_PERIOD_MS         (250U)
+#define APP_CHASSIS_PERIOD_MS           (5U)
+#define APP_BALANCE_PERIOD_MS           (5U)
 
 #define APP_IMU_PERIOD_MS               (5U)
 #define APP_IMU_USE_INT1                (0U)
@@ -18,6 +20,7 @@
 
 #define APP_TELEMETRY_PERIOD_MS         (5U)
 #define APP_TELEMETRY_ENABLE            (1U)
+#define APP_TELEMETRY_BALANCE_ENABLE    (1U)
 
 #define APP_ROLL_LIMIT_DEG              (45.0f)
 #define APP_PITCH_LIMIT_DEG             (45.0f)
@@ -90,6 +93,13 @@
 #define APP_MOTOR_RIGHT_RPM_SIGN        (-1.0f)
 
 #define APP_SAFETY_PERIOD_MS            (1U)
+
+#define APP_CHASSIS_RPM_LIMIT           (200.0f)
+#define APP_BALANCE_RPM_LIMIT           (150.0f)
+#define APP_BALANCE_TEST_PITCH_LIMIT_DEG (20.0f)
+#define APP_BALANCE_PITCH_KP            (0.0f)
+#define APP_BALANCE_PITCH_RATE_KD       (0.0f)
+
 #define APP_LEG_CONTROL_PERIOD_MS       (10U)
 
 #define APP_LEG_CALIB_ENABLE            (0U)

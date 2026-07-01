@@ -22,6 +22,8 @@ static uint8 actuator_motor_output_active = APP_FALSE;
 static uint32 actuator_motor_last_send_ms = 0;
 static uint32 actuator_motor_last_loop_ms = 0;
 static uint32 actuator_motor_last_feedback_request_ms = 0;
+static motor_actuator_cmd_struct actuator_motor_actuator_cmd;
+static uint32 actuator_motor_last_host_motion_ms = 0;
 
 static void actuator_motor_send_duty(int16 left_duty, int16 right_duty);
 static void actuator_motor_send_duty_periodic(uint32 now_ms, int16 left_duty, int16 right_duty);
@@ -140,6 +142,16 @@ static void actuator_motor_clear_snapshot(void)
     actuator_motor_rpm_diag.right_ki = APP_MOTOR_RIGHT_RPM_KI;
     actuator_motor_rpm_diag.right_kd = APP_MOTOR_RIGHT_RPM_KD;
     actuator_motor_rpm_diag.command_error_count = 0;
+    actuator_motor_actuator_cmd.mode = MOTOR_MODE_STOP;
+    actuator_motor_actuator_cmd.left_motor_rpm = 0.0f;
+    actuator_motor_actuator_cmd.right_motor_rpm = 0.0f;
+    actuator_motor_actuator_cmd.left_open_duty = 0.0f;
+    actuator_motor_actuator_cmd.right_open_duty = 0.0f;
+    actuator_motor_actuator_cmd.enable = APP_FALSE;
+    actuator_motor_last_host_motion_ms = 0;
+    actuator_motor_rpm_diag.mode = MOTOR_MODE_STOP;
+    actuator_motor_rpm_diag.host_motion_active = APP_FALSE;
+    actuator_motor_rpm_diag.host_motion_age_ms = 0;
 }
 
 static void actuator_motor_copy_ascii_diag(const char *src)
@@ -280,6 +292,76 @@ void actuator_motor_init(void)
 #endif
 }
 
+void actuator_motor_set_actuator_cmd(const motor_actuator_cmd_struct *cmd)
+{
+    if(cmd->mode != actuator_motor_actuator_cmd.mode)
+    {
+        actuator_motor_reset_rpm_loop();
+    }
+
+    actuator_motor_actuator_cmd = *cmd;
+    actuator_motor_rpm_diag.mode = cmd->mode;
+
+    if(MOTOR_MODE_STOP == cmd->mode)
+    {
+        actuator_motor_stop();
+    }
+    else if(MOTOR_MODE_RPM_CLOSED_LOOP == cmd->mode)
+    {
+        actuator_motor_set_motor_rpm_target(cmd->left_motor_rpm, cmd->right_motor_rpm, cmd->enable);
+    }
+    else if(MOTOR_MODE_OPEN_DUTY == cmd->mode)
+    {
+        actuator_motor_set_open_loop_duty(cmd->left_open_duty, cmd->right_open_duty, cmd->enable);
+    }
+}
+
+void actuator_motor_set_mode_stop(void)
+{
+    motor_actuator_cmd_struct cmd;
+
+    cmd.mode = MOTOR_MODE_STOP;
+    cmd.left_motor_rpm = 0.0f;
+    cmd.right_motor_rpm = 0.0f;
+    cmd.left_open_duty = 0.0f;
+    cmd.right_open_duty = 0.0f;
+    cmd.enable = APP_FALSE;
+    actuator_motor_set_actuator_cmd(&cmd);
+}
+
+void actuator_motor_set_mode_open_duty(float left_duty, float right_duty)
+{
+    motor_actuator_cmd_struct cmd;
+
+    cmd.mode = MOTOR_MODE_OPEN_DUTY;
+    cmd.left_motor_rpm = 0.0f;
+    cmd.right_motor_rpm = 0.0f;
+    cmd.left_open_duty = left_duty;
+    cmd.right_open_duty = right_duty;
+    cmd.enable = APP_TRUE;
+    actuator_motor_set_actuator_cmd(&cmd);
+}
+
+void actuator_motor_set_mode_motor_rpm(float left_motor_rpm, float right_motor_rpm)
+{
+    motor_actuator_cmd_struct cmd;
+
+    cmd.mode = MOTOR_MODE_RPM_CLOSED_LOOP;
+    cmd.left_motor_rpm = left_motor_rpm;
+    cmd.right_motor_rpm = right_motor_rpm;
+    cmd.left_open_duty = 0.0f;
+    cmd.right_open_duty = 0.0f;
+    cmd.enable = APP_TRUE;
+    actuator_motor_set_actuator_cmd(&cmd);
+}
+
+void actuator_motor_record_host_motion(uint32 now_ms)
+{
+    actuator_motor_last_host_motion_ms = now_ms;
+    actuator_motor_rpm_diag.host_motion_active = APP_TRUE;
+    actuator_motor_rpm_diag.host_motion_age_ms = 0;
+}
+
 void actuator_motor_set_cmd(const motor_cmd_struct *cmd)
 {
     actuator_motor_set_motor_rpm_target(cmd->left_target_motor_rpm, cmd->right_target_motor_rpm, cmd->enable);
@@ -381,6 +463,8 @@ static void actuator_motor_update_rpm_loop(uint32 now_ms)
     {
         actuator_motor_send_duty_periodic(now_ms, 0, 0);
         actuator_motor_reset_rpm_loop();
+        actuator_motor_actuator_cmd.mode = MOTOR_MODE_STOP;
+        actuator_motor_rpm_diag.mode = MOTOR_MODE_STOP;
         return;
     }
 
@@ -442,6 +526,16 @@ static void actuator_motor_update_open_loop(uint32 now_ms)
         return;
     }
 
+#if APP_MOTOR_OPEN_DUTY_REQUIRE_FEEDBACK
+    if(APP_FALSE == actuator_motor_feedback.online)
+    {
+        actuator_motor_send_duty_periodic(now_ms, 0, 0);
+        actuator_motor_rpm_diag.left_duty = 0.0f;
+        actuator_motor_rpm_diag.right_duty = 0.0f;
+        return;
+    }
+#endif
+
     left_motor_rpm = APP_MOTOR_LEFT_RPM_SIGN * (float)actuator_motor_feedback.left_motor_rpm;
     right_motor_rpm = APP_MOTOR_RIGHT_RPM_SIGN * (float)actuator_motor_feedback.right_motor_rpm;
 
@@ -466,9 +560,31 @@ static void actuator_motor_update_open_loop(uint32 now_ms)
     actuator_motor_send_duty_periodic(now_ms, left_duty_i, right_duty_i);
 }
 
+static uint8 actuator_motor_host_motion_timed_out(uint32 now_ms)
+{
+    if(0U == actuator_motor_last_host_motion_ms)
+    {
+        actuator_motor_rpm_diag.host_motion_active = APP_FALSE;
+        actuator_motor_rpm_diag.host_motion_age_ms = 0;
+        return APP_FALSE;
+    }
+
+    actuator_motor_rpm_diag.host_motion_active = APP_TRUE;
+    actuator_motor_rpm_diag.host_motion_age_ms = now_ms - actuator_motor_last_host_motion_ms;
+
+    return (APP_HOST_COMMAND_TIMEOUT_MS < actuator_motor_rpm_diag.host_motion_age_ms) ? APP_TRUE : APP_FALSE;
+}
+
 void actuator_motor_update(uint32 now_ms)
 {
     actuator_motor_refresh_feedback(now_ms);
+
+    if((MOTOR_MODE_STOP != actuator_motor_actuator_cmd.mode) &&
+       (APP_TRUE == actuator_motor_host_motion_timed_out(now_ms)))
+    {
+        actuator_motor_set_mode_stop();
+        return;
+    }
 
     if((APP_FALSE == actuator_motor_feedback.online) &&
        (APP_BLDC_FEEDBACK_REQUEST_MS <= (now_ms - actuator_motor_last_feedback_request_ms)))
@@ -520,6 +636,12 @@ void actuator_motor_stop(void)
     actuator_motor_output_active = APP_FALSE;
     actuator_motor_last_send_ms = 0;
     actuator_motor_reset_rpm_loop();
+    actuator_motor_actuator_cmd.mode = MOTOR_MODE_STOP;
+    actuator_motor_actuator_cmd.enable = APP_FALSE;
+    actuator_motor_last_host_motion_ms = 0;
+    actuator_motor_rpm_diag.mode = MOTOR_MODE_STOP;
+    actuator_motor_rpm_diag.host_motion_active = APP_FALSE;
+    actuator_motor_rpm_diag.host_motion_age_ms = 0;
 }
 
 const motor_cmd_struct *actuator_motor_get_cmd(void)

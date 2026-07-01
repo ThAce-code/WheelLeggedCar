@@ -97,7 +97,7 @@
 #define APP_CHASSIS_RPM_LIMIT           (200.0f)
 #define APP_BALANCE_RPM_LIMIT           (150.0f)
 #define APP_BALANCE_TEST_PITCH_LIMIT_DEG (20.0f)
-#define APP_BALANCE_PITCH_KP            (0.0f)
+#define APP_BALANCE_PITCH_KP            (2.0f)
 #define APP_BALANCE_PITCH_RATE_KD       (0.0f)
 
 #define APP_LEG_CONTROL_PERIOD_MS       (10U)

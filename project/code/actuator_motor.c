@@ -24,6 +24,8 @@ static uint32 actuator_motor_last_loop_ms = 0;
 static uint32 actuator_motor_last_feedback_request_ms = 0;
 static motor_actuator_cmd_struct actuator_motor_actuator_cmd;
 static uint32 actuator_motor_last_host_motion_ms = 0;
+static uint32 actuator_motor_left_rpm_zero_since_ms = 0;
+static uint32 actuator_motor_right_rpm_zero_since_ms = 0;
 
 static void actuator_motor_send_duty(int16 left_duty, int16 right_duty);
 static void actuator_motor_send_duty_periodic(uint32 now_ms, int16 left_duty, int16 right_duty);
@@ -109,6 +111,8 @@ static void actuator_motor_clear_snapshot(void)
     actuator_motor_feedback.last_rx_ms = 0;
     actuator_motor_feedback.age_ms = 0;
     actuator_motor_feedback.online = APP_FALSE;
+    actuator_motor_feedback.left_online = APP_FALSE;
+    actuator_motor_feedback.right_online = APP_FALSE;
 
     actuator_motor_diag.left_raw_angle = 0;
     actuator_motor_diag.right_raw_angle = 0;
@@ -193,6 +197,67 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
 
     actuator_motor_rpm_diag.left_motor_rpm = APP_MOTOR_LEFT_RPM_SIGN * (float)actuator_motor_feedback.left_motor_rpm;
     actuator_motor_rpm_diag.right_motor_rpm = APP_MOTOR_RIGHT_RPM_SIGN * (float)actuator_motor_feedback.right_motor_rpm;
+
+    /* Per-side encoder health: detect asymmetric zero-RPM when output is active.
+       Both RPMs arrive in the same UART frame, so overall online only means
+       the driver board is communicating — a disconnected encoder still shows 0. */
+    if(APP_TRUE == actuator_motor_feedback.online)
+    {
+        actuator_motor_feedback.left_online = APP_TRUE;
+        actuator_motor_feedback.right_online = APP_TRUE;
+
+        if(APP_TRUE == actuator_motor_output_active)
+        {
+            int16 abs_left_rpm;
+            int16 abs_right_rpm;
+
+            abs_left_rpm = (raw->left_motor_rpm >= 0)
+                         ? raw->left_motor_rpm
+                         : (int16)(-raw->left_motor_rpm);
+            abs_right_rpm = (raw->right_motor_rpm >= 0)
+                          ? raw->right_motor_rpm
+                          : (int16)(-raw->right_motor_rpm);
+
+            /* Left encoder fault: zero RPM while right side shows >= 100 RPM */
+            if((0 == raw->left_motor_rpm) && (abs_right_rpm >= 100))
+            {
+                if(0U == actuator_motor_left_rpm_zero_since_ms)
+                {
+                    actuator_motor_left_rpm_zero_since_ms = now_ms;
+                }
+                if((now_ms - actuator_motor_left_rpm_zero_since_ms) > APP_BLDC_PER_SIDE_RPM_TIMEOUT_MS)
+                {
+                    actuator_motor_feedback.left_online = APP_FALSE;
+                }
+            }
+            else
+            {
+                actuator_motor_left_rpm_zero_since_ms = 0U;
+            }
+
+            /* Right encoder fault: zero RPM while left side shows >= 100 RPM */
+            if((0 == raw->right_motor_rpm) && (abs_left_rpm >= 100))
+            {
+                if(0U == actuator_motor_right_rpm_zero_since_ms)
+                {
+                    actuator_motor_right_rpm_zero_since_ms = now_ms;
+                }
+                if((now_ms - actuator_motor_right_rpm_zero_since_ms) > APP_BLDC_PER_SIDE_RPM_TIMEOUT_MS)
+                {
+                    actuator_motor_feedback.right_online = APP_FALSE;
+                }
+            }
+            else
+            {
+                actuator_motor_right_rpm_zero_since_ms = 0U;
+            }
+        }
+    }
+    else
+    {
+        actuator_motor_feedback.left_online = APP_FALSE;
+        actuator_motor_feedback.right_online = APP_FALSE;
+    }
 
     actuator_motor_diag.left_raw_angle = raw->left_angle;
     actuator_motor_diag.right_raw_angle = raw->right_angle;
@@ -465,7 +530,9 @@ static void actuator_motor_update_rpm_loop(uint32 now_ms)
 
     if((APP_STATE_FAULT == app_state_get()) ||
        (APP_FALSE == actuator_motor_cmd.enable) ||
-       (APP_FALSE == actuator_motor_feedback.online))
+       (APP_FALSE == actuator_motor_feedback.online) ||
+       (APP_FALSE == actuator_motor_feedback.left_online) ||
+       (APP_FALSE == actuator_motor_feedback.right_online))
     {
         actuator_motor_send_duty_periodic(now_ms, 0, 0);
         actuator_motor_stop();
@@ -652,6 +719,8 @@ void actuator_motor_stop(void)
     bldc_foc_uart_stop();
     actuator_motor_output_active = APP_FALSE;
     actuator_motor_last_send_ms = 0;
+    actuator_motor_left_rpm_zero_since_ms = 0U;
+    actuator_motor_right_rpm_zero_since_ms = 0U;
     actuator_motor_reset_rpm_loop();
     actuator_motor_actuator_cmd.mode = MOTOR_MODE_STOP;
     actuator_motor_actuator_cmd.enable = APP_FALSE;

@@ -127,6 +127,8 @@ void control_balance_update(uint32 now_ms)
     if((APP_STATE_FAULT == app_state_get()) ||
        (APP_FALSE == imu->healthy) ||
        (APP_FALSE == wheel->online) ||
+       (APP_FALSE == wheel->left_online) ||
+       (APP_FALSE == wheel->right_online) ||
        (APP_FALSE == chassis->enable) ||
        (APP_FALSE == dt_valid) ||
        (APP_BALANCE_TEST_PITCH_LIMIT_DEG < control_balance_absf(imu->pitch)))

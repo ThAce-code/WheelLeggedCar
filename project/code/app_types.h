@@ -77,6 +77,8 @@ typedef struct
     uint32 last_rx_ms;
     uint32 age_ms;
     uint8 online;
+    uint8 left_online;
+    uint8 right_online;
 }wheel_feedback_struct;
 
 typedef struct

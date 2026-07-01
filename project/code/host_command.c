@@ -248,6 +248,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float kd;
     float ks;
     float pos_kp;
+    float period_ms_f;
     uint8 read_index = 0;
     uint8 write_index = 0;
 
@@ -264,6 +265,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
+        control_balance_set_ident_excitation(0.0f, 0U, now_ms);
         control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
@@ -276,6 +278,23 @@ static void host_command_process_line(char *line, uint32 now_ms)
         control_balance_reset_motion_state_public();
         actuator_motor_record_command_error(APP_FALSE);
         return;
+    }
+
+    if(('B' == line[0]) && ('I' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[3], &value, &period_ms_f)))
+    {
+        if(0.0f == value)
+        {
+            control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if((0.0f <= period_ms_f) && (4294967295.0f >= period_ms_f))
+        {
+            control_balance_set_ident_excitation(value, (uint32)period_ms_f, now_ms);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
     }
 
     if(('B' == line[0]) && ('L' == line[1]) && (',' == line[2]) &&
@@ -305,6 +324,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     {
         if(0.0f == value)
         {
+            control_balance_set_ident_excitation(0.0f, 0U, now_ms);
             control_chassis_stop(now_ms);
             control_balance_set_mode(BALANCE_MODE_OFF);
             actuator_motor_record_command_error(APP_FALSE);

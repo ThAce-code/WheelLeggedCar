@@ -311,12 +311,12 @@ void control_balance_reset_motion_state_public(void)
     control_balance_reset_motion_state();
 }
 
-void control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint32 now_ms)
+uint8 control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint32 now_ms)
 {
     if((APP_FALSE == control_balance_is_finite(amp_rpm)) ||
        (APP_BALANCE_IDENT_RPM_LIMIT < control_balance_absf(amp_rpm)))
     {
-        return;
+        return APP_FALSE;
     }
 
     if(0.0f == amp_rpm)
@@ -324,18 +324,19 @@ void control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint3
         control_balance_ident_amp_rpm = 0.0f;
         control_balance_ident_period_ms = 0U;
         control_balance_ident_start_ms = now_ms;
-        return;
+        return APP_TRUE;
     }
 
     if((APP_BALANCE_IDENT_MIN_PERIOD_MS > period_ms) ||
        (APP_BALANCE_IDENT_MAX_PERIOD_MS < period_ms))
     {
-        return;
+        return APP_FALSE;
     }
 
     control_balance_ident_amp_rpm = amp_rpm;
     control_balance_ident_period_ms = period_ms;
     control_balance_ident_start_ms = now_ms;
+    return APP_TRUE;
 }
 
 balance_mode_enum control_balance_get_mode(void)

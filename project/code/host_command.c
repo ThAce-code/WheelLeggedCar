@@ -283,15 +283,9 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('B' == line[0]) && ('I' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_two_numbers(&line[3], &value, &period_ms_f)))
     {
-        if(0.0f == value)
+        if(APP_TRUE == control_balance_set_ident_excitation(0.0f == value ? 0.0f : value,
+                                                             (uint32)period_ms_f, now_ms))
         {
-            control_balance_set_ident_excitation(0.0f, 0U, now_ms);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
-        if((0.0f <= period_ms_f) && (4294967295.0f >= period_ms_f))
-        {
-            control_balance_set_ident_excitation(value, (uint32)period_ms_f, now_ms);
             actuator_motor_record_command_error(APP_FALSE);
             return;
         }

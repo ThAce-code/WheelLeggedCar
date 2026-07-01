@@ -154,6 +154,10 @@ typedef struct
     float output_right_rpm;
     float pitch_kp;
     float pitch_rate_kd;
+    float wheel_speed_rpm;
+    float wheel_pos_rev;
+    float wheel_speed_ks;
+    float wheel_pos_kp;
     uint8 output_enable;
     uint8 safety_blocked;
 }balance_diag_struct;

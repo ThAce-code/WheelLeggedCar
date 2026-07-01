@@ -100,6 +100,10 @@
 #define APP_BALANCE_TEST_PITCH_LIMIT_DEG (20.0f)
 #define APP_BALANCE_PITCH_KP            (2.0f)
 #define APP_BALANCE_PITCH_RATE_KD       (0.0f)
+#define APP_BALANCE_WHEEL_SPEED_KS      (0.0f)
+#define APP_BALANCE_WHEEL_POS_KP        (0.0f)
+#define APP_BALANCE_WHEEL_POS_LIMIT_REV (2.0f)
+#define APP_BALANCE_WHEEL_POS_DECAY     (0.999f)
 
 #define APP_LEG_CONTROL_PERIOD_MS       (10U)
 

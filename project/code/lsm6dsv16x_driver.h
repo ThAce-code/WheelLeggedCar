@@ -72,6 +72,8 @@ void    lsm6dsv16x_angle_update (float dt_s);
 void    lsm6dsv16x_vofa_send    (void);
 uint8   lsm6dsv16x_sflp_init    (void);
 uint8   lsm6dsv16x_sflp_update  (void);
+void    lsm6dsv16x_gyro_offset_init(void);
+void    lsm6dsv16x_gyro_update(void);
 lsm6dsv16x_angle_data_struct *lsm6dsv16x_get_angle_data(void);
 
 #endif

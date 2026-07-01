@@ -217,10 +217,11 @@ void lsm6dsv16x_get_gyro(int16 *x, int16 *y, int16 *z)
     *z = (int16)(((uint16)dat[5] << 8) | dat[4]);
 }
 
-void lsm6dsv16x_angle_init(void)
+void lsm6dsv16x_gyro_offset_init(void)
 {
-    int16 acc_x, acc_y, acc_z;
-    int16 gyro_x, gyro_y, gyro_z;
+    int16 gyro_x;
+    int16 gyro_y;
+    int16 gyro_z;
     float sum_x = 0.0f;
     float sum_y = 0.0f;
     float sum_z = 0.0f;
@@ -240,6 +241,23 @@ void lsm6dsv16x_angle_init(void)
     lsm6dsv16x_gyro_offset_x = sum_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
     lsm6dsv16x_gyro_offset_y = sum_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
     lsm6dsv16x_gyro_offset_z = sum_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
+}
+
+void lsm6dsv16x_gyro_update(void)
+{
+    int16 gyro_x;
+    int16 gyro_y;
+    int16 gyro_z;
+
+    lsm6dsv16x_get_gyro(&gyro_x, &gyro_y, &gyro_z);
+    lsm6dsv16x_angle_data.gyro_x = (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_x;
+    lsm6dsv16x_angle_data.gyro_y = (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_y;
+    lsm6dsv16x_angle_data.gyro_z = (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_z;
+}
+
+void lsm6dsv16x_angle_init(void)
+{
+    int16 acc_x, acc_y, acc_z;
 
     lsm6dsv16x_get_acc(&acc_x, &acc_y, &acc_z);
     lsm6dsv16x_angle_data.acc_x = (float)acc_x * LSM6DSV_ACC_SENS_4G;
@@ -262,21 +280,16 @@ void lsm6dsv16x_angle_init(void)
 void lsm6dsv16x_angle_update(float dt_s)
 {
     int16 acc_x, acc_y, acc_z;
-    int16 gyro_x, gyro_y, gyro_z;
     float acc_roll;
     float acc_pitch;
     float acc_yz_norm;
 
     lsm6dsv16x_get_acc(&acc_x, &acc_y, &acc_z);
-    lsm6dsv16x_get_gyro(&gyro_x, &gyro_y, &gyro_z);
+    lsm6dsv16x_gyro_update();
 
     lsm6dsv16x_angle_data.acc_x = (float)acc_x * LSM6DSV_ACC_SENS_4G;
     lsm6dsv16x_angle_data.acc_y = (float)acc_y * LSM6DSV_ACC_SENS_4G;
     lsm6dsv16x_angle_data.acc_z = (float)acc_z * LSM6DSV_ACC_SENS_4G;
-
-    lsm6dsv16x_angle_data.gyro_x = (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_x;
-    lsm6dsv16x_angle_data.gyro_y = (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_y;
-    lsm6dsv16x_angle_data.gyro_z = (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS - lsm6dsv16x_gyro_offset_z;
 
     acc_yz_norm = lsm6dsv16x_inv_sqrt_arg(lsm6dsv16x_angle_data.acc_y * lsm6dsv16x_angle_data.acc_y +
                                           lsm6dsv16x_angle_data.acc_z * lsm6dsv16x_angle_data.acc_z);

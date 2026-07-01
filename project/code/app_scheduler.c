@@ -66,10 +66,18 @@ void app_scheduler_run_pending(void)
         host_command_update(now_ms);
     }
 
+#if (APP_IMU_USE_INT1 == 1U)
+    if(APP_TRUE == sensor_imu_take_data_ready())
+    {
+        sensor_imu_update(now_ms);
+        imu_last_ms = now_ms;
+    }
+#else
     if(APP_TRUE == app_task_elapsed(now_ms, &imu_last_ms, APP_IMU_PERIOD_MS))
     {
         sensor_imu_update(now_ms);
     }
+#endif
 
     /* IMU staleness detection */
     {

@@ -6,6 +6,8 @@
 
 #include "zf_common_headfile.h"
 #include "app_scheduler.h"
+#include "app_config.h"
+#include "sensor_imu.h"
 #include "bldc_foc_uart.h"
 // **************************** PIT interrupt handlers ****************************
 void pit0_ch0_isr()
@@ -255,9 +257,12 @@ void gpio_18_exti_isr()
 
 void gpio_19_exti_isr()
 {
-
-
-
+#if (APP_IMU_USE_INT1 == 1U)
+    if(exti_flag_get(APP_IMU_INT1_PIN))
+    {
+        sensor_imu_int1_isr();
+    }
+#endif
 }
 
 void gpio_20_exti_isr()

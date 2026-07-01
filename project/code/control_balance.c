@@ -20,6 +20,9 @@ static float control_balance_pitch_rate_kd;
 static float control_balance_wheel_speed_ks;
 static float control_balance_wheel_pos_kp;
 static float control_balance_wheel_pos_rev;
+static float control_balance_ident_amp_rpm;
+static uint32 control_balance_ident_period_ms;
+static uint32 control_balance_ident_start_ms;
 
 static float control_balance_absf(float value)
 {
@@ -74,6 +77,22 @@ static void control_balance_reset_motion_state(void)
     control_balance_diag.wheel_pos_rev = 0.0f;
 }
 
+static float control_balance_get_ident_rpm(uint32 now_ms)
+{
+    uint32 elapsed_ms;
+    uint32 phase;
+
+    if((0.0f == control_balance_ident_amp_rpm) ||
+       (0U == control_balance_ident_period_ms))
+    {
+        return 0.0f;
+    }
+
+    elapsed_ms = now_ms - control_balance_ident_start_ms;
+    phase = (elapsed_ms / control_balance_ident_period_ms) & 0x01U;
+    return (0U == phase) ? control_balance_ident_amp_rpm : -control_balance_ident_amp_rpm;
+}
+
 static void control_balance_stop_output(void)
 {
     control_balance_diag.balance_rpm = 0.0f;
@@ -107,6 +126,9 @@ void control_balance_init(void)
     control_balance_diag.wheel_pos_kp = control_balance_wheel_pos_kp;
     control_balance_diag.output_enable = APP_FALSE;
     control_balance_diag.safety_blocked = APP_TRUE;
+    control_balance_ident_amp_rpm = 0.0f;
+    control_balance_ident_period_ms = 0U;
+    control_balance_ident_start_ms = 0U;
     control_balance_reset_derivative();
 }
 
@@ -118,6 +140,7 @@ void control_balance_update(uint32 now_ms)
     float dt_s;
     float pitch_rate_dps;
     float balance_rpm;
+    float ident_rpm;
     float output_left_rpm;
     float output_right_rpm;
     uint8 dt_valid;
@@ -204,6 +227,8 @@ void control_balance_update(uint32 now_ms)
                   (control_balance_pitch_rate_kd * pitch_rate_dps) +
                   (control_balance_wheel_speed_ks * wheel_speed_rpm) +
                   (control_balance_wheel_pos_kp * control_balance_wheel_pos_rev);
+    ident_rpm = control_balance_get_ident_rpm(now_ms);
+    balance_rpm += ident_rpm;
     balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
 
     output_left_rpm = chassis->left_base_rpm + balance_rpm;
@@ -284,6 +309,33 @@ void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wh
 void control_balance_reset_motion_state_public(void)
 {
     control_balance_reset_motion_state();
+}
+
+void control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint32 now_ms)
+{
+    if((APP_FALSE == control_balance_is_finite(amp_rpm)) ||
+       (APP_BALANCE_IDENT_RPM_LIMIT < control_balance_absf(amp_rpm)))
+    {
+        return;
+    }
+
+    if(0.0f == amp_rpm)
+    {
+        control_balance_ident_amp_rpm = 0.0f;
+        control_balance_ident_period_ms = 0U;
+        control_balance_ident_start_ms = now_ms;
+        return;
+    }
+
+    if((APP_BALANCE_IDENT_MIN_PERIOD_MS > period_ms) ||
+       (APP_BALANCE_IDENT_MAX_PERIOD_MS < period_ms))
+    {
+        return;
+    }
+
+    control_balance_ident_amp_rpm = amp_rpm;
+    control_balance_ident_period_ms = period_ms;
+    control_balance_ident_start_ms = now_ms;
 }
 
 balance_mode_enum control_balance_get_mode(void)

@@ -134,7 +134,7 @@ static uint8 host_command_parse_pid_gain(const char *text, float *kp, float *ki,
     return APP_TRUE;
 }
 
-static void host_command_process_line(char *line)
+static void host_command_process_line(char *line, uint32 now_ms)
 {
     float value;
     float kp;
@@ -156,7 +156,7 @@ static void host_command_process_line(char *line)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
-        actuator_motor_stop();
+        actuator_motor_set_mode_stop();
         actuator_motor_record_command_error(APP_FALSE);
         return;
     }
@@ -164,7 +164,8 @@ static void host_command_process_line(char *line)
     if(('M' == line[0]) && (',' == line[1]) &&
        (APP_TRUE == host_command_parse_number(&line[2], &value)))
     {
-        actuator_motor_set_motor_rpm_target(value, value, APP_TRUE);
+        actuator_motor_set_mode_motor_rpm(value, value);
+        actuator_motor_record_host_motion(now_ms);
         actuator_motor_record_command_error(APP_FALSE);
         return;
     }
@@ -172,7 +173,8 @@ static void host_command_process_line(char *line)
     if(('D' == line[0]) && (',' == line[1]) &&
        (APP_TRUE == host_command_parse_number(&line[2], &value)))
     {
-        actuator_motor_set_open_loop_duty(value, value, APP_TRUE);
+        actuator_motor_set_mode_open_duty(value, value);
+        actuator_motor_record_host_motion(now_ms);
         actuator_motor_record_command_error(APP_FALSE);
         return;
     }
@@ -204,14 +206,14 @@ static void host_command_process_line(char *line)
     actuator_motor_record_command_error(APP_TRUE);
 }
 
-static void host_command_push_byte(uint8 ch)
+static void host_command_push_byte(uint8 ch, uint32 now_ms)
 {
     if(('\r' == ch) || ('\n' == ch))
     {
         if(0U < host_command_index)
         {
             host_command_line[host_command_index] = '\0';
-            host_command_process_line(host_command_line);
+            host_command_process_line(host_command_line, now_ms);
             host_command_index = 0;
         }
         return;
@@ -246,6 +248,6 @@ void host_command_update(uint32 now_ms)
     count = debug_read_ring_buffer(buffer, HOST_COMMAND_RX_BUFFER_LEN);
     for(index = 0; index < count; index++)
     {
-        host_command_push_byte(buffer[index]);
+        host_command_push_byte(buffer[index], now_ms);
     }
 }

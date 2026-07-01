@@ -5,6 +5,8 @@
 
 #include "host_command.h"
 #include "actuator_motor.h"
+#include "control_chassis.h"
+#include "control_balance.h"
 #include "zf_common_debug.h"
 
 #define HOST_COMMAND_RX_BUFFER_LEN       (32U)
@@ -74,6 +76,57 @@ static uint8 host_command_parse_number(const char *text, float *value)
     }
 
     *value = sign * result;
+    return APP_TRUE;
+}
+
+static uint8 host_command_parse_two_numbers(const char *text, float *first, float *second)
+{
+    char number_text[16];
+    float values[2];
+    uint8 value_index = 0;
+    uint8 number_index = 0;
+    uint8 read_index = 0;
+
+    while('\0' != text[read_index])
+    {
+        if(',' == text[read_index])
+        {
+            if((0U == number_index) || (1U <= value_index))
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = '\0';
+            if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+            {
+                return APP_FALSE;
+            }
+            value_index++;
+            number_index = 0;
+        }
+        else
+        {
+            if((sizeof(number_text) - 1U) <= number_index)
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = text[read_index];
+            number_index++;
+        }
+        read_index++;
+    }
+
+    if((0U == number_index) || (1U != value_index))
+    {
+        return APP_FALSE;
+    }
+    number_text[number_index] = '\0';
+    if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+    {
+        return APP_FALSE;
+    }
+
+    *first = values[0];
+    *second = values[1];
     return APP_TRUE;
 }
 
@@ -156,7 +209,40 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(('B' == line[0]) && (',' == line[1]) &&
+       (APP_TRUE == host_command_parse_number(&line[2], &value)))
+    {
+        if(0.0f == value)
+        {
+            control_balance_set_mode(BALANCE_MODE_OFF);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(1.0f == value)
+        {
+            control_balance_set_mode(BALANCE_MODE_STANDBY);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(2.0f == value)
+        {
+            control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('C' == line[0]) && (',' == line[1]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[2], &kp, &ki)))
+    {
+        control_chassis_set_cmd(kp, ki, APP_TRUE, now_ms);
         actuator_motor_record_command_error(APP_FALSE);
         return;
     }

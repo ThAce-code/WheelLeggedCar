@@ -134,7 +134,7 @@ qAngle     = 10.0;
 qSpeed     = 0.02;
 qPos       = 2.0;
 R          = 0.08;
-clipLims   = [0.0 6.0;  0.0 0.4;  -0.2 0.2;  -1.0 1.0];
+clipLims   = [0.0 18.0;  0.0 8.0;  -0.5 0.5;  -3.0 3.0];
 
 nQ = numel(qRateList);
 raw_arr = zeros(nQ, 4);

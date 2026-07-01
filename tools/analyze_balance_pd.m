@@ -55,6 +55,25 @@ for i = 1:numel(keepFiles)
     feedbackBadRows = sum(active.feedback_online < 0.5);
     active = active(active.feedback_online >= 0.5, :);
 
+    hasMotorColumns = all(ismember(["left_motor_rpm", "right_motor_rpm", "left_duty", "right_duty"], string(active.Properties.VariableNames)));
+    hasGainColumns = all(ismember(["balance_kp", "balance_kd"], string(active.Properties.VariableNames)));
+
+    if hasMotorColumns
+        avgMotorRpm = (active.left_motor_rpm + active.right_motor_rpm) / 2.0;
+        avgDuty = (active.left_duty + active.right_duty) / 2.0;
+    else
+        avgMotorRpm = NaN(height(active), 1);
+        avgDuty = NaN(height(active), 1);
+    end
+
+    if hasGainColumns
+        balanceKp = median(active.balance_kp);
+        balanceKd = median(active.balance_kd);
+    else
+        balanceKp = NaN;
+        balanceKd = NaN;
+    end
+
     if height(active) < 2
         warning("Skipping %s: not enough active feedback-online rows.", file.name);
         continue;
@@ -86,19 +105,25 @@ for i = 1:numel(keepFiles)
     summary = [summary; table(note, string(file.name), height(raw), height(active), ...
         min(t), max(t), median(dtMs), min(pitch), max(pitch), pitchRms, pitchAbsP95, ...
         rateAbsP95, min(balanceRpm), max(balanceRpm), rpmRms, rpmAbsP95, ...
-        effortPerPitch, satRows, feedbackBadRows, qualityScore, ...
+        effortPerPitch, satRows, feedbackBadRows, ...
+        local_percentile(abs(avgMotorRpm), 95), local_percentile(abs(avgDuty), 95), ...
+        balanceKp, balanceKd, qualityScore, ...
         "VariableNames", ["note", "file", "rows_total", "rows_active", ...
         "time_start_s", "time_end_s", "dt_median_ms", "pitch_min_deg", ...
         "pitch_max_deg", "pitch_rms_deg", "pitch_abs_p95", ...
         "pitch_rate_abs_p95", "balance_rpm_min", "balance_rpm_max", ...
         "balance_rpm_rms", "balance_rpm_abs_p95", "effort_per_pitch", ...
-        "sat_rows", "feedback_bad_rows", "quality_score"])]; %#ok<AGROW>
+        "sat_rows", "feedback_bad_rows", ...
+        "avg_motor_rpm_abs_p95", "avg_duty_abs_p95", ...
+        "balance_kp", "balance_kd", "quality_score"])]; %#ok<AGROW>
 
     series(end + 1).note = note; %#ok<SAGROW>
     series(end).t = t;
     series(end).pitch = pitch;
     series(end).pitchRate = pitchRate;
     series(end).balanceRpm = balanceRpm;
+    series(end).avgMotorRpm = avgMotorRpm;
+    series(end).avgDuty = avgDuty;
 end
 
 if isempty(summary)
@@ -162,6 +187,33 @@ ylabel("pitch rate (deg/s)");
 title("Pitch phase plot by PD setting");
 legend("Location", "eastoutside", "Interpreter", "none");
 saveas(gcf, fullfile(dataDir, "balance_pd_phase.png"));
+
+figure("Name", "Balance motor response", "Color", "w");
+tiledlayout(2, 1, "TileSpacing", "compact");
+nexttile;
+hold on; grid on;
+for i = 1:numel(series)
+    if isfield(series(i), "avgMotorRpm")
+        plot(series(i).t, series(i).avgMotorRpm, "DisplayName", series(i).note);
+    end
+end
+yline(0, "k:");
+ylabel("avg motor rpm");
+title("Average motor response by PD setting");
+legend("Location", "eastoutside", "Interpreter", "none");
+
+nexttile;
+hold on; grid on;
+for i = 1:numel(series)
+    if isfield(series(i), "avgDuty")
+        plot(series(i).t, series(i).avgDuty, "DisplayName", series(i).note);
+    end
+end
+yline(0, "k:");
+ylabel("avg duty");
+xlabel("elapsed in BALANCE_TEST (s)");
+title("Average duty effort by PD setting");
+saveas(gcf, fullfile(dataDir, "balance_pd_motor_response.png"));
 
 fprintf("Saved summary and figures under data/. Best score: %s\n", summary.note(1));
 

@@ -15,6 +15,8 @@ static balance_diag_struct control_balance_diag;
 static float control_balance_last_pitch_deg;
 static uint32 control_balance_last_update_ms;
 static uint8 control_balance_derivative_valid;
+static float control_balance_pitch_kp;
+static float control_balance_pitch_rate_kd;
 
 static float control_balance_absf(float value)
 {
@@ -64,6 +66,10 @@ void control_balance_init(void)
     control_balance_diag.balance_rpm = 0.0f;
     control_balance_diag.output_left_rpm = 0.0f;
     control_balance_diag.output_right_rpm = 0.0f;
+    control_balance_pitch_kp = APP_BALANCE_PITCH_KP;
+    control_balance_pitch_rate_kd = APP_BALANCE_PITCH_RATE_KD;
+    control_balance_diag.pitch_kp = control_balance_pitch_kp;
+    control_balance_diag.pitch_rate_kd = control_balance_pitch_rate_kd;
     control_balance_diag.output_enable = APP_FALSE;
     control_balance_diag.safety_blocked = APP_TRUE;
     control_balance_reset_derivative();
@@ -142,8 +148,8 @@ void control_balance_update(uint32 now_ms)
         return;
     }
 
-    balance_rpm = (APP_BALANCE_PITCH_KP * imu->pitch) +
-                  (APP_BALANCE_PITCH_RATE_KD * pitch_rate_dps);
+    balance_rpm = (control_balance_pitch_kp * imu->pitch) +
+                  (control_balance_pitch_rate_kd * pitch_rate_dps);
     balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
 
     output_left_rpm = chassis->left_base_rpm + balance_rpm;
@@ -176,6 +182,20 @@ void control_balance_set_mode(balance_mode_enum mode)
     {
         control_balance_stop_output();
     }
+}
+
+void control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
+{
+    if((0.0f > pitch_kp) || (0.0f > pitch_rate_kd))
+    {
+        return;
+    }
+
+    control_balance_pitch_kp = pitch_kp;
+    control_balance_pitch_rate_kd = pitch_rate_kd;
+    control_balance_diag.pitch_kp = control_balance_pitch_kp;
+    control_balance_diag.pitch_rate_kd = control_balance_pitch_rate_kd;
+    control_balance_reset_derivative();
 }
 
 balance_mode_enum control_balance_get_mode(void)

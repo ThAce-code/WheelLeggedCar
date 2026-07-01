@@ -152,6 +152,8 @@ typedef struct
     float balance_rpm;
     float output_left_rpm;
     float output_right_rpm;
+    float pitch_kp;
+    float pitch_rate_kd;
     uint8 output_enable;
     uint8 safety_blocked;
 }balance_diag_struct;

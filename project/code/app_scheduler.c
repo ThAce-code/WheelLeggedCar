@@ -11,6 +11,8 @@
 #include "control_leg.h"
 #include "actuator_servo.h"
 #include "actuator_motor.h"
+#include "control_chassis.h"
+#include "control_balance.h"
 #include "telemetry.h"
 #include "host_command.h"
 
@@ -48,6 +50,8 @@ void app_scheduler_run_pending(void)
     static uint32 host_command_last_ms = 0;
     static uint32 leg_last_ms = 0;
     static uint32 servo_last_ms = 0;
+    static uint32 chassis_last_ms = 0;
+    static uint32 balance_last_ms = 0;
     uint32 now_ms;
 
     if(APP_FALSE == app_scheduler_pending)
@@ -88,6 +92,16 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == app_task_elapsed(now_ms, &safety_last_ms, APP_SAFETY_PERIOD_MS))
     {
         app_safety_update(now_ms);
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &chassis_last_ms, APP_CHASSIS_PERIOD_MS))
+    {
+        control_chassis_update(now_ms);
+    }
+
+    if(APP_TRUE == app_task_elapsed(now_ms, &balance_last_ms, APP_BALANCE_PERIOD_MS))
+    {
+        control_balance_update(now_ms);
     }
 
     if(APP_TRUE == app_task_elapsed(now_ms, &motor_last_ms, APP_MOTOR_PERIOD_MS))

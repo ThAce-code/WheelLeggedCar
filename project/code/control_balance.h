@@ -12,6 +12,8 @@ void control_balance_init(void);
 void control_balance_update(uint32 now_ms);
 void control_balance_set_mode(balance_mode_enum mode);
 void control_balance_set_gain(float pitch_kp, float pitch_rate_kd);
+void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp);
+void control_balance_reset_motion_state_public(void);
 balance_mode_enum control_balance_get_mode(void);
 const balance_diag_struct *control_balance_get_diag(void);
 

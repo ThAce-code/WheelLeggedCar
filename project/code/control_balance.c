@@ -17,6 +17,9 @@ static uint32 control_balance_last_update_ms;
 static uint8 control_balance_derivative_valid;
 static float control_balance_pitch_kp;
 static float control_balance_pitch_rate_kd;
+static float control_balance_wheel_speed_ks;
+static float control_balance_wheel_pos_kp;
+static float control_balance_wheel_pos_rev;
 
 static float control_balance_absf(float value)
 {
@@ -46,6 +49,14 @@ static void control_balance_reset_derivative(void)
     control_balance_derivative_valid = APP_FALSE;
 }
 
+static void control_balance_reset_motion_state(void)
+{
+    control_balance_wheel_pos_rev = 0.0f;
+    control_balance_reset_derivative();
+    control_balance_diag.wheel_speed_rpm = 0.0f;
+    control_balance_diag.wheel_pos_rev = 0.0f;
+}
+
 static void control_balance_stop_output(void)
 {
     control_balance_diag.balance_rpm = 0.0f;
@@ -70,6 +81,13 @@ void control_balance_init(void)
     control_balance_pitch_rate_kd = APP_BALANCE_PITCH_RATE_KD;
     control_balance_diag.pitch_kp = control_balance_pitch_kp;
     control_balance_diag.pitch_rate_kd = control_balance_pitch_rate_kd;
+    control_balance_wheel_speed_ks = APP_BALANCE_WHEEL_SPEED_KS;
+    control_balance_wheel_pos_kp = APP_BALANCE_WHEEL_POS_KP;
+    control_balance_wheel_pos_rev = 0.0f;
+    control_balance_diag.wheel_speed_rpm = 0.0f;
+    control_balance_diag.wheel_pos_rev = 0.0f;
+    control_balance_diag.wheel_speed_ks = control_balance_wheel_speed_ks;
+    control_balance_diag.wheel_pos_kp = control_balance_wheel_pos_kp;
     control_balance_diag.output_enable = APP_FALSE;
     control_balance_diag.safety_blocked = APP_TRUE;
     control_balance_reset_derivative();
@@ -86,10 +104,14 @@ void control_balance_update(uint32 now_ms)
     float output_left_rpm;
     float output_right_rpm;
     uint8 dt_valid;
+    const motor_rpm_loop_diag_struct *rpm_diag;
+    float wheel_speed_rpm;
+    float wheel_pos_delta_rev;
 
     imu = sensor_imu_get_state();
     wheel = actuator_motor_get_feedback();
     chassis = control_chassis_get_output();
+    rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
 
     control_balance_diag.mode = control_balance_mode;
     control_balance_diag.pitch_deg = imu->pitch;
@@ -111,6 +133,9 @@ void control_balance_update(uint32 now_ms)
     control_balance_last_pitch_deg = imu->pitch;
     control_balance_last_update_ms = now_ms;
     control_balance_diag.pitch_rate_dps = pitch_rate_dps;
+
+    wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);
+    control_balance_diag.wheel_speed_rpm = wheel_speed_rpm;
 
     /* OFF or STANDBY: update telemetry only, do not touch motor output.
        M / D direct actuator debug commands must not be overridden. */
@@ -142,14 +167,23 @@ void control_balance_update(uint32 now_ms)
         control_balance_diag.safety_blocked = APP_TRUE;
         if(APP_TRUE == dt_valid)
         {
-            control_balance_reset_derivative();
+            control_balance_reset_motion_state();
         }
         control_balance_stop_output();
         return;
     }
 
+    wheel_pos_delta_rev = wheel_speed_rpm * dt_s / 60.0f;
+    control_balance_wheel_pos_rev += wheel_pos_delta_rev;
+    control_balance_wheel_pos_rev *= APP_BALANCE_WHEEL_POS_DECAY;
+    control_balance_wheel_pos_rev = control_balance_limit_abs(control_balance_wheel_pos_rev,
+                                                              APP_BALANCE_WHEEL_POS_LIMIT_REV);
+    control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
+
     balance_rpm = (control_balance_pitch_kp * imu->pitch) +
-                  (control_balance_pitch_rate_kd * pitch_rate_dps);
+                  (control_balance_pitch_rate_kd * pitch_rate_dps) +
+                  (control_balance_wheel_speed_ks * wheel_speed_rpm) +
+                  (control_balance_wheel_pos_kp * control_balance_wheel_pos_rev);
     balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
 
     output_left_rpm = chassis->left_base_rpm + balance_rpm;
@@ -172,7 +206,7 @@ void control_balance_set_mode(balance_mode_enum mode)
 
     if(mode != control_balance_mode)
     {
-        control_balance_reset_derivative();
+        control_balance_reset_motion_state();
     }
 
     control_balance_mode = mode;
@@ -186,6 +220,11 @@ void control_balance_set_mode(balance_mode_enum mode)
 
 void control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
 {
+    control_balance_set_full_gain(pitch_kp, pitch_rate_kd, 0.0f, 0.0f);
+}
+
+void control_balance_set_full_gain(float pitch_kp, float pitch_rate_kd, float wheel_speed_ks, float wheel_pos_kp)
+{
     if((0.0f > pitch_kp) || (0.0f > pitch_rate_kd))
     {
         return;
@@ -193,9 +232,18 @@ void control_balance_set_gain(float pitch_kp, float pitch_rate_kd)
 
     control_balance_pitch_kp = pitch_kp;
     control_balance_pitch_rate_kd = pitch_rate_kd;
+    control_balance_wheel_speed_ks = wheel_speed_ks;
+    control_balance_wheel_pos_kp = wheel_pos_kp;
     control_balance_diag.pitch_kp = control_balance_pitch_kp;
     control_balance_diag.pitch_rate_kd = control_balance_pitch_rate_kd;
-    control_balance_reset_derivative();
+    control_balance_diag.wheel_speed_ks = control_balance_wheel_speed_ks;
+    control_balance_diag.wheel_pos_kp = control_balance_wheel_pos_kp;
+    control_balance_reset_motion_state();
+}
+
+void control_balance_reset_motion_state_public(void)
+{
+    control_balance_reset_motion_state();
 }
 
 balance_mode_enum control_balance_get_mode(void)

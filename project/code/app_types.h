@@ -42,6 +42,10 @@ typedef struct
     float roll;
     float pitch;
     float yaw;
+    float gyro_x_dps;
+    float gyro_y_dps;
+    float gyro_z_dps;
+    float pitch_rate_dps;
     float quat_w;
     float quat_x;
     float quat_y;

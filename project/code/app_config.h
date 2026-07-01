@@ -16,7 +16,9 @@
 
 #define APP_IMU_PERIOD_MS               (5U)
 #define APP_IMU_USE_INT1                (0U)
-#define APP_IMU_STALE_TIMEOUT_MS        (100U)
+#define APP_IMU_INT1_PIN                (P19_3)
+#define APP_IMU_STALE_TIMEOUT_MS        (30U)
+#define APP_BALANCE_IMU_MAX_AGE_MS      (15U)
 
 #define APP_TELEMETRY_PERIOD_MS         (5U)
 #define APP_TELEMETRY_ENABLE            (1U)
@@ -97,7 +99,7 @@
 
 #define APP_CHASSIS_RPM_LIMIT           (200.0f)
 #define APP_BALANCE_RPM_LIMIT           (150.0f)
-#define APP_BALANCE_TEST_PITCH_LIMIT_DEG (20.0f)
+#define APP_BALANCE_TEST_PITCH_LIMIT_DEG (45.0f)
 #define APP_BALANCE_PITCH_KP            (2.0f)
 #define APP_BALANCE_PITCH_RATE_KD       (0.0f)
 #define APP_BALANCE_WHEEL_SPEED_KS      (0.0f)

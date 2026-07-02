@@ -133,10 +133,13 @@ typedef enum
 
 typedef struct
 {
-    float forward_rpm;
-    float turn_rpm;
+    float target_forward_rpm;
+    float target_turn_rpm;
+    float actual_forward_rpm;
+    float actual_turn_rpm;
     uint8 enable;
     uint32 last_cmd_ms;
+    uint32 last_update_ms;
 }chassis_cmd_struct;
 
 typedef struct

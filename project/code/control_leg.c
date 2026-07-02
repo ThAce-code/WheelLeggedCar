@@ -192,7 +192,7 @@ void control_leg_update(uint32 now_ms)
 
 void control_leg_set_mode(leg_mode_enum mode)
 {
-    if(mode < LEG_MODE_LOCK || mode > LEG_MODE_ATTITUDE)
+    if(mode > LEG_MODE_ATTITUDE)
     {
         control_leg_mode = LEG_MODE_LOCK;
         return;

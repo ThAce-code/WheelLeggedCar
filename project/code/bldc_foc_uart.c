@@ -27,7 +27,9 @@ static uint8 bldc_foc_packet_index = 0;
 static char bldc_foc_ascii_line[BLDC_FOC_ASCII_LINE_MAX];
 static uint8 bldc_foc_ascii_index = 0;
 
+#if APP_BLDC_USE_ASCII_COMMANDS
 static void bldc_foc_send_string(const char *str);
+#endif
 
 static void bldc_foc_clear_feedback(void)
 {
@@ -81,6 +83,7 @@ static void bldc_foc_pack_int16(uint8 *high, uint8 *low, int16 value)
     *low = (uint8)(raw & 0xFFU);
 }
 
+#if APP_BLDC_USE_ASCII_COMMANDS
 static void bldc_foc_append_text(char *buffer, uint8 *index, const char *text)
 {
     while('\0' != *text)
@@ -171,6 +174,7 @@ static uint8 bldc_foc_send_ascii_command(uint8 func, int16 left_value, int16 rig
 
     return APP_TRUE;
 }
+#endif
 
 static void bldc_foc_send_frame(uint8 func, int16 left_value, int16 right_value)
 {
@@ -207,6 +211,7 @@ static void bldc_foc_send_frame(uint8 func, int16 left_value, int16 right_value)
     uart_write_buffer(APP_BLDC_UART_INDEX, frame, BLDC_FOC_FRAME_LEN);
 }
 
+#if APP_BLDC_USE_ASCII_COMMANDS
 static void bldc_foc_send_string(const char *str)
 {
     if(APP_FALSE == bldc_foc_initialized)
@@ -215,6 +220,7 @@ static void bldc_foc_send_string(const char *str)
     }
     uart_write_string(APP_BLDC_UART_INDEX, str);
 }
+#endif
 
 static void bldc_foc_mark_rx(void)
 {

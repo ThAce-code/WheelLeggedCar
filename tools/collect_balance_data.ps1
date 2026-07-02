@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 16
+$FloatCount = 21
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,chassis_left_rpm,chassis_right_rpm,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -134,8 +134,13 @@ function Pop-BalanceFrames {
                 right_duty = $values[11]
                 balance_kp = $values[12]
                 balance_kd = $values[13]
-                chassis_left_rpm = $values[14]
-                chassis_right_rpm = $values[15]
+                forward_target_rpm = $values[14]
+                forward_actual_rpm = $values[15]
+                speed_pitch_offset_deg = $values[16]
+                pitch_setpoint_deg = $values[17]
+                turn_target_dps = $values[18]
+                gyro_z_dps = $values[19]
+                turn_rpm = $values[20]
             })
         }
 
@@ -247,8 +252,13 @@ try {
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F6}" -f $frame.balance_kp),
                     ("{0:F6}" -f $frame.balance_kd),
-                    ("{0:F3}" -f $frame.chassis_left_rpm),
-                    ("{0:F3}" -f $frame.chassis_right_rpm),
+                    ("{0:F3}" -f $frame.forward_target_rpm),
+                    ("{0:F3}" -f $frame.forward_actual_rpm),
+                    ("{0:F6}" -f $frame.speed_pitch_offset_deg),
+                    ("{0:F6}" -f $frame.pitch_setpoint_deg),
+                    ("{0:F3}" -f $frame.turn_target_dps),
+                    ("{0:F6}" -f $frame.gyro_z_dps),
+                    ("{0:F3}" -f $frame.turn_rpm),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

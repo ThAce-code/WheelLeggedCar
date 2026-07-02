@@ -122,6 +122,13 @@ void control_balance_init(void)
     control_balance_ident_period_ms = 0U;
     control_balance_ident_start_ms = 0U;
     control_balance_pitch_setpoint_deg = APP_BALANCE_PITCH_SETPOINT_DEG;
+    control_balance_diag.pitch_setpoint_deg = control_balance_pitch_setpoint_deg;
+    control_balance_diag.drive_forward_target_rpm = 0.0f;
+    control_balance_diag.drive_forward_actual_rpm = 0.0f;
+    control_balance_diag.drive_speed_pitch_offset_deg = 0.0f;
+    control_balance_diag.drive_turn_target_dps = 0.0f;
+    control_balance_diag.drive_gyro_z_dps = 0.0f;
+    control_balance_diag.drive_turn_rpm = 0.0f;
     control_balance_last_update_ms = 0;
 }
 
@@ -134,6 +141,7 @@ void control_balance_update(uint32 now_ms)
     float pitch_rate_dps;
     float balance_rpm;
     float ident_rpm;
+    float pitch_setpoint_deg;
     float output_left_rpm;
     float output_right_rpm;
     const motor_rpm_loop_diag_struct *rpm_diag;
@@ -148,8 +156,14 @@ void control_balance_update(uint32 now_ms)
 
     control_balance_diag.mode = control_balance_mode;
     control_balance_diag.pitch_deg = imu->pitch;
-    control_balance_diag.chassis_left_rpm = chassis->left_base_rpm;
-    control_balance_diag.chassis_right_rpm = chassis->right_base_rpm;
+    control_balance_diag.chassis_left_rpm = -chassis->turn_rpm;
+    control_balance_diag.chassis_right_rpm = chassis->turn_rpm;
+    control_balance_diag.drive_forward_target_rpm = chassis->forward_target_rpm;
+    control_balance_diag.drive_forward_actual_rpm = chassis->forward_actual_rpm;
+    control_balance_diag.drive_speed_pitch_offset_deg = chassis->pitch_offset_deg;
+    control_balance_diag.drive_turn_target_dps = chassis->turn_target_dps;
+    control_balance_diag.drive_gyro_z_dps = chassis->gyro_z_dps;
+    control_balance_diag.drive_turn_rpm = chassis->turn_rpm;
 
     pitch_rate_dps = imu->pitch_rate_dps;
     control_balance_diag.pitch_rate_dps = pitch_rate_dps;
@@ -209,7 +223,11 @@ void control_balance_update(uint32 now_ms)
                                                               APP_BALANCE_WHEEL_POS_LIMIT_REV);
     control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
 
-    balance_rpm = (control_balance_pitch_kp * (imu->pitch - control_balance_pitch_setpoint_deg)) +
+    pitch_setpoint_deg = control_balance_pitch_setpoint_deg + chassis->pitch_offset_deg;
+    pitch_setpoint_deg = control_balance_limit_abs(pitch_setpoint_deg, APP_BALANCE_GAIN_ABS_LIMIT);
+    control_balance_diag.pitch_setpoint_deg = pitch_setpoint_deg;
+
+    balance_rpm = (control_balance_pitch_kp * (imu->pitch - pitch_setpoint_deg)) +
                   (control_balance_pitch_rate_kd * pitch_rate_dps) +
                   (control_balance_wheel_speed_ks * wheel_speed_rpm) +
                   (control_balance_wheel_pos_kp * control_balance_wheel_pos_rev);
@@ -217,10 +235,13 @@ void control_balance_update(uint32 now_ms)
     balance_rpm += ident_rpm;
     balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
 
-    output_left_rpm = chassis->left_base_rpm + balance_rpm;
-    output_right_rpm = chassis->right_base_rpm + balance_rpm;
+    output_left_rpm = balance_rpm - chassis->turn_rpm;
+    output_right_rpm = balance_rpm + chassis->turn_rpm;
 
-    if((APP_FALSE == control_balance_is_finite(control_balance_wheel_pos_rev)) ||
+    if((APP_FALSE == control_balance_is_finite(pitch_setpoint_deg)) ||
+       (APP_FALSE == control_balance_is_finite(chassis->pitch_offset_deg)) ||
+       (APP_FALSE == control_balance_is_finite(chassis->turn_rpm)) ||
+       (APP_FALSE == control_balance_is_finite(control_balance_wheel_pos_rev)) ||
        (APP_FALSE == control_balance_is_finite(balance_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_left_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_right_rpm)))
@@ -342,4 +363,9 @@ balance_mode_enum control_balance_get_mode(void)
 const balance_diag_struct *control_balance_get_diag(void)
 {
     return &control_balance_diag;
+}
+
+float control_balance_get_pitch_setpoint(void)
+{
+    return control_balance_pitch_setpoint_deg;
 }

@@ -24,7 +24,27 @@ function Assert-Contains {
     }
 }
 
+function Assert-FunctionContains {
+    param(
+        [string]$Path,
+        [string]$FunctionName,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    $text = Get-Content -Raw -Path $Path
+    $escapedName = [regex]::Escape($FunctionName)
+    $match = [regex]::Match($text, "void\s+$escapedName\s*\([^)]*\)\s*\{(?<body>.*?)\n\}", "Singleline")
+    if(-not $match.Success) {
+        throw "Missing function: $FunctionName"
+    }
+    if($match.Groups["body"].Value -notmatch $Pattern) {
+        throw $Message
+    }
+}
+
 Assert-Contains "project/code/bldc_foc_uart.c" "#if APP_BLDC_USE_ASCII_COMMANDS" "ASCII helpers must be hidden when ASCII commands are disabled."
+Assert-FunctionContains "project/code/bldc_foc_uart.c" "bldc_foc_uart_stop_feedback" "uart_rx_interrupt\(APP_BLDC_UART_INDEX,\s*0\)" "stop_feedback must disable UART RX interrupt without relying on ASCII helper."
 Assert-NotContains "project/code/actuator_motor.c" "static float actuator_motor_limit\(" "Unused actuator_motor_limit must be removed."
 Assert-NotContains "project/code/actuator_motor.c" "static void actuator_motor_send_current\(void\)" "Unused actuator_motor_send_current must be removed."
 Assert-Contains "project/code/actuator_motor.c" "#if !APP_MOTOR_RPM_LOOP_ENABLE" "Open duty fallback must be compiled only when RPM loop is disabled."

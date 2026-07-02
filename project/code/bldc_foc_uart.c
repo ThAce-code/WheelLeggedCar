@@ -390,7 +390,10 @@ void bldc_foc_uart_start_feedback(void)
 
 void bldc_foc_uart_stop_feedback(void)
 {
+    uart_rx_interrupt(APP_BLDC_UART_INDEX, 0);
+#if APP_BLDC_USE_ASCII_COMMANDS
     bldc_foc_send_string("STOP-SEND\r");
+#endif
 }
 
 void bldc_foc_uart_zero_calibrate(void)

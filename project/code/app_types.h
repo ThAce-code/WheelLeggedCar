@@ -134,9 +134,15 @@ typedef enum
 typedef struct
 {
     float target_forward_rpm;
-    float target_turn_rpm;
+    float target_turn_dps;
     float actual_forward_rpm;
-    float actual_turn_rpm;
+    float actual_turn_dps;
+    float speed_pitch_offset_deg;
+    float turn_rpm;
+    float speed_kp;
+    float speed_ki;
+    float turn_kp;
+    float speed_integral;
     uint8 enable;
     uint32 last_cmd_ms;
     uint32 last_update_ms;
@@ -144,8 +150,12 @@ typedef struct
 
 typedef struct
 {
-    float left_base_rpm;
-    float right_base_rpm;
+    float pitch_offset_deg;
+    float turn_rpm;
+    float forward_target_rpm;
+    float forward_actual_rpm;
+    float turn_target_dps;
+    float gyro_z_dps;
     uint8 enable;
 }chassis_output_struct;
 
@@ -165,6 +175,13 @@ typedef struct
     float wheel_pos_rev;
     float wheel_speed_ks;
     float wheel_pos_kp;
+    float pitch_setpoint_deg;
+    float drive_forward_target_rpm;
+    float drive_forward_actual_rpm;
+    float drive_speed_pitch_offset_deg;
+    float drive_turn_target_dps;
+    float drive_gyro_z_dps;
+    float drive_turn_rpm;
     uint8 output_enable;
     uint8 safety_blocked;
 }balance_diag_struct;

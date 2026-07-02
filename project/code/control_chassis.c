@@ -110,8 +110,7 @@ void control_chassis_update(uint32 now_ms)
         dt_s = (float)APP_CHASSIS_PERIOD_MS / 1000.0f;
     }
 
-    if((APP_FALSE == control_chassis_cmd.enable) ||
-       (APP_CHASSIS_CMD_TIMEOUT_MS < (now_ms - control_chassis_cmd.last_cmd_ms)))
+    if(APP_FALSE == control_chassis_cmd.enable)
     {
         control_chassis_cmd.target_forward_rpm = 0.0f;
         control_chassis_cmd.target_turn_rpm = 0.0f;

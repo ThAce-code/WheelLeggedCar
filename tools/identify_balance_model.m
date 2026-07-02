@@ -130,10 +130,10 @@ fprintf("Rank phi: %d,  Cond phi: %.3g\n\n", rankPhi, condPhi);
 % Goal: K_angle > 0, K_rate > 0 (positive damping is REQUIRED for inverted pendulum)
 % We sweep the pitch_rate weight Q(2,2) from small to large to force damping positive.
 qRateList  = [0.2, 0.8, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 200.0, 500.0];
-qAngle     = 10.0;
+qAngle     = 30.0;
 qSpeed     = 0.02;
 qPos       = 2.0;
-R          = 0.08;
+R          = 0.04;
 clipLims   = [0.0 18.0;  0.0 8.0;  -0.5 0.5;  -3.0 3.0];
 
 nQ = numel(qRateList);

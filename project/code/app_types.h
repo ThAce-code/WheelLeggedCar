@@ -158,6 +158,14 @@ typedef struct
     float forward_actual_rpm;
     float turn_target_dps;
     float gyro_z_dps;
+    float gyro_z_raw_dps;
+    float gyro_z_filtered_dps;
+    float turn_error_dps;
+    float turn_integral;
+    float turn_kp;
+    float turn_ki;
+    uint32 imu_age_ms;
+    uint32 wheel_age_ms;
     uint8 enable;
 }chassis_output_struct;
 
@@ -184,6 +192,14 @@ typedef struct
     float drive_turn_target_dps;
     float drive_gyro_z_dps;
     float drive_turn_rpm;
+    float drive_gyro_z_raw_dps;
+    float drive_gyro_z_filtered_dps;
+    float drive_turn_error_dps;
+    float drive_turn_integral;
+    float drive_turn_kp;
+    float drive_turn_ki;
+    uint32 drive_imu_age_ms;
+    uint32 drive_wheel_age_ms;
     uint8 output_enable;
     uint8 safety_blocked;
 }balance_diag_struct;

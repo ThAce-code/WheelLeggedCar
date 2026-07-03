@@ -73,6 +73,14 @@ static void control_chassis_clear_output(void)
     control_chassis_output.forward_actual_rpm = 0.0f;
     control_chassis_output.turn_target_dps = 0.0f;
     control_chassis_output.gyro_z_dps = 0.0f;
+    control_chassis_output.gyro_z_raw_dps = 0.0f;
+    control_chassis_output.gyro_z_filtered_dps = 0.0f;
+    control_chassis_output.turn_error_dps = 0.0f;
+    control_chassis_output.turn_integral = 0.0f;
+    control_chassis_output.turn_kp = control_chassis_cmd.turn_kp;
+    control_chassis_output.turn_ki = control_chassis_cmd.turn_ki;
+    control_chassis_output.imu_age_ms = 0U;
+    control_chassis_output.wheel_age_ms = 0U;
     control_chassis_output.enable = APP_FALSE;
 }
 

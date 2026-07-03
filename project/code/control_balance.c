@@ -129,6 +129,14 @@ void control_balance_init(void)
     control_balance_diag.drive_turn_target_dps = 0.0f;
     control_balance_diag.drive_gyro_z_dps = 0.0f;
     control_balance_diag.drive_turn_rpm = 0.0f;
+    control_balance_diag.drive_gyro_z_raw_dps = 0.0f;
+    control_balance_diag.drive_gyro_z_filtered_dps = 0.0f;
+    control_balance_diag.drive_turn_error_dps = 0.0f;
+    control_balance_diag.drive_turn_integral = 0.0f;
+    control_balance_diag.drive_turn_kp = 0.0f;
+    control_balance_diag.drive_turn_ki = 0.0f;
+    control_balance_diag.drive_imu_age_ms = 0U;
+    control_balance_diag.drive_wheel_age_ms = 0U;
     control_balance_last_update_ms = 0;
 }
 
@@ -164,6 +172,14 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.drive_turn_target_dps = chassis->turn_target_dps;
     control_balance_diag.drive_gyro_z_dps = chassis->gyro_z_dps;
     control_balance_diag.drive_turn_rpm = chassis->turn_rpm;
+    control_balance_diag.drive_gyro_z_raw_dps = chassis->gyro_z_raw_dps;
+    control_balance_diag.drive_gyro_z_filtered_dps = chassis->gyro_z_filtered_dps;
+    control_balance_diag.drive_turn_error_dps = chassis->turn_error_dps;
+    control_balance_diag.drive_turn_integral = chassis->turn_integral;
+    control_balance_diag.drive_turn_kp = chassis->turn_kp;
+    control_balance_diag.drive_turn_ki = chassis->turn_ki;
+    control_balance_diag.drive_imu_age_ms = chassis->imu_age_ms;
+    control_balance_diag.drive_wheel_age_ms = chassis->wheel_age_ms;
 
     pitch_rate_dps = imu->pitch_rate_dps;
     control_balance_diag.pitch_rate_dps = pitch_rate_dps;

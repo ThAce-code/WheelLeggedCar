@@ -110,4 +110,23 @@ Assert-Contains "tools/collect_balance_data.ps1" "turn_target_dps" "Collector mu
 Assert-Contains "tools/collect_balance_data.ps1" "gyro_z_dps" "Collector must write gyro_z."
 Assert-Contains "tools/collect_balance_data.ps1" "turn_rpm" "Collector must write turn output."
 
+# --- Task 1: fast blend config and diagnostics types ---
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT" "Missing fast forward RPM limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_START_RPM" "Missing fast blend start."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_FULL_RPM" "Missing fast blend full threshold."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_RAMP_S" "Missing fast blend ramp rate."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG" "Missing fast pitch offset limit."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_FAST_WHEEL_SPEED_KS" "Missing fast wheel speed damping."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_FAST_SPEED_FF_GAIN" "Missing fast speed feedforward gain."
+Assert-Contains "project/code/app_types.h" "BALANCE_MODE_BALANCE_FAST" "Missing fast balance mode enum."
+Assert-Contains "project/code/app_types.h" "fast_enable" "Chassis command must store fast enable."
+Assert-Contains "project/code/app_types.h" "fast_blend" "Chassis diagnostics must expose fast blend."
+Assert-Contains "project/code/app_types.h" "speed_pitch_limit_deg" "Chassis diagnostics must expose active pitch limit."
+Assert-Contains "project/code/app_types.h" "speed_ff_rpm" "Chassis diagnostics must expose speed feedforward request."
+Assert-Contains "project/code/app_types.h" "pitch_term_rpm" "Balance diagnostics must expose pitch term."
+Assert-Contains "project/code/app_types.h" "rate_term_rpm" "Balance diagnostics must expose rate term."
+Assert-Contains "project/code/app_types.h" "speed_term_rpm" "Balance diagnostics must expose speed term."
+Assert-Contains "project/code/app_types.h" "pos_term_rpm" "Balance diagnostics must expose position term."
+Assert-Contains "project/code/app_types.h" "ff_term_rpm" "Balance diagnostics must expose feedforward term."
+
 Write-Host "balance drive v2 static checks passed"

@@ -128,7 +128,8 @@ typedef enum
 {
     BALANCE_MODE_OFF = 0,
     BALANCE_MODE_STANDBY,
-    BALANCE_MODE_BALANCE_TEST
+    BALANCE_MODE_BALANCE_TEST,
+    BALANCE_MODE_BALANCE_FAST
 }balance_mode_enum;
 
 typedef struct
@@ -145,6 +146,10 @@ typedef struct
     float speed_integral;
     float turn_ki;
     float turn_integral;
+    float fast_blend;
+    float speed_pitch_limit_deg;
+    float speed_ff_rpm;
+    uint8 fast_enable;
     uint8 enable;
     uint32 last_cmd_ms;
     uint32 last_update_ms;
@@ -164,6 +169,10 @@ typedef struct
     float turn_integral;
     float turn_kp;
     float turn_ki;
+    float fast_blend;
+    float speed_integral;
+    float speed_pitch_limit_deg;
+    float speed_ff_rpm;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     uint8 enable;
@@ -198,6 +207,15 @@ typedef struct
     float drive_turn_integral;
     float drive_turn_kp;
     float drive_turn_ki;
+    float drive_fast_blend;
+    float drive_speed_integral;
+    float drive_speed_pitch_limit_deg;
+    float drive_speed_ff_rpm;
+    float pitch_term_rpm;
+    float rate_term_rpm;
+    float speed_term_rpm;
+    float pos_term_rpm;
+    float ff_term_rpm;
     uint32 drive_imu_age_ms;
     uint32 drive_wheel_age_ms;
     uint8 output_enable;

@@ -230,13 +230,29 @@ void control_chassis_update(uint32 now_ms)
         turn_error_dps = 0.0f;
     }
 
-    control_chassis_cmd.turn_integral += turn_error_dps * dt_s;
-    control_chassis_cmd.turn_integral =
-        control_chassis_limit_abs(control_chassis_cmd.turn_integral,
-                                  APP_CHASSIS_TURN_INTEGRAL_LIMIT);
-    turn_rpm = (control_chassis_cmd.turn_kp * turn_error_dps) +
-               (control_chassis_cmd.turn_ki * control_chassis_cmd.turn_integral);
-    turn_rpm = control_chassis_limit_abs(turn_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
+    turn_unsat_rpm = (control_chassis_cmd.turn_kp * turn_error_dps) +
+                    (control_chassis_cmd.turn_ki * control_chassis_cmd.turn_integral);
+    turn_rpm = control_chassis_limit_abs(turn_unsat_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
+    turn_saturated = (turn_rpm != turn_unsat_rpm) ? APP_TRUE : APP_FALSE;
+
+    if((APP_CHASSIS_TURN_ZERO_TARGET_DPS > control_chassis_absf(control_chassis_cmd.actual_turn_dps)) &&
+       (0.0f == turn_error_dps))
+    {
+        control_chassis_cmd.turn_integral *= APP_CHASSIS_TURN_INTEGRAL_DECAY;
+    }
+    else if((APP_FALSE == turn_saturated) ||
+            ((0.0f < turn_rpm) && (0.0f > turn_error_dps)) ||
+            ((0.0f > turn_rpm) && (0.0f < turn_error_dps)))
+    {
+        control_chassis_cmd.turn_integral += turn_error_dps * dt_s;
+        control_chassis_cmd.turn_integral =
+            control_chassis_limit_abs(control_chassis_cmd.turn_integral,
+                                      APP_CHASSIS_TURN_INTEGRAL_LIMIT);
+    }
+
+    turn_unsat_rpm = (control_chassis_cmd.turn_kp * turn_error_dps) +
+                    (control_chassis_cmd.turn_ki * control_chassis_cmd.turn_integral);
+    turn_rpm = control_chassis_limit_abs(turn_unsat_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
 
     if((APP_FALSE == control_chassis_is_finite(avg_wheel_speed_rpm)) ||
        (APP_FALSE == control_chassis_is_finite(gyro_z_raw_dps)) ||
@@ -296,6 +312,13 @@ void control_chassis_set_cmd(float forward_rpm, float turn_rpm, uint8 enable, ui
                                                                     APP_CHASSIS_TURN_RATE_LIMIT_DPS);
     control_chassis_cmd.enable = (APP_TRUE == enable) ? APP_TRUE : APP_FALSE;
     control_chassis_cmd.last_cmd_ms = now_ms;
+
+    if((APP_CHASSIS_TURN_ZERO_TARGET_DPS > control_chassis_absf(control_chassis_cmd.target_turn_dps)) &&
+       (APP_CHASSIS_FORWARD_ZERO_TARGET_RPM > control_chassis_absf(control_chassis_cmd.target_forward_rpm)))
+    {
+        control_chassis_cmd.speed_integral = 0.0f;
+        control_chassis_cmd.turn_integral = 0.0f;
+    }
 }
 
 uint8 control_chassis_set_drive_gain(float speed_kp, float speed_ki, float turn_kp)

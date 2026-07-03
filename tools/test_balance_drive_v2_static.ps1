@@ -81,6 +81,11 @@ Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_IMU_MAX_AGE_MS" "T
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_WHEEL_MAX_AGE_MS" "Turn loop must gate stale wheel feedback."
 Assert-Contains "project/code/control_chassis.c" "APP_FALSE == wheel_feedback->online" "Turn loop must gate offline wheel feedback."
 Assert-Contains "project/code/control_chassis.c" "control_chassis_reset_turn_filter" "Turn loop must reset filter state explicitly."
+Assert-Contains "project/code/control_chassis.c" "turn_unsat_rpm" "Turn loop must compute unsaturated output."
+Assert-Contains "project/code/control_chassis.c" "turn_saturated" "Turn loop must track output saturation."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_ZERO_TARGET_DPS" "Turn loop must detect zero-turn target."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_INTEGRAL_DECAY" "Turn loop must decay integral at zero target."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_cmd.turn_integral \*= APP_CHASSIS_TURN_INTEGRAL_DECAY" "Turn integral must decay when zero target is quiet."
 
 Assert-Contains "project/code/control_balance.c" "pitch_offset_deg" "control_balance must apply chassis pitch offset."
 Assert-Contains "project/code/control_balance.c" "chassis->turn_rpm" "control_balance must apply chassis turn output."

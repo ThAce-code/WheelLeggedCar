@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 21
+$FloatCount = 28
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,gyro_z_raw_dps,turn_error_dps,turn_integral,turn_kp,turn_ki,imu_age_ms,wheel_age_ms,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -141,6 +141,13 @@ function Pop-BalanceFrames {
                 turn_target_dps = $values[18]
                 gyro_z_dps = $values[19]
                 turn_rpm = $values[20]
+                gyro_z_raw_dps = $values[21]
+                turn_error_dps = $values[22]
+                turn_integral = $values[23]
+                turn_kp = $values[24]
+                turn_ki = $values[25]
+                imu_age_ms = $values[26]
+                wheel_age_ms = $values[27]
             })
         }
 
@@ -259,6 +266,13 @@ try {
                     ("{0:F3}" -f $frame.turn_target_dps),
                     ("{0:F6}" -f $frame.gyro_z_dps),
                     ("{0:F3}" -f $frame.turn_rpm),
+                    ("{0:F6}" -f $frame.gyro_z_raw_dps),
+                    ("{0:F6}" -f $frame.turn_error_dps),
+                    ("{0:F6}" -f $frame.turn_integral),
+                    ("{0:F6}" -f $frame.turn_kp),
+                    ("{0:F6}" -f $frame.turn_ki),
+                    ("{0:F3}" -f $frame.imu_age_ms),
+                    ("{0:F3}" -f $frame.wheel_age_ms),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

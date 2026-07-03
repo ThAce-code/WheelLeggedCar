@@ -34,7 +34,7 @@ Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
 
-$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0)
+$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -69,6 +69,13 @@ Assert-Near $frames[0].pitch_setpoint_deg 5.0 0.001 "pitch_setpoint_deg"
 Assert-Near $frames[0].turn_target_dps 0.0 0.001 "turn_target_dps"
 Assert-Near $frames[0].gyro_z_dps 0.0 0.001 "gyro_z_dps"
 Assert-Near $frames[0].turn_rpm 0.0 0.001 "turn_rpm"
+Assert-Near $frames[0].gyro_z_raw_dps 2.5 0.001 "gyro_z_raw_dps"
+Assert-Near $frames[0].turn_error_dps 3.5 0.001 "turn_error_dps"
+Assert-Near $frames[0].turn_integral 4.5 0.001 "turn_integral"
+Assert-Near $frames[0].turn_kp 0.6 0.001 "turn_kp"
+Assert-Near $frames[0].turn_ki 0.05 0.001 "turn_ki"
+Assert-Near $frames[0].imu_age_ms 5.0 0.001 "imu_age_ms"
+Assert-Near $frames[0].wheel_age_ms 10.0 0.001 "wheel_age_ms"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

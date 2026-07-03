@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 28
+$FloatCount = 38
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,gyro_z_raw_dps,turn_error_dps,turn_integral,turn_kp,turn_ki,imu_age_ms,wheel_age_ms,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,gyro_z_raw_dps,turn_error_dps,turn_integral,turn_kp,turn_ki,imu_age_ms,wheel_age_ms,fast_blend,speed_integral,speed_pitch_limit_deg,speed_ff_rpm,wheel_speed_ks,pitch_term_rpm,rate_term_rpm,speed_term_rpm,pos_term_rpm,ff_term_rpm,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -148,6 +148,16 @@ function Pop-BalanceFrames {
                 turn_ki = $values[25]
                 imu_age_ms = $values[26]
                 wheel_age_ms = $values[27]
+                fast_blend = $values[28]
+                speed_integral = $values[29]
+                speed_pitch_limit_deg = $values[30]
+                speed_ff_rpm = $values[31]
+                wheel_speed_ks = $values[32]
+                pitch_term_rpm = $values[33]
+                rate_term_rpm = $values[34]
+                speed_term_rpm = $values[35]
+                pos_term_rpm = $values[36]
+                ff_term_rpm = $values[37]
             })
         }
 
@@ -273,6 +283,16 @@ try {
                     ("{0:F6}" -f $frame.turn_ki),
                     ("{0:F3}" -f $frame.imu_age_ms),
                     ("{0:F3}" -f $frame.wheel_age_ms),
+                    ("{0:F6}" -f $frame.fast_blend),
+                    ("{0:F6}" -f $frame.speed_integral),
+                    ("{0:F6}" -f $frame.speed_pitch_limit_deg),
+                    ("{0:F6}" -f $frame.speed_ff_rpm),
+                    ("{0:F6}" -f $frame.wheel_speed_ks),
+                    ("{0:F6}" -f $frame.pitch_term_rpm),
+                    ("{0:F6}" -f $frame.rate_term_rpm),
+                    ("{0:F6}" -f $frame.speed_term_rpm),
+                    ("{0:F6}" -f $frame.pos_term_rpm),
+                    ("{0:F6}" -f $frame.ff_term_rpm),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

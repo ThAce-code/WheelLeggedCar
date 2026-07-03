@@ -4,7 +4,7 @@
 %   tools/tune_drive_loops
 %
 % Inputs:
-%   data/balance_capture_*.csv  (V2 21-channel telemetry)
+%   data/balance_capture_*.csv  (V2 38-channel telemetry)
 %
 % Outputs:
 %   data/drive_tune_report.csv

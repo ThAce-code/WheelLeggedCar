@@ -22,7 +22,7 @@ void telemetry_update(uint32 now_ms)
 #if APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
     const imu_state_struct *imu;
-    float vofa_data[28];
+    float vofa_data[38];
 #else
     float vofa_data[8];
 #endif
@@ -61,6 +61,16 @@ void telemetry_update(uint32 now_ms)
     vofa_data[25] = balance->drive_turn_ki;
     vofa_data[26] = (float)balance->drive_imu_age_ms;
     vofa_data[27] = (float)balance->drive_wheel_age_ms;
+    vofa_data[28] = balance->drive_fast_blend;
+    vofa_data[29] = balance->drive_speed_integral;
+    vofa_data[30] = balance->drive_speed_pitch_limit_deg;
+    vofa_data[31] = balance->drive_speed_ff_rpm;
+    vofa_data[32] = balance->wheel_speed_ks;
+    vofa_data[33] = balance->pitch_term_rpm;
+    vofa_data[34] = balance->rate_term_rpm;
+    vofa_data[35] = balance->speed_term_rpm;
+    vofa_data[36] = balance->pos_term_rpm;
+    vofa_data[37] = balance->ff_term_rpm;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

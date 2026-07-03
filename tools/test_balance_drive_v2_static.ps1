@@ -100,8 +100,8 @@ Assert-Contains "project/code/host_command.c" "control_chassis_set_drive_gain" "
 Assert-Contains "project/code/control_chassis.c" "if\(turn_kp != control_chassis_cmd.turn_kp\)" "BD must clear turn integral only when turn_kp changes."
 Assert-Contains "project/code/host_command.c" "drive_turn_kp" "BD parser must not name turn_kp as kd."
 
-Assert-Contains "project/code/telemetry.c" 'float vofa_data\[28\]' "Telemetry must emit 28-channel turn diagnostics frame."
-Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 28' "Collector must parse 28-channel telemetry."
+Assert-Contains "project/code/telemetry.c" 'float vofa_data\[38\]' "Telemetry must emit 38-channel fast diagnostics frame."
+Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 38' "Collector must parse 38-channel telemetry."
 Assert-Contains "tools/collect_balance_data.ps1" "turn_integral" "Collector must write turn integral."
 Assert-Contains "tools/collect_balance_data.ps1" "wheel_age_ms" "Collector must write wheel feedback age."
 Assert-Contains "tools/collect_balance_data.ps1" "forward_target_rpm" "Collector must write forward target."
@@ -156,5 +156,11 @@ Assert-Contains "project/code/control_balance.c" "drive_fast_blend" "Balance dia
 Assert-Contains "project/code/host_command.c" "BALANCE_MODE_BALANCE_FAST" "B,3 must enter fast balance mode."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_TRUE\)" "B,3 must enable chassis fast mode."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_FALSE\)" "Stop/low-speed paths must disable fast mode."
+
+# --- Task 5: 38-float telemetry ---
+Assert-Contains "tools/collect_balance_data.ps1" "fast_blend" "Collector must write fast blend."
+Assert-Contains "tools/collect_balance_data.ps1" "speed_ff_rpm" "Collector must write speed feedforward."
+Assert-Contains "tools/collect_balance_data.ps1" "pitch_term_rpm" "Collector must write pitch term."
+Assert-Contains "tools/collect_balance_data.ps1" "ff_term_rpm" "Collector must write feedforward term."
 
 Write-Host "balance drive v2 static checks passed"

@@ -34,7 +34,7 @@ Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
 
-$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0)
+$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0, 0.25, 12.0, 9.0, 1.5, 2.4, -8.0, 3.0, 20.0, 0.0, 1.5)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -76,6 +76,16 @@ Assert-Near $frames[0].turn_kp 0.6 0.001 "turn_kp"
 Assert-Near $frames[0].turn_ki 0.05 0.001 "turn_ki"
 Assert-Near $frames[0].imu_age_ms 5.0 0.001 "imu_age_ms"
 Assert-Near $frames[0].wheel_age_ms 10.0 0.001 "wheel_age_ms"
+Assert-Near $frames[0].fast_blend 0.25 0.001 "fast_blend"
+Assert-Near $frames[0].speed_integral 12.0 0.001 "speed_integral"
+Assert-Near $frames[0].speed_pitch_limit_deg 9.0 0.001 "speed_pitch_limit_deg"
+Assert-Near $frames[0].speed_ff_rpm 1.5 0.001 "speed_ff_rpm"
+Assert-Near $frames[0].wheel_speed_ks 2.4 0.001 "wheel_speed_ks"
+Assert-Near $frames[0].pitch_term_rpm -8.0 0.001 "pitch_term_rpm"
+Assert-Near $frames[0].rate_term_rpm 3.0 0.001 "rate_term_rpm"
+Assert-Near $frames[0].speed_term_rpm 20.0 0.001 "speed_term_rpm"
+Assert-Near $frames[0].pos_term_rpm 0.0 0.001 "pos_term_rpm"
+Assert-Near $frames[0].ff_term_rpm 1.5 0.001 "ff_term_rpm"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

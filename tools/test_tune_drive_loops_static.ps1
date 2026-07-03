@@ -20,5 +20,11 @@ Assert-Contains "tools/tune_drive_loops.m" "turnSameSignPct" "Script must comput
 Assert-Contains "tools/tune_drive_loops.m" "turnSatPct" "Script must compute turn output saturation."
 Assert-Contains "tools/tune_drive_loops.m" "rejectReason" "Script must record rejection reasons."
 Assert-Contains "tools/tune_drive_loops.m" "BT,%.3f,%.3f" "Script must print BT gain recommendations."
+Assert-Contains "tools/tune_drive_loops_fast.m" "fast_blend" "Fast tune script must handle fast blend."
+Assert-Contains "tools/tune_drive_loops_fast.m" "theo_ceiling" "Fast tune script must compute speed ceiling."
+Assert-Contains "tools/tune_drive_loops_fast.m" "budget_used_pct" "Fast tune script must compute RPM budget."
+Assert-Contains "tools/tune_drive_loops_fast.m" "fast_term_budget" "Fast tune script must output term budget CSV."
+Assert-Contains "tools/tune_drive_loops_fast.m" "fast_ceiling_analysis" "Fast tune script must output ceiling analysis CSV."
+Assert-Contains "tools/tune_drive_loops_fast.m" "fast_blend_transition" "Fast tune script must plot blend transition."
 
 Write-Host "tune_drive_loops static checks passed"

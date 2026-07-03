@@ -152,4 +152,9 @@ Assert-Contains "project/code/control_balance.c" "ff_term_rpm" "Balance loop mus
 Assert-Contains "project/code/control_balance.c" "chassis->speed_ff_rpm" "Balance loop must consume chassis speed feedforward."
 Assert-Contains "project/code/control_balance.c" "drive_fast_blend" "Balance diagnostics must copy fast blend."
 
+# --- Task 4: B,3 host command ---
+Assert-Contains "project/code/host_command.c" "BALANCE_MODE_BALANCE_FAST" "B,3 must enter fast balance mode."
+Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_TRUE\)" "B,3 must enable chassis fast mode."
+Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_FALSE\)" "Stop/low-speed paths must disable fast mode."
+
 Write-Host "balance drive v2 static checks passed"

@@ -320,6 +320,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(APP_TRUE == host_command_match_stop(line))
     {
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+        control_chassis_set_fast_enable(APP_FALSE);
         control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
@@ -408,6 +409,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         if(0.0f == value)
         {
             control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+            control_chassis_set_fast_enable(APP_FALSE);
             control_chassis_stop(now_ms);
             control_balance_set_mode(BALANCE_MODE_OFF);
             actuator_motor_record_command_error(APP_FALSE);
@@ -415,13 +417,22 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
         if(1.0f == value)
         {
+            control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_STANDBY);
             actuator_motor_record_command_error(APP_FALSE);
             return;
         }
         if(2.0f == value)
         {
+            control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(3.0f == value)
+        {
+            control_chassis_set_fast_enable(APP_TRUE);
+            control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
             actuator_motor_record_command_error(APP_FALSE);
             return;
         }

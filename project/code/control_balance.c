@@ -195,6 +195,13 @@ void control_balance_update(uint32 now_ms)
     }
     control_balance_last_update_ms = now_ms;
 
+    if((0.0f >= dt_s) ||
+       (1.0f < dt_s) ||
+       (APP_FALSE == control_balance_is_finite(dt_s)))
+    {
+        dt_s = (float)APP_BALANCE_PERIOD_MS / 1000.0f;
+    }
+
     imu_age_ms = now_ms - imu->timestamp_ms;
 
     wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);

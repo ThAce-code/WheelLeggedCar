@@ -92,6 +92,8 @@ Assert-Contains "project/code/control_balance.c" "chassis->turn_rpm" "control_ba
 Assert-Contains "project/code/control_balance.c" "pitch_setpoint_deg" "control_balance must publish effective pitch setpoint."
 Assert-NotContains "project/code/control_balance.c" "bldc_foc_uart" "control_balance must not call BLDC UART."
 Assert-NotContains "project/code/control_balance.c" "debug_read" "control_balance must not parse host commands."
+Assert-Contains "project/code/control_balance.c" "0.0f >= dt_s" "Balance loop must guard non-positive dt_s."
+Assert-Contains "project/code/control_balance.c" "1.0f < dt_s" "Balance loop must guard huge dt_s."
 
 Assert-Contains "project/code/host_command.c" "'D' == line\[1\]" "host_command must parse BD command."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_drive_gain" "BD must call chassis drive gain API."

@@ -54,7 +54,9 @@ for fileIdx = 1:numel(keepFiles)
     % Check for V2 columns
     v2Cols = ["forward_target_rpm", "forward_actual_rpm", ...
               "speed_pitch_offset_deg", "pitch_setpoint_deg", ...
-              "turn_target_dps", "gyro_z_dps", "turn_rpm"];
+              "turn_target_dps", "gyro_z_dps", "turn_rpm", ...
+              "gyro_z_raw_dps", "turn_error_dps", "turn_integral", ...
+              "turn_kp", "turn_ki", "imu_age_ms", "wheel_age_ms"];
     if ~all(ismember(v2Cols, string(raw.Properties.VariableNames)))
         fprintf("  Skipping %s: not a V2 capture.\n", file.name);
         continue;
@@ -148,6 +150,35 @@ for fileIdx = 1:numel(keepFiles)
     turnTgt = active.turn_target_dps;
     gyroZ   = active.gyro_z_dps;
     turnRpm = active.turn_rpm;
+    gyroRaw = active.gyro_z_raw_dps;
+    turnErr = active.turn_error_dps;
+    turnInt = active.turn_integral;
+    imuAge = active.imu_age_ms;
+    wheelAge = active.wheel_age_ms;
+
+    zeroTurn = active(abs(active.turn_target_dps) < 0.5, :);
+    rejectReason = "";
+    zeroGyroMean = NaN;
+    zeroGyroStd = NaN;
+    if height(zeroTurn) >= 20
+        zeroGyroMean = mean(zeroTurn.gyro_z_dps, "omitnan");
+        zeroGyroStd = std(zeroTurn.gyro_z_dps, "omitnan");
+        if abs(zeroGyroMean) > 3.0
+            rejectReason = rejectReason + "zero gyro bias > 3 dps; ";
+        end
+        if zeroGyroStd > 8.0
+            rejectReason = rejectReason + "zero gyro std > 8 dps; ";
+        end
+    else
+        rejectReason = rejectReason + "less than 20 zero-turn samples; ";
+    end
+
+    if max(imuAge, [], "omitnan") > 15.0
+        rejectReason = rejectReason + "IMU age > 15 ms; ";
+    end
+    if max(wheelAge, [], "omitnan") > 30.0
+        rejectReason = rejectReason + "wheel feedback age > 30 ms; ";
+    end
 
     stepStart = find(diff(turnTgt) > 3.0, 1, 'first');
     if isempty(stepStart)
@@ -161,8 +192,56 @@ for fileIdx = 1:numel(keepFiles)
         stepTgt  = turnTgt(stepStart:stepEnd);
         stepTrpm = turnRpm(stepStart:stepEnd);
 
+        stepErr = turnErr(stepStart:stepEnd);
+        stepInt = turnInt(stepStart:stepEnd);
+        validSign = (abs(stepTgt) > 1.0) & isfinite(stepGyro);
+        if any(validSign)
+            turnSameSignPct = 100.0 * mean((stepTgt(validSign) .* stepGyro(validSign)) > 0);
+        else
+            turnSameSignPct = NaN;
+        end
+        turnSatPct = 100.0 * mean(abs(stepTrpm) >= 0.98 * 60.0, "omitnan");
+        turnErrMean = mean(stepTgt - stepGyro, "omitnan");
+        turnErrP95 = prctile(abs(stepTgt - stepGyro), 95);
+        tailStart = max(1, numel(stepTgt) - 50);
+        turnTargetFinal = median(stepTgt(tailStart:end), "omitnan");
+        turnGyroFinal = median(stepGyro(tailStart:end), "omitnan");
+
+        if strlength(rejectReason) == 0
+            if turnSameSignPct < 60.0
+                rejectReason = rejectReason + "turn sign agreement < 60%; ";
+            end
+            if turnSatPct > 20.0
+                rejectReason = rejectReason + "turn output saturation > 20%; ";
+            end
+        end
+
+        if strlength(rejectReason) == 0
+            suggestedTurnKp = min(2.0, max(0.05, median(abs(stepTrpm), "omitnan") / max(turnErrP95, 1.0)));
+            suggestedTurnKi = 0.0;
+            if abs(turnErrMean) > 0.30 * max(abs(turnTargetFinal), 1.0)
+                suggestedTurnKi = min(0.20, max(0.01, suggestedTurnKp * 0.10));
+            end
+        else
+            suggestedTurnKp = NaN;
+            suggestedTurnKi = NaN;
+        end
+
+        turnReportRow = table(note, string(file.name), zeroGyroMean, zeroGyroStd, ...
+            turnTargetFinal, turnGyroFinal, turnErrMean, turnErrP95, ...
+            turnSameSignPct, turnSatPct, suggestedTurnKp, suggestedTurnKi, rejectReason, ...
+            'VariableNames', ["note", "file", "zero_gyro_mean", "zero_gyro_std", ...
+            "turn_target_dps", "turn_gyro_dps", "turn_err_mean", "turn_err_p95", ...
+            "same_sign_pct", "turn_sat_pct", "suggested_turn_kp", "suggested_turn_ki", "reject_reason"]);
+        if ~exist("turnReport", "var")
+            turnReport = turnReportRow;
+        else
+            turnReport = [turnReport; turnReportRow]; %#ok<AGROW>
+        end
+
         allTurnSteps{end+1} = struct('note', note, 't', stepT, ...
-            'gyro', stepGyro, 'tgt', stepTgt, 'trpm', stepTrpm); %#ok<AGROW>
+            'gyro', stepGyro, 'tgt', stepTgt, 'trpm', stepTrpm, ...
+            'err', stepErr, 'int', stepInt); %#ok<AGROW>
     end
 end
 
@@ -196,8 +275,8 @@ end
 
 %% --- Plot turn steps ---
 if ~isempty(allTurnSteps)
-    figure("Name", "Turn step response", "Color", "w", "Position", [100 100 1000 500]);
-    tiledlayout(2, 1, "TileSpacing", "compact");
+    figure("Name", "Turn step response", "Color", "w", "Position", [100 100 1000 700]);
+    tiledlayout(3, 1, "TileSpacing", "compact");
 
     nexttile; hold on; grid on;
     for i = 1:numel(allTurnSteps)
@@ -215,8 +294,17 @@ if ~isempty(allTurnSteps)
         plot(s.t, s.trpm, "LineWidth", 1.5, "DisplayName", s.note);
     end
     ylabel("Turn RPM differential");
-    xlabel("Time from step (s)");
     title("Turn-loop output");
+    legend("Location", "best", "Interpreter", "none");
+
+    nexttile; hold on; grid on;
+    for i = 1:numel(allTurnSteps)
+        s = allTurnSteps{i};
+        plot(s.t, s.err, "LineWidth", 1.2, "DisplayName", s.note);
+    end
+    ylabel("Turn error (deg/s)");
+    xlabel("Time from step (s)");
+    title("Turn-loop error");
     legend("Location", "best", "Interpreter", "none");
 
     saveas(gcf, fullfile(dataDir, "drive_turn_step.png"));
@@ -254,6 +342,25 @@ if ~isempty(report)
     end
 else
     fprintf("\nNo speed step data found. Collect a capture with C,<speed>,0 first.\n");
+end
+
+if exist("turnReport", "var") && height(turnReport) > 0
+    writetable(turnReport, fullfile(dataDir, "drive_turn_tune_report.csv"));
+    fprintf("\n========================================\n");
+    fprintf("        Turn Gain Recommendations\n");
+    fprintf("========================================\n");
+    for i = 1:height(turnReport)
+        r = turnReport(i, :);
+        fprintf("\n[%s]\n", r.note);
+        if strlength(string(r.reject_reason)) > 0
+            fprintf("  Rejected: %s\n", string(r.reject_reason));
+        else
+            fprintf("  zero gyro mean/std: %.2f / %.2f dps\n", r.zero_gyro_mean, r.zero_gyro_std);
+            fprintf("  final target/gyro: %.2f / %.2f dps\n", r.turn_target_dps, r.turn_gyro_dps);
+            fprintf("  same-sign: %.1f %%  saturation: %.1f %%\n", r.same_sign_pct, r.turn_sat_pct);
+            fprintf("  Recommended: BT,%.3f,%.3f\n", r.suggested_turn_kp, r.suggested_turn_ki);
+        end
+    end
 end
 
 fprintf("\nSaved: %s, %s\n", fullfile(dataDir, "drive_tune_report.csv"), ...

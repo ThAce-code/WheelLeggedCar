@@ -57,6 +57,38 @@ static uint8 control_chassis_is_finite(float value)
     return APP_TRUE;
 }
 
+static float control_chassis_clamp01(float value)
+{
+    if(0.0f > value)
+    {
+        return 0.0f;
+    }
+    if(1.0f < value)
+    {
+        return 1.0f;
+    }
+    return value;
+}
+
+static float control_chassis_lerp(float low, float high, float blend)
+{
+    blend = control_chassis_clamp01(blend);
+    return low + ((high - low) * blend);
+}
+
+static float control_chassis_smoothstep(float edge0, float edge1, float value)
+{
+    float t;
+
+    if(edge1 <= edge0)
+    {
+        return 0.0f;
+    }
+
+    t = control_chassis_clamp01((value - edge0) / (edge1 - edge0));
+    return t * t * (3.0f - (2.0f * t));
+}
+
 static float control_chassis_ramp_toward(float current, float target, float max_delta)
 {
     float delta;
@@ -87,6 +119,10 @@ static void control_chassis_clear_output(void)
     control_chassis_output.turn_integral = 0.0f;
     control_chassis_output.turn_kp = control_chassis_cmd.turn_kp;
     control_chassis_output.turn_ki = control_chassis_cmd.turn_ki;
+    control_chassis_output.fast_blend = 0.0f;
+    control_chassis_output.speed_integral = 0.0f;
+    control_chassis_output.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
+    control_chassis_output.speed_ff_rpm = 0.0f;
     control_chassis_output.imu_age_ms = 0U;
     control_chassis_output.wheel_age_ms = 0U;
     control_chassis_output.enable = APP_FALSE;
@@ -106,6 +142,10 @@ void control_chassis_init(void)
     control_chassis_cmd.turn_ki = APP_CHASSIS_TURN_KI;
     control_chassis_cmd.speed_integral = 0.0f;
     control_chassis_cmd.turn_integral = 0.0f;
+    control_chassis_cmd.fast_blend = 0.0f;
+    control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
+    control_chassis_cmd.speed_ff_rpm = 0.0f;
+    control_chassis_cmd.fast_enable = APP_FALSE;
     control_chassis_cmd.enable = APP_FALSE;
     control_chassis_cmd.last_cmd_ms = 0;
     control_chassis_cmd.last_update_ms = 0;
@@ -132,6 +172,9 @@ void control_chassis_update(uint32 now_ms)
     float gyro_z_filtered_dps;
     float turn_unsat_rpm;
     uint8 turn_saturated;
+    float forward_limit_rpm;
+    float raw_fast_blend;
+    float speed_pitch_limit_deg;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     const wheel_feedback_struct *wheel_feedback;
@@ -166,8 +209,12 @@ void control_chassis_update(uint32 now_ms)
         control_chassis_cmd.target_turn_dps = 0.0f;
     }
 
+    forward_limit_rpm = (APP_TRUE == control_chassis_cmd.fast_enable) ?
+                        APP_CHASSIS_FAST_FORWARD_RPM_LIMIT :
+                        APP_CHASSIS_FORWARD_RPM_LIMIT;
+
     target_forward_rpm = control_chassis_limit_abs(control_chassis_cmd.target_forward_rpm,
-                                                   APP_CHASSIS_FORWARD_RPM_LIMIT);
+                                                   forward_limit_rpm);
     target_turn_dps = control_chassis_limit_abs(control_chassis_cmd.target_turn_dps,
                                                 APP_CHASSIS_TURN_RATE_LIMIT_DPS);
 
@@ -183,6 +230,30 @@ void control_chassis_update(uint32 now_ms)
                                     target_turn_dps,
                                     turn_max_delta);
 
+    raw_fast_blend = control_chassis_smoothstep(APP_CHASSIS_FAST_BLEND_START_RPM,
+                                                 APP_CHASSIS_FAST_BLEND_FULL_RPM,
+                                                 control_chassis_absf(control_chassis_cmd.actual_forward_rpm));
+    if(APP_FALSE == control_chassis_cmd.fast_enable)
+    {
+        raw_fast_blend = 0.0f;
+    }
+
+    control_chassis_cmd.fast_blend =
+        control_chassis_ramp_toward(control_chassis_cmd.fast_blend,
+                                    raw_fast_blend,
+                                    APP_CHASSIS_FAST_BLEND_RAMP_S * dt_s);
+
+    speed_pitch_limit_deg =
+        control_chassis_lerp(APP_CHASSIS_SPEED_PITCH_LIMIT_DEG,
+                             APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG,
+                             control_chassis_cmd.fast_blend);
+    control_chassis_cmd.speed_pitch_limit_deg = speed_pitch_limit_deg;
+
+    control_chassis_cmd.speed_ff_rpm =
+        APP_BALANCE_FAST_SPEED_FF_GAIN *
+        control_chassis_cmd.actual_forward_rpm *
+        control_chassis_cmd.fast_blend;
+
     if((APP_FALSE == imu->healthy) ||
        (APP_FALSE == wheel_feedback->online) ||
        (APP_FALSE == wheel_feedback->left_online) ||
@@ -192,6 +263,9 @@ void control_chassis_update(uint32 now_ms)
     {
         control_chassis_cmd.speed_integral = 0.0f;
         control_chassis_cmd.turn_integral = 0.0f;
+        control_chassis_cmd.fast_blend = 0.0f;
+        control_chassis_cmd.speed_ff_rpm = 0.0f;
+        control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
         control_chassis_reset_turn_filter();
         control_chassis_clear_output();
         return;
@@ -209,7 +283,7 @@ void control_chassis_update(uint32 now_ms)
         (control_chassis_cmd.speed_ki * control_chassis_cmd.speed_integral);
     speed_pitch_offset_deg =
         control_chassis_limit_abs(speed_pitch_offset_deg,
-                                  APP_CHASSIS_SPEED_PITCH_LIMIT_DEG);
+                                  speed_pitch_limit_deg);
 
     gyro_z_raw_dps = imu->gyro_z_dps;
     if(APP_FALSE == control_chassis_gyro_z_filter_valid)
@@ -279,6 +353,10 @@ void control_chassis_update(uint32 now_ms)
     control_chassis_output.turn_integral = control_chassis_cmd.turn_integral;
     control_chassis_output.turn_kp = control_chassis_cmd.turn_kp;
     control_chassis_output.turn_ki = control_chassis_cmd.turn_ki;
+    control_chassis_output.fast_blend = control_chassis_cmd.fast_blend;
+    control_chassis_output.speed_integral = control_chassis_cmd.speed_integral;
+    control_chassis_output.speed_pitch_limit_deg = control_chassis_cmd.speed_pitch_limit_deg;
+    control_chassis_output.speed_ff_rpm = control_chassis_cmd.speed_ff_rpm;
     control_chassis_output.imu_age_ms = imu_age_ms;
     control_chassis_output.wheel_age_ms = wheel_age_ms;
     control_chassis_output.enable = APP_TRUE;
@@ -299,6 +377,8 @@ void control_chassis_update(uint32 now_ms)
 
 void control_chassis_set_cmd(float forward_rpm, float turn_rpm, uint8 enable, uint32 now_ms)
 {
+    float forward_limit_rpm;
+
     if((APP_FALSE == control_chassis_is_finite(forward_rpm)) ||
        (APP_FALSE == control_chassis_is_finite(turn_rpm)))
     {
@@ -306,8 +386,12 @@ void control_chassis_set_cmd(float forward_rpm, float turn_rpm, uint8 enable, ui
         return;
     }
 
+    forward_limit_rpm = (APP_TRUE == control_chassis_cmd.fast_enable) ?
+                        APP_CHASSIS_FAST_FORWARD_RPM_LIMIT :
+                        APP_CHASSIS_FORWARD_RPM_LIMIT;
+
     control_chassis_cmd.target_forward_rpm = control_chassis_limit_abs(forward_rpm,
-                                                                       APP_CHASSIS_FORWARD_RPM_LIMIT);
+                                                                       forward_limit_rpm);
     control_chassis_cmd.target_turn_dps = control_chassis_limit_abs(turn_rpm,
                                                                     APP_CHASSIS_TURN_RATE_LIMIT_DPS);
     control_chassis_cmd.enable = (APP_TRUE == enable) ? APP_TRUE : APP_FALSE;
@@ -371,10 +455,25 @@ void control_chassis_stop(uint32 now_ms)
     control_chassis_cmd.turn_rpm = 0.0f;
     control_chassis_cmd.speed_integral = 0.0f;
     control_chassis_cmd.turn_integral = 0.0f;
+    control_chassis_cmd.fast_blend = 0.0f;
+    control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
+    control_chassis_cmd.speed_ff_rpm = 0.0f;
+    control_chassis_cmd.fast_enable = APP_FALSE;
     control_chassis_cmd.enable = APP_FALSE;
     control_chassis_cmd.last_cmd_ms = now_ms;
     control_chassis_cmd.last_update_ms = now_ms;
     control_chassis_clear_output();
+}
+
+void control_chassis_set_fast_enable(uint8 enable)
+{
+    control_chassis_cmd.fast_enable = (APP_TRUE == enable) ? APP_TRUE : APP_FALSE;
+    if(APP_FALSE == control_chassis_cmd.fast_enable)
+    {
+        control_chassis_cmd.fast_blend = 0.0f;
+        control_chassis_cmd.speed_ff_rpm = 0.0f;
+        control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
+    }
 }
 
 const chassis_cmd_struct *control_chassis_get_cmd(void)

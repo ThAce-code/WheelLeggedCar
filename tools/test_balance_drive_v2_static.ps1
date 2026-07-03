@@ -129,4 +129,16 @@ Assert-Contains "project/code/app_types.h" "speed_term_rpm" "Balance diagnostics
 Assert-Contains "project/code/app_types.h" "pos_term_rpm" "Balance diagnostics must expose position term."
 Assert-Contains "project/code/app_types.h" "ff_term_rpm" "Balance diagnostics must expose feedforward term."
 
+# --- Task 2: chassis fast blend ---
+Assert-Contains "project/code/control_chassis.h" "control_chassis_set_fast_enable" "Missing fast mode enable API."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_smoothstep" "Missing fast blend smoothstep helper."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_lerp" "Missing fast blend lerp helper."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT" "Fast mode must use fast forward limit."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_START_RPM" "Fast mode must use blend start threshold."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_FULL_RPM" "Fast mode must use blend full threshold."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_RAMP_S" "Fast blend must be ramp limited."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG" "Fast mode must interpolate pitch limit."
+Assert-Contains "project/code/control_chassis.c" "APP_BALANCE_FAST_SPEED_FF_GAIN" "Chassis must compute feedforward request."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_cmd.fast_blend = 0.0f" "Stop/reset paths must clear fast blend."
+
 Write-Host "balance drive v2 static checks passed"

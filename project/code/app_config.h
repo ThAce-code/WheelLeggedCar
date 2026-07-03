@@ -105,7 +105,7 @@
 #define APP_CHASSIS_SPEED_KP                 (0.15f)
 #define APP_CHASSIS_SPEED_KI                 (0.01f)
 #define APP_CHASSIS_SPEED_INTEGRAL_LIMIT     (100.0f)
-#define APP_CHASSIS_SPEED_PITCH_LIMIT_DEG    (6.0f)
+#define APP_CHASSIS_SPEED_PITCH_LIMIT_DEG    (8.0f)
 #define APP_CHASSIS_TURN_KP                  (0.0f)
 #define APP_CHASSIS_TURN_RPM_LIMIT           (60.0f)
 #define APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT     (100.0f)

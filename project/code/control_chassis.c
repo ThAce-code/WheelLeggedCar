@@ -10,6 +10,14 @@
 
 static chassis_cmd_struct control_chassis_cmd;
 static chassis_output_struct control_chassis_output;
+static float control_chassis_gyro_z_filtered_dps;
+static uint8 control_chassis_gyro_z_filter_valid;
+
+static void control_chassis_reset_turn_filter(void)
+{
+    control_chassis_gyro_z_filtered_dps = 0.0f;
+    control_chassis_gyro_z_filter_valid = APP_FALSE;
+}
 
 static float control_chassis_absf(float value)
 {
@@ -102,6 +110,7 @@ void control_chassis_init(void)
     control_chassis_cmd.last_cmd_ms = 0;
     control_chassis_cmd.last_update_ms = 0;
 
+    control_chassis_reset_turn_filter();
     control_chassis_clear_output();
 }
 
@@ -118,6 +127,14 @@ void control_chassis_update(uint32 now_ms)
     float avg_wheel_speed_rpm;
     float turn_error_dps;
     float turn_rpm;
+    float gyro_z_raw_dps;
+    float gyro_z_delta_dps;
+    float gyro_z_filtered_dps;
+    float turn_unsat_rpm;
+    uint8 turn_saturated;
+    uint32 imu_age_ms;
+    uint32 wheel_age_ms;
+    const wheel_feedback_struct *wheel_feedback;
     float dt_s;
 
     if(0U == control_chassis_cmd.last_update_ms)
@@ -139,6 +156,9 @@ void control_chassis_update(uint32 now_ms)
 
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
     imu = sensor_imu_get_state();
+    wheel_feedback = actuator_motor_get_feedback();
+    imu_age_ms = now_ms - imu->timestamp_ms;
+    wheel_age_ms = wheel_feedback->age_ms;
 
     if(APP_FALSE == control_chassis_cmd.enable)
     {
@@ -163,6 +183,20 @@ void control_chassis_update(uint32 now_ms)
                                     target_turn_dps,
                                     turn_max_delta);
 
+    if((APP_FALSE == imu->healthy) ||
+       (APP_FALSE == wheel_feedback->online) ||
+       (APP_FALSE == wheel_feedback->left_online) ||
+       (APP_FALSE == wheel_feedback->right_online) ||
+       (APP_CHASSIS_IMU_MAX_AGE_MS < imu_age_ms) ||
+       (APP_CHASSIS_WHEEL_MAX_AGE_MS < wheel_age_ms))
+    {
+        control_chassis_cmd.speed_integral = 0.0f;
+        control_chassis_cmd.turn_integral = 0.0f;
+        control_chassis_reset_turn_filter();
+        control_chassis_clear_output();
+        return;
+    }
+
     avg_wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);
     speed_error_rpm = control_chassis_cmd.actual_forward_rpm - avg_wheel_speed_rpm;
     control_chassis_cmd.speed_integral += speed_error_rpm * dt_s;
@@ -177,7 +211,25 @@ void control_chassis_update(uint32 now_ms)
         control_chassis_limit_abs(speed_pitch_offset_deg,
                                   APP_CHASSIS_SPEED_PITCH_LIMIT_DEG);
 
-    turn_error_dps = control_chassis_cmd.actual_turn_dps - imu->gyro_z_dps;
+    gyro_z_raw_dps = imu->gyro_z_dps;
+    if(APP_FALSE == control_chassis_gyro_z_filter_valid)
+    {
+        control_chassis_gyro_z_filtered_dps = gyro_z_raw_dps;
+        control_chassis_gyro_z_filter_valid = APP_TRUE;
+    }
+
+    gyro_z_delta_dps = gyro_z_raw_dps - control_chassis_gyro_z_filtered_dps;
+    gyro_z_delta_dps = control_chassis_limit_abs(gyro_z_delta_dps,
+                                                 APP_CHASSIS_TURN_GYRO_STEP_LIMIT_DPS);
+    control_chassis_gyro_z_filtered_dps += APP_CHASSIS_TURN_GYRO_LPF_ALPHA * gyro_z_delta_dps;
+    gyro_z_filtered_dps = control_chassis_gyro_z_filtered_dps;
+
+    turn_error_dps = control_chassis_cmd.actual_turn_dps - gyro_z_filtered_dps;
+    if(APP_CHASSIS_TURN_GYRO_DEADBAND_DPS > control_chassis_absf(turn_error_dps))
+    {
+        turn_error_dps = 0.0f;
+    }
+
     control_chassis_cmd.turn_integral += turn_error_dps * dt_s;
     control_chassis_cmd.turn_integral =
         control_chassis_limit_abs(control_chassis_cmd.turn_integral,
@@ -187,7 +239,8 @@ void control_chassis_update(uint32 now_ms)
     turn_rpm = control_chassis_limit_abs(turn_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
 
     if((APP_FALSE == control_chassis_is_finite(avg_wheel_speed_rpm)) ||
-       (APP_FALSE == control_chassis_is_finite(imu->gyro_z_dps)) ||
+       (APP_FALSE == control_chassis_is_finite(gyro_z_raw_dps)) ||
+       (APP_FALSE == control_chassis_is_finite(gyro_z_filtered_dps)) ||
        (APP_FALSE == control_chassis_is_finite(speed_pitch_offset_deg)) ||
        (APP_FALSE == control_chassis_is_finite(turn_rpm)))
     {
@@ -203,7 +256,15 @@ void control_chassis_update(uint32 now_ms)
     control_chassis_output.forward_target_rpm = control_chassis_cmd.actual_forward_rpm;
     control_chassis_output.forward_actual_rpm = avg_wheel_speed_rpm;
     control_chassis_output.turn_target_dps = control_chassis_cmd.actual_turn_dps;
-    control_chassis_output.gyro_z_dps = imu->gyro_z_dps;
+    control_chassis_output.gyro_z_dps = gyro_z_filtered_dps;
+    control_chassis_output.gyro_z_raw_dps = gyro_z_raw_dps;
+    control_chassis_output.gyro_z_filtered_dps = gyro_z_filtered_dps;
+    control_chassis_output.turn_error_dps = turn_error_dps;
+    control_chassis_output.turn_integral = control_chassis_cmd.turn_integral;
+    control_chassis_output.turn_kp = control_chassis_cmd.turn_kp;
+    control_chassis_output.turn_ki = control_chassis_cmd.turn_ki;
+    control_chassis_output.imu_age_ms = imu_age_ms;
+    control_chassis_output.wheel_age_ms = wheel_age_ms;
     control_chassis_output.enable = APP_TRUE;
 
     if((APP_FALSE == control_chassis_cmd.enable) &&

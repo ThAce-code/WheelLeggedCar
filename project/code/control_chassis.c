@@ -87,7 +87,9 @@ void control_chassis_init(void)
     control_chassis_cmd.speed_kp = APP_CHASSIS_SPEED_KP;
     control_chassis_cmd.speed_ki = APP_CHASSIS_SPEED_KI;
     control_chassis_cmd.turn_kp = APP_CHASSIS_TURN_KP;
+    control_chassis_cmd.turn_ki = APP_CHASSIS_TURN_KI;
     control_chassis_cmd.speed_integral = 0.0f;
+    control_chassis_cmd.turn_integral = 0.0f;
     control_chassis_cmd.enable = APP_FALSE;
     control_chassis_cmd.last_cmd_ms = 0;
     control_chassis_cmd.last_update_ms = 0;
@@ -168,7 +170,12 @@ void control_chassis_update(uint32 now_ms)
                                   APP_CHASSIS_SPEED_PITCH_LIMIT_DEG);
 
     turn_error_dps = control_chassis_cmd.actual_turn_dps - imu->gyro_z_dps;
-    turn_rpm = control_chassis_cmd.turn_kp * turn_error_dps;
+    control_chassis_cmd.turn_integral += turn_error_dps * dt_s;
+    control_chassis_cmd.turn_integral =
+        control_chassis_limit_abs(control_chassis_cmd.turn_integral,
+                                  APP_CHASSIS_TURN_INTEGRAL_LIMIT);
+    turn_rpm = (control_chassis_cmd.turn_kp * turn_error_dps) +
+               (control_chassis_cmd.turn_ki * control_chassis_cmd.turn_integral);
     turn_rpm = control_chassis_limit_abs(turn_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
 
     if((APP_FALSE == control_chassis_is_finite(avg_wheel_speed_rpm)) ||
@@ -200,6 +207,7 @@ void control_chassis_update(uint32 now_ms)
         control_chassis_cmd.speed_pitch_offset_deg = 0.0f;
         control_chassis_cmd.turn_rpm = 0.0f;
         control_chassis_cmd.speed_integral = 0.0f;
+        control_chassis_cmd.turn_integral = 0.0f;
         control_chassis_clear_output();
     }
 }
@@ -237,6 +245,23 @@ uint8 control_chassis_set_drive_gain(float speed_kp, float speed_ki, float turn_
     control_chassis_cmd.speed_ki = speed_ki;
     control_chassis_cmd.turn_kp = turn_kp;
     control_chassis_cmd.speed_integral = 0.0f;
+    control_chassis_cmd.turn_integral = 0.0f;
+    return APP_TRUE;
+}
+
+uint8 control_chassis_set_turn_gain(float turn_kp, float turn_ki)
+{
+    if((APP_FALSE == control_chassis_is_finite(turn_kp)) ||
+       (APP_FALSE == control_chassis_is_finite(turn_ki)) ||
+       (APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT < control_chassis_absf(turn_kp)) ||
+       (APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT < control_chassis_absf(turn_ki)))
+    {
+        return APP_FALSE;
+    }
+
+    control_chassis_cmd.turn_kp = turn_kp;
+    control_chassis_cmd.turn_ki = turn_ki;
+    control_chassis_cmd.turn_integral = 0.0f;
     return APP_TRUE;
 }
 
@@ -249,6 +274,7 @@ void control_chassis_stop(uint32 now_ms)
     control_chassis_cmd.speed_pitch_offset_deg = 0.0f;
     control_chassis_cmd.turn_rpm = 0.0f;
     control_chassis_cmd.speed_integral = 0.0f;
+    control_chassis_cmd.turn_integral = 0.0f;
     control_chassis_cmd.enable = APP_FALSE;
     control_chassis_cmd.last_cmd_ms = now_ms;
     control_chassis_cmd.last_update_ms = now_ms;

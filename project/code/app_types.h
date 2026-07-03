@@ -143,6 +143,8 @@ typedef struct
     float speed_ki;
     float turn_kp;
     float speed_integral;
+    float turn_ki;
+    float turn_integral;
     uint8 enable;
     uint32 last_cmd_ms;
     uint32 last_update_ms;

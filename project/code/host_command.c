@@ -371,6 +371,16 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
     }
 
+    if(('B' == line[0]) && ('T' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[3], &kp, &ki)))
+    {
+        if(APP_TRUE == control_chassis_set_turn_gain(kp, ki))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
     if(('B' == line[0]) && ('L' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_four_numbers(&line[3], &kp, &ki, &ks, &pos_kp)))
     {

@@ -156,8 +156,8 @@ void control_balance_update(uint32 now_ms)
 
     control_balance_diag.mode = control_balance_mode;
     control_balance_diag.pitch_deg = imu->pitch;
-    control_balance_diag.chassis_left_rpm = chassis->turn_rpm;
-    control_balance_diag.chassis_right_rpm = -chassis->turn_rpm;
+    control_balance_diag.chassis_left_rpm = -chassis->turn_rpm;
+    control_balance_diag.chassis_right_rpm = chassis->turn_rpm;
     control_balance_diag.drive_forward_target_rpm = chassis->forward_target_rpm;
     control_balance_diag.drive_forward_actual_rpm = chassis->forward_actual_rpm;
     control_balance_diag.drive_speed_pitch_offset_deg = chassis->pitch_offset_deg;
@@ -235,8 +235,8 @@ void control_balance_update(uint32 now_ms)
     balance_rpm += ident_rpm;
     balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
 
-    output_left_rpm = balance_rpm + chassis->turn_rpm;
-    output_right_rpm = balance_rpm - chassis->turn_rpm;
+    output_left_rpm = balance_rpm - chassis->turn_rpm;
+    output_right_rpm = balance_rpm + chassis->turn_rpm;
 
     if((APP_FALSE == control_balance_is_finite(pitch_setpoint_deg)) ||
        (APP_FALSE == control_balance_is_finite(chassis->pitch_offset_deg)) ||

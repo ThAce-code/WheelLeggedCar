@@ -168,7 +168,7 @@ void control_chassis_update(uint32 now_ms)
                                   APP_CHASSIS_SPEED_PITCH_LIMIT_DEG);
 
     turn_error_dps = control_chassis_cmd.actual_turn_dps - imu->gyro_z_dps;
-    turn_rpm = control_chassis_cmd.turn_kp * turn_error_dps;
+    turn_rpm = -(control_chassis_cmd.turn_kp * turn_error_dps);
     turn_rpm = control_chassis_limit_abs(turn_rpm, APP_CHASSIS_TURN_RPM_LIMIT);
 
     if((APP_FALSE == control_chassis_is_finite(avg_wheel_speed_rpm)) ||

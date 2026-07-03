@@ -268,6 +268,10 @@ void control_chassis_update(uint32 now_ms)
         control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
         control_chassis_reset_turn_filter();
         control_chassis_clear_output();
+        /* Preserve age diagnostics so telemetry can record the root cause
+           of this output block rather than reporting 0 ms. */
+        control_chassis_output.imu_age_ms = imu_age_ms;
+        control_chassis_output.wheel_age_ms = wheel_age_ms;
         return;
     }
 
@@ -468,12 +472,10 @@ void control_chassis_stop(uint32 now_ms)
 void control_chassis_set_fast_enable(uint8 enable)
 {
     control_chassis_cmd.fast_enable = (APP_TRUE == enable) ? APP_TRUE : APP_FALSE;
-    if(APP_FALSE == control_chassis_cmd.fast_enable)
-    {
-        control_chassis_cmd.fast_blend = 0.0f;
-        control_chassis_cmd.speed_ff_rpm = 0.0f;
-        control_chassis_cmd.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
-    }
+    /* When disabling fast mode, only disarm the flag.  The update loop
+       forces raw_fast_blend to 0 when fast_enable is false, so fast_blend,
+       speed_ff_rpm, and speed_pitch_limit_deg ramp down smoothly via
+       control_chassis_ramp_toward instead of a hard gain jump. */
 }
 
 const chassis_cmd_struct *control_chassis_get_cmd(void)

@@ -52,7 +52,7 @@ fprintf("Analyzing %d unique captures...\n", numel(keepFiles));
 cfg.pitch_kp       = 18.0;
 cfg.pitch_rate_kd  = 8.0;
 cfg.low_ks         = 3.0;
-cfg.fast_ks        = 0.8;
+cfg.fast_ks        = 0.50;
 cfg.low_pitch_lim  = 8.0;
 cfg.fast_pitch_lim = 12.0;
 cfg.blend_start    = 40.0;
@@ -560,4 +560,3 @@ fprintf("  fast_tune_report.csv       — speed step metrics\n");
 fprintf("  fast_term_budget.csv       — RPM budget at peak\n");
 fprintf("  fast_ceiling_analysis.csv  — ceiling vs speed scan\n");
 fprintf("  fast_turn_tune_report.csv  — turn loop metrics\n");
-

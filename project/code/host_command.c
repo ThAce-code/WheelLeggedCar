@@ -299,6 +299,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float kp;
     float ki;
     float kd;
+    float drive_turn_kp;
     float ks;
     float pos_kp;
     float period_ms_f;
@@ -362,9 +363,9 @@ static void host_command_process_line(char *line, uint32 now_ms)
     }
 
     if(('B' == line[0]) && ('D' == line[1]) && (',' == line[2]) &&
-       (APP_TRUE == host_command_parse_three_numbers(&line[3], &kp, &ki, &kd)))
+       (APP_TRUE == host_command_parse_three_numbers(&line[3], &kp, &ki, &drive_turn_kp)))
     {
-        if(APP_TRUE == control_chassis_set_drive_gain(kp, ki, kd))
+        if(APP_TRUE == control_chassis_set_drive_gain(kp, ki, drive_turn_kp))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;

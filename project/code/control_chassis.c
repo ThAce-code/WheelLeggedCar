@@ -335,9 +335,13 @@ uint8 control_chassis_set_drive_gain(float speed_kp, float speed_ki, float turn_
 
     control_chassis_cmd.speed_kp = speed_kp;
     control_chassis_cmd.speed_ki = speed_ki;
-    control_chassis_cmd.turn_kp = turn_kp;
     control_chassis_cmd.speed_integral = 0.0f;
-    control_chassis_cmd.turn_integral = 0.0f;
+
+    if(turn_kp != control_chassis_cmd.turn_kp)
+    {
+        control_chassis_cmd.turn_kp = turn_kp;
+        control_chassis_cmd.turn_integral = 0.0f;
+    }
     return APP_TRUE;
 }
 

@@ -95,6 +95,8 @@ Assert-NotContains "project/code/control_balance.c" "debug_read" "control_balanc
 
 Assert-Contains "project/code/host_command.c" "'D' == line\[1\]" "host_command must parse BD command."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_drive_gain" "BD must call chassis drive gain API."
+Assert-Contains "project/code/control_chassis.c" "if\(turn_kp != control_chassis_cmd.turn_kp\)" "BD must clear turn integral only when turn_kp changes."
+Assert-Contains "project/code/host_command.c" "drive_turn_kp" "BD parser must not name turn_kp as kd."
 
 Assert-Contains "project/code/telemetry.c" 'float vofa_data\[21\]' "Telemetry must emit 21-channel V2 frame."
 Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 21' "Collector must parse 21 floats."

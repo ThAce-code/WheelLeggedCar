@@ -141,4 +141,15 @@ Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_SPEED_PITCH_L
 Assert-Contains "project/code/control_chassis.c" "APP_BALANCE_FAST_SPEED_FF_GAIN" "Chassis must compute feedforward request."
 Assert-Contains "project/code/control_chassis.c" "control_chassis_cmd.fast_blend = 0.0f" "Stop/reset paths must clear fast blend."
 
+# --- Task 3: balance fast terms ---
+Assert-Contains "project/code/control_balance.c" "BALANCE_MODE_BALANCE_FAST" "Balance loop must allow fast mode."
+Assert-Contains "project/code/control_balance.c" "APP_BALANCE_FAST_WHEEL_SPEED_KS" "Balance loop must interpolate fast Ks."
+Assert-Contains "project/code/control_balance.c" "pitch_term_rpm" "Balance loop must compute pitch term diagnostics."
+Assert-Contains "project/code/control_balance.c" "rate_term_rpm" "Balance loop must compute rate term diagnostics."
+Assert-Contains "project/code/control_balance.c" "speed_term_rpm" "Balance loop must compute speed term diagnostics."
+Assert-Contains "project/code/control_balance.c" "pos_term_rpm" "Balance loop must compute position term diagnostics."
+Assert-Contains "project/code/control_balance.c" "ff_term_rpm" "Balance loop must compute feedforward term diagnostics."
+Assert-Contains "project/code/control_balance.c" "chassis->speed_ff_rpm" "Balance loop must consume chassis speed feedforward."
+Assert-Contains "project/code/control_balance.c" "drive_fast_blend" "Balance diagnostics must copy fast blend."
+
 Write-Host "balance drive v2 static checks passed"

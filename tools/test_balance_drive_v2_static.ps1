@@ -31,6 +31,7 @@ Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KP" "Missing spee
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KI" "Missing speed loop Ki."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_INTEGRAL_LIMIT" "Missing speed integral limit."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_PITCH_LIMIT_DEG" "Missing speed pitch limit."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_PITCH_SETPOINT_DEG\s+\(-1\.35f\)" "Default pitch setpoint must match reassembled-frame balance tuning."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_KP" "Missing turn loop Kp."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RPM_LIMIT" "Missing turn output limit."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT" "Missing drive gain limit."

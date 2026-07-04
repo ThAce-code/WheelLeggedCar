@@ -1202,6 +1202,12 @@
                 <name>$PROJ_DIR$\..\..\code\leg_config.h</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\leg_kinematics.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\leg_kinematics.h</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\control_leg.c</name>
             </file>
             <file>

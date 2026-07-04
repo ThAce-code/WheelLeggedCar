@@ -228,4 +228,21 @@ typedef struct
     uint8 enable[4];
 }servo_cmd_struct;
 
+typedef struct
+{
+    float target_height_mm;
+    float actual_height_mm;
+    float height_norm;
+    float left_x_mm;
+    float left_y_mm;
+    float right_x_mm;
+    float right_y_mm;
+    float servo_target_deg[4];
+    float servo_actual_deg[4];
+    uint8 mode;
+    uint8 ik_valid;
+    uint8 output_enable;
+    uint32 ik_error_count;
+}leg_diag_struct;
+
 #endif

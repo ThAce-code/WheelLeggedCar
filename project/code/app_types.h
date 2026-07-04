@@ -173,6 +173,8 @@ typedef struct
     float speed_integral;
     float speed_pitch_limit_deg;
     float speed_ff_rpm;
+    float forward_limit_eff_rpm;
+    float fast_forward_limit_eff_rpm;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     uint8 enable;
@@ -216,6 +218,13 @@ typedef struct
     float speed_term_rpm;
     float pos_term_rpm;
     float ff_term_rpm;
+    float leg_height_norm;
+    float balance_pitch_kp_eff;
+    float balance_pitch_rate_kd_eff;
+    float balance_wheel_speed_ks_eff;
+    float balance_pitch_setpoint_base_eff_deg;
+    float chassis_forward_limit_eff_rpm;
+    float chassis_fast_forward_limit_eff_rpm;
     uint32 drive_imu_age_ms;
     uint32 drive_wheel_age_ms;
     uint8 output_enable;

@@ -25,6 +25,7 @@ function Assert-NotContains {
 }
 
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_RPM_LIMIT" "Missing forward speed limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT\s+\(220\.0f\)" "Fast-mode forward speed limit must stay at the currently validated safety cap."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_LIMIT_DPS" "Missing turn-rate limit."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_RAMP_DPS_S" "Missing turn-rate ramp."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KP" "Missing speed loop Kp."

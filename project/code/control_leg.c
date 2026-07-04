@@ -112,6 +112,18 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     }
 }
 
+static float control_leg_apply_calib(uint8 servo_index, float ik_angle_deg)
+{
+    const leg_servo_config_struct *servo_cfg;
+
+    servo_cfg = leg_config_get_servo(servo_index);
+    if(NULL == servo_cfg)
+    {
+        return ik_angle_deg;
+    }
+    return servo_cfg->neutral_deg + (servo_cfg->direction * (ik_angle_deg - servo_cfg->neutral_deg));
+}
+
 static uint8 control_leg_run_enabled(void)
 {
     app_run_state_enum state;
@@ -235,10 +247,14 @@ void control_leg_update(uint32 now_ms)
             if((APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_actual_height_mm, &left_ik)) &&
                (APP_TRUE == leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_actual_height_mm, &right_ik)))
             {
-                control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = left_ik.servo_deg[0];
-                control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = left_ik.servo_deg[1];
-                control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = right_ik.servo_deg[0];
-                control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = right_ik.servo_deg[1];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] =
+                    control_leg_apply_calib(LEG_SERVO_FL, left_ik.servo_deg[0]);
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] =
+                    control_leg_apply_calib(LEG_SERVO_RL, left_ik.servo_deg[1]);
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] =
+                    control_leg_apply_calib(LEG_SERVO_FR, right_ik.servo_deg[0]);
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] =
+                    control_leg_apply_calib(LEG_SERVO_RR, right_ik.servo_deg[1]);
                 output_enable = control_leg_run_enabled();
                 control_leg_publish_diag(APP_TRUE, output_enable);
             }

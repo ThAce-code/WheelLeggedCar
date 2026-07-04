@@ -14,11 +14,11 @@ static const leg_config_struct leg_config_default =
         {3,  90.0f,  90.0f, 15.0f, 165.0f,  1.0f, -1.0f, -1.0f}
     },
     {
-        55.0f,
-        90.0f,
-        90.0f,
-        55.0f,
-        70.0f,
+        60.0f,   /* L1 — driven link (measured) */
+        90.0f,   /* L2 — passive link (measured) */
+        90.0f,   /* L3 — passive link (measured) */
+        60.0f,   /* L4 — driven link (measured) */
+        38.0f,   /* L5 — base spacing (measured) */
         -35.0f,
         35.0f,
         70.0f,

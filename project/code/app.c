@@ -37,7 +37,7 @@ uint8 app_init(void)
     if(0U == result)
     {
         control_leg_set_body_cmd(0.0f, 0.0f, 0.0f);
-        control_leg_set_mode(LEG_MODE_ATTITUDE);
+        control_leg_set_mode(LEG_MODE_LOCK);
         app_state_set(APP_STATE_STANDBY);
     }
     else

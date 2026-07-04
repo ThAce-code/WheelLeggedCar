@@ -18,5 +18,6 @@ uint8 control_balance_set_ident_excitation(float amp_rpm, uint32 period_ms, uint
 void control_balance_set_pitch_setpoint(float offset_deg);
 balance_mode_enum control_balance_get_mode(void);
 const balance_diag_struct *control_balance_get_diag(void);
+float control_balance_get_pitch_setpoint(void);
 
 #endif

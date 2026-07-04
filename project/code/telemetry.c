@@ -22,7 +22,7 @@ void telemetry_update(uint32 now_ms)
 #if APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
     const imu_state_struct *imu;
-    float vofa_data[16];
+    float vofa_data[38];
 #else
     float vofa_data[8];
 #endif
@@ -47,8 +47,30 @@ void telemetry_update(uint32 now_ms)
     vofa_data[11] = rpm_diag->right_duty;
     vofa_data[12] = balance->pitch_kp;
     vofa_data[13] = balance->pitch_rate_kd;
-    vofa_data[14] = balance->chassis_left_rpm;
-    vofa_data[15] = balance->chassis_right_rpm;
+    vofa_data[14] = balance->drive_forward_target_rpm;
+    vofa_data[15] = balance->drive_forward_actual_rpm;
+    vofa_data[16] = balance->drive_speed_pitch_offset_deg;
+    vofa_data[17] = balance->pitch_setpoint_deg;
+    vofa_data[18] = balance->drive_turn_target_dps;
+    vofa_data[19] = balance->drive_gyro_z_dps;
+    vofa_data[20] = balance->drive_turn_rpm;
+    vofa_data[21] = balance->drive_gyro_z_raw_dps;
+    vofa_data[22] = balance->drive_turn_error_dps;
+    vofa_data[23] = balance->drive_turn_integral;
+    vofa_data[24] = balance->drive_turn_kp;
+    vofa_data[25] = balance->drive_turn_ki;
+    vofa_data[26] = (float)balance->drive_imu_age_ms;
+    vofa_data[27] = (float)balance->drive_wheel_age_ms;
+    vofa_data[28] = balance->drive_fast_blend;
+    vofa_data[29] = balance->drive_speed_integral;
+    vofa_data[30] = balance->drive_speed_pitch_limit_deg;
+    vofa_data[31] = balance->drive_speed_ff_rpm;
+    vofa_data[32] = balance->wheel_speed_ks;
+    vofa_data[33] = balance->pitch_term_rpm;
+    vofa_data[34] = balance->rate_term_rpm;
+    vofa_data[35] = balance->speed_term_rpm;
+    vofa_data[36] = balance->pos_term_rpm;
+    vofa_data[37] = balance->ff_term_rpm;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

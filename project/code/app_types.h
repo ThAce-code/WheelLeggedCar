@@ -128,21 +128,53 @@ typedef enum
 {
     BALANCE_MODE_OFF = 0,
     BALANCE_MODE_STANDBY,
-    BALANCE_MODE_BALANCE_TEST
+    BALANCE_MODE_BALANCE_TEST,
+    BALANCE_MODE_BALANCE_FAST
 }balance_mode_enum;
 
 typedef struct
 {
-    float forward_rpm;
+    float target_forward_rpm;
+    float target_turn_dps;
+    float actual_forward_rpm;
+    float actual_turn_dps;
+    float speed_pitch_offset_deg;
     float turn_rpm;
+    float speed_kp;
+    float speed_ki;
+    float turn_kp;
+    float speed_integral;
+    float turn_ki;
+    float turn_integral;
+    float fast_blend;
+    float speed_pitch_limit_deg;
+    float speed_ff_rpm;
+    uint8 fast_enable;
     uint8 enable;
     uint32 last_cmd_ms;
+    uint32 last_update_ms;
 }chassis_cmd_struct;
 
 typedef struct
 {
-    float left_base_rpm;
-    float right_base_rpm;
+    float pitch_offset_deg;
+    float turn_rpm;
+    float forward_target_rpm;
+    float forward_actual_rpm;
+    float turn_target_dps;
+    float gyro_z_dps;
+    float gyro_z_raw_dps;
+    float gyro_z_filtered_dps;
+    float turn_error_dps;
+    float turn_integral;
+    float turn_kp;
+    float turn_ki;
+    float fast_blend;
+    float speed_integral;
+    float speed_pitch_limit_deg;
+    float speed_ff_rpm;
+    uint32 imu_age_ms;
+    uint32 wheel_age_ms;
     uint8 enable;
 }chassis_output_struct;
 
@@ -162,6 +194,30 @@ typedef struct
     float wheel_pos_rev;
     float wheel_speed_ks;
     float wheel_pos_kp;
+    float pitch_setpoint_deg;
+    float drive_forward_target_rpm;
+    float drive_forward_actual_rpm;
+    float drive_speed_pitch_offset_deg;
+    float drive_turn_target_dps;
+    float drive_gyro_z_dps;
+    float drive_turn_rpm;
+    float drive_gyro_z_raw_dps;
+    float drive_gyro_z_filtered_dps;
+    float drive_turn_error_dps;
+    float drive_turn_integral;
+    float drive_turn_kp;
+    float drive_turn_ki;
+    float drive_fast_blend;
+    float drive_speed_integral;
+    float drive_speed_pitch_limit_deg;
+    float drive_speed_ff_rpm;
+    float pitch_term_rpm;
+    float rate_term_rpm;
+    float speed_term_rpm;
+    float pos_term_rpm;
+    float ff_term_rpm;
+    uint32 drive_imu_age_ms;
+    uint32 drive_wheel_age_ms;
     uint8 output_enable;
     uint8 safety_blocked;
 }balance_diag_struct;

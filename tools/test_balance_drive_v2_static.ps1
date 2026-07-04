@@ -1,0 +1,168 @@
+$ErrorActionPreference = "Stop"
+
+function Assert-Contains {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if(-not (Select-String -Path $Path -Pattern $Pattern -Quiet)) {
+        throw $Message
+    }
+}
+
+function Assert-NotContains {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if(Select-String -Path $Path -Pattern $Pattern -Quiet) {
+        throw $Message
+    }
+}
+
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_RPM_LIMIT" "Missing forward speed limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT\s+\(220\.0f\)" "Fast-mode forward speed limit must stay at the currently validated safety cap."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_LIMIT_DPS" "Missing turn-rate limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_RAMP_DPS_S" "Missing turn-rate ramp."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KP" "Missing speed loop Kp."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KI" "Missing speed loop Ki."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_INTEGRAL_LIMIT" "Missing speed integral limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_PITCH_LIMIT_DEG" "Missing speed pitch limit."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_PITCH_SETPOINT_DEG\s+\(-1\.35f\)" "Default pitch setpoint must match reassembled-frame balance tuning."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_KP" "Missing turn loop Kp."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RPM_LIMIT" "Missing turn output limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT" "Missing drive gain limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_GYRO_LPF_ALPHA" "Missing turn gyro low-pass alpha."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_GYRO_DEADBAND_DPS" "Missing turn gyro deadband."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_GYRO_STEP_LIMIT_DPS" "Missing turn gyro spike step limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_IMU_MAX_AGE_MS" "Missing chassis IMU age gate."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_WHEEL_MAX_AGE_MS" "Missing chassis wheel feedback age gate."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_ZERO_TARGET_DPS" "Missing turn zero-target threshold."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_ZERO_TARGET_RPM" "Missing forward zero-target threshold."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_INTEGRAL_DECAY" "Missing turn integral decay."
+Assert-NotContains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS" "C command timeout must not be reintroduced."
+
+Assert-Contains "project/code/app_types.h" "target_turn_dps" "chassis_cmd_struct must store target yaw-rate."
+Assert-Contains "project/code/app_types.h" "actual_turn_dps" "chassis_cmd_struct must store ramped yaw-rate."
+Assert-Contains "project/code/app_types.h" "speed_pitch_offset_deg" "chassis_cmd_struct must store speed pitch offset."
+Assert-Contains "project/code/app_types.h" "turn_rpm" "chassis structs must store turn output RPM."
+Assert-Contains "project/code/app_types.h" "speed_integral" "chassis_cmd_struct must store speed integral."
+Assert-Contains "project/code/app_types.h" "forward_actual_rpm" "chassis_output_struct must expose measured forward speed."
+Assert-Contains "project/code/app_types.h" "gyro_z_dps" "chassis_output_struct must expose yaw rate."
+Assert-Contains "project/code/app_types.h" "pitch_setpoint_deg" "balance_diag_struct must expose effective pitch setpoint."
+Assert-Contains "project/code/app_types.h" "gyro_z_raw_dps" "Chassis output must expose raw gyro_z."
+Assert-Contains "project/code/app_types.h" "gyro_z_filtered_dps" "Chassis output must expose filtered gyro_z."
+Assert-Contains "project/code/app_types.h" "turn_error_dps" "Chassis output must expose turn error."
+Assert-Contains "project/code/app_types.h" "turn_integral" "Chassis output must expose turn integral."
+Assert-Contains "project/code/app_types.h" "turn_ki" "Chassis command must store turn ki."
+Assert-Contains "project/code/app_types.h" "imu_age_ms" "Chassis output must expose IMU age."
+Assert-Contains "project/code/app_types.h" "wheel_age_ms" "Chassis output must expose wheel feedback age."
+Assert-Contains "project/code/control_balance.c" "drive_gyro_z_raw_dps" "Balance diag must copy raw gyro_z."
+Assert-Contains "project/code/control_balance.c" "drive_turn_integral" "Balance diag must copy turn integral."
+
+Assert-Contains "project/code/control_chassis.h" "control_chassis_set_drive_gain" "Missing runtime drive gain API."
+Assert-Contains "project/code/control_chassis.c" "actuator_motor_get_motor_rpm_loop_diag" "control_chassis must read wheel speed feedback."
+Assert-Contains "project/code/control_chassis.c" "sensor_imu_get_state" "control_chassis must read gyro_z yaw-rate."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_KP" "control_chassis must use speed Kp."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_KI" "control_chassis must use speed Ki."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_KP" "control_chassis must use turn Kp."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_PITCH_LIMIT_DEG" "control_chassis must clamp pitch offset."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_RPM_LIMIT" "control_chassis must clamp turn output."
+Assert-NotContains "project/code/control_chassis.c" "APP_CHASSIS_CMD_TIMEOUT_MS" "control_chassis must not timeout C commands."
+Assert-NotContains "project/code/control_chassis.c" "actuator_motor_set_" "control_chassis must not command motor output."
+Assert-NotContains "project/code/control_chassis.c" "bldc_foc_uart" "control_chassis must not call BLDC UART."
+Assert-NotContains "project/code/control_chassis.c" "debug_read" "control_chassis must not parse host commands."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_gyro_z_filtered_dps" "Turn loop must keep filtered gyro state."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_GYRO_LPF_ALPHA" "Turn loop must apply gyro low-pass."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_GYRO_STEP_LIMIT_DPS" "Turn loop must clamp gyro spikes."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_IMU_MAX_AGE_MS" "Turn loop must gate stale IMU samples."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_WHEEL_MAX_AGE_MS" "Turn loop must gate stale wheel feedback."
+Assert-Contains "project/code/control_chassis.c" "APP_FALSE == wheel_feedback->online" "Turn loop must gate offline wheel feedback."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_reset_turn_filter" "Turn loop must reset filter state explicitly."
+Assert-Contains "project/code/control_chassis.c" "turn_unsat_rpm" "Turn loop must compute unsaturated output."
+Assert-Contains "project/code/control_chassis.c" "turn_saturated" "Turn loop must track output saturation."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_ZERO_TARGET_DPS" "Turn loop must detect zero-turn target."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_INTEGRAL_DECAY" "Turn loop must decay integral at zero target."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_cmd.turn_integral \*= APP_CHASSIS_TURN_INTEGRAL_DECAY" "Turn integral must decay when zero target is quiet."
+
+Assert-Contains "project/code/control_balance.c" "pitch_offset_deg" "control_balance must apply chassis pitch offset."
+Assert-Contains "project/code/control_balance.c" "chassis->turn_rpm" "control_balance must apply chassis turn output."
+Assert-Contains "project/code/control_balance.c" "pitch_setpoint_deg" "control_balance must publish effective pitch setpoint."
+Assert-NotContains "project/code/control_balance.c" "bldc_foc_uart" "control_balance must not call BLDC UART."
+Assert-NotContains "project/code/control_balance.c" "debug_read" "control_balance must not parse host commands."
+Assert-Contains "project/code/control_balance.c" "0.0f >= dt_s" "Balance loop must guard non-positive dt_s."
+Assert-Contains "project/code/control_balance.c" "1.0f < dt_s" "Balance loop must guard huge dt_s."
+
+Assert-Contains "project/code/host_command.c" "'D' == line\[1\]" "host_command must parse BD command."
+Assert-Contains "project/code/host_command.c" "control_chassis_set_drive_gain" "BD must call chassis drive gain API."
+Assert-Contains "project/code/control_chassis.c" "if\(turn_kp != control_chassis_cmd.turn_kp\)" "BD must clear turn integral only when turn_kp changes."
+Assert-Contains "project/code/host_command.c" "drive_turn_kp" "BD parser must not name turn_kp as kd."
+
+Assert-Contains "project/code/telemetry.c" 'float vofa_data\[38\]' "Telemetry must emit 38-channel fast diagnostics frame."
+Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 38' "Collector must parse 38-channel telemetry."
+Assert-Contains "tools/collect_balance_data.ps1" "turn_integral" "Collector must write turn integral."
+Assert-Contains "tools/collect_balance_data.ps1" "wheel_age_ms" "Collector must write wheel feedback age."
+Assert-Contains "tools/collect_balance_data.ps1" "forward_target_rpm" "Collector must write forward target."
+Assert-Contains "tools/collect_balance_data.ps1" "speed_pitch_offset_deg" "Collector must write speed pitch offset."
+Assert-Contains "tools/collect_balance_data.ps1" "turn_target_dps" "Collector must write turn target."
+Assert-Contains "tools/collect_balance_data.ps1" "gyro_z_dps" "Collector must write gyro_z."
+Assert-Contains "tools/collect_balance_data.ps1" "turn_rpm" "Collector must write turn output."
+
+# --- Task 1: fast blend config and diagnostics types ---
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT" "Missing fast forward RPM limit."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_START_RPM" "Missing fast blend start."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_FULL_RPM" "Missing fast blend full threshold."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_BLEND_RAMP_S" "Missing fast blend ramp rate."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG" "Missing fast pitch offset limit."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_FAST_WHEEL_SPEED_KS" "Missing fast wheel speed damping."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_FAST_SPEED_FF_GAIN" "Missing fast speed feedforward gain."
+Assert-Contains "project/code/app_types.h" "BALANCE_MODE_BALANCE_FAST" "Missing fast balance mode enum."
+Assert-Contains "project/code/app_types.h" "fast_enable" "Chassis command must store fast enable."
+Assert-Contains "project/code/app_types.h" "fast_blend" "Chassis diagnostics must expose fast blend."
+Assert-Contains "project/code/app_types.h" "speed_pitch_limit_deg" "Chassis diagnostics must expose active pitch limit."
+Assert-Contains "project/code/app_types.h" "speed_ff_rpm" "Chassis diagnostics must expose speed feedforward request."
+Assert-Contains "project/code/app_types.h" "pitch_term_rpm" "Balance diagnostics must expose pitch term."
+Assert-Contains "project/code/app_types.h" "rate_term_rpm" "Balance diagnostics must expose rate term."
+Assert-Contains "project/code/app_types.h" "speed_term_rpm" "Balance diagnostics must expose speed term."
+Assert-Contains "project/code/app_types.h" "pos_term_rpm" "Balance diagnostics must expose position term."
+Assert-Contains "project/code/app_types.h" "ff_term_rpm" "Balance diagnostics must expose feedforward term."
+
+# --- Task 2: chassis fast blend ---
+Assert-Contains "project/code/control_chassis.h" "control_chassis_set_fast_enable" "Missing fast mode enable API."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_smoothstep" "Missing fast blend smoothstep helper."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_lerp" "Missing fast blend lerp helper."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT" "Fast mode must use fast forward limit."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_START_RPM" "Fast mode must use blend start threshold."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_FULL_RPM" "Fast mode must use blend full threshold."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_BLEND_RAMP_S" "Fast blend must be ramp limited."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG" "Fast mode must interpolate pitch limit."
+Assert-Contains "project/code/control_chassis.c" "APP_BALANCE_FAST_SPEED_FF_GAIN" "Chassis must compute feedforward request."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_cmd.fast_blend = 0.0f" "Stop/reset paths must clear fast blend."
+
+# --- Task 3: balance fast terms ---
+Assert-Contains "project/code/control_balance.c" "BALANCE_MODE_BALANCE_FAST" "Balance loop must allow fast mode."
+Assert-Contains "project/code/control_balance.c" "APP_BALANCE_FAST_WHEEL_SPEED_KS" "Balance loop must interpolate fast Ks."
+Assert-Contains "project/code/control_balance.c" "pitch_term_rpm" "Balance loop must compute pitch term diagnostics."
+Assert-Contains "project/code/control_balance.c" "rate_term_rpm" "Balance loop must compute rate term diagnostics."
+Assert-Contains "project/code/control_balance.c" "speed_term_rpm" "Balance loop must compute speed term diagnostics."
+Assert-Contains "project/code/control_balance.c" "pos_term_rpm" "Balance loop must compute position term diagnostics."
+Assert-Contains "project/code/control_balance.c" "ff_term_rpm" "Balance loop must compute feedforward term diagnostics."
+Assert-Contains "project/code/control_balance.c" "chassis->speed_ff_rpm" "Balance loop must consume chassis speed feedforward."
+Assert-Contains "project/code/control_balance.c" "drive_fast_blend" "Balance diagnostics must copy fast blend."
+
+# --- Task 4: B,3 host command ---
+Assert-Contains "project/code/host_command.c" "BALANCE_MODE_BALANCE_FAST" "B,3 must enter fast balance mode."
+Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_TRUE\)" "B,3 must enable chassis fast mode."
+Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_FALSE\)" "Stop/low-speed paths must disable fast mode."
+
+# --- Task 5: 38-float telemetry ---
+Assert-Contains "tools/collect_balance_data.ps1" "fast_blend" "Collector must write fast blend."
+Assert-Contains "tools/collect_balance_data.ps1" "speed_ff_rpm" "Collector must write speed feedforward."
+Assert-Contains "tools/collect_balance_data.ps1" "pitch_term_rpm" "Collector must write pitch term."
+Assert-Contains "tools/collect_balance_data.ps1" "ff_term_rpm" "Collector must write feedforward term."
+
+Write-Host "balance drive v2 static checks passed"

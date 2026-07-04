@@ -21,8 +21,8 @@ static const leg_config_struct leg_config_default =
         38.0f,   /* L5 — base spacing (measured) */
         -35.0f,
         35.0f,
-        30.0f,
-        110.0f,
+        35.0f,
+        150.0f,
         0.0f,
         0.0f,
         LEG_IK_BRANCH_PLUS,   /* left alpha */
@@ -31,9 +31,9 @@ static const leg_config_struct leg_config_default =
         LEG_IK_BRANCH_MINUS   /* right beta  */
     },
     {
-        40.0f,
-        100.0f,
-        50.0f,
+        35.0f,
+        120.0f,
+        80.0f,
         40.0f,
         30.0f,
         18.0f,
@@ -49,8 +49,8 @@ static const leg_config_struct leg_config_default =
         220.0f,
         120.0f
     },
-    40.0f,
-    100.0f,
+    35.0f,
+    120.0f,
     30.0f,
     30.0f
 };

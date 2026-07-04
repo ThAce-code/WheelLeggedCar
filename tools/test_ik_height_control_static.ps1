@@ -71,4 +71,8 @@ Assert-Contains "tools/collect_balance_data.ps1" "leg_actual_height_mm" "Collect
 Assert-Contains "tools/collect_balance_data.ps1" "balance_pitch_kp_eff" "Collector must write effective balance gain."
 Assert-Contains "tools/collect_balance_data.ps1" "chassis_forward_limit_eff_rpm" "Collector must write effective chassis limit."
 
+Assert-Contains "project/code/control_leg.c" "control_leg_clamp\(calibrated" "apply_calib must clamp calibrated angle to per-servo limits."
+Assert-Contains "project/code/control_leg.c" "control_leg_mode = LEG_MODE_LOCK;[\s\S]*?control_leg_servo_cmd.angle_deg\[i\] = control_leg_clamp\(servo_cfg->safe_deg" "IK failure must write safe angles immediately."
+Assert-Contains "project/code/control_leg.c" "control_leg_clamp\(servo0_deg, servo_cfg->min_deg" "set_calib_angles must clamp raw LIK input to per-servo limits."
+
 Write-Host "ik height control static checks passed"

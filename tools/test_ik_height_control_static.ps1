@@ -57,7 +57,7 @@ Assert-NotContains "project/code/control_leg.c" "height \+ \(pitch \* servo_cfg-
 
 Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'H' == line\[1\]" "Host command must parse LH."
 Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'I' == line\[1\].*'K' == line\[2\]" "Host command must parse LIK."
-Assert-Contains "project/code/app_scheduler.c" "control_leg_update\(now_ms\).*control_chassis_update\(now_ms\).*control_balance_update\(now_ms\)" "Scheduler must update leg before chassis and balance."
+Assert-Contains "project/code/app_scheduler.c" "control_leg_update\(now_ms\)[\s\S]*control_chassis_update\(now_ms\)[\s\S]*control_balance_update\(now_ms\)" "Scheduler must update leg before chassis and balance."
 
 Assert-Contains "project/code/control_balance.c" "control_leg_get_diag" "Balance must read leg height diagnostics."
 Assert-Contains "project/code/control_balance.c" "balance_pitch_kp_low" "Balance must use height profile low gain."

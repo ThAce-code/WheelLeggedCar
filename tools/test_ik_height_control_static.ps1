@@ -38,8 +38,8 @@ Assert-Contains "project/code/leg_kinematics.c" "y_min_mm" "IK must validate y w
 Assert-Contains "project/code/leg_config.h" "leg_kinematics_config_struct" "Missing kinematics config struct."
 Assert-Contains "project/code/leg_config.h" "leg_height_profile_struct" "Missing height profile struct."
 Assert-Contains "project/code/leg_config.h" "LEG_IK_BRANCH_PLUS" "Missing IK branch enum."
-Assert-Contains "project/code/leg_config.c" "l1_mm" "Missing configured link length L1."
-Assert-Contains "project/code/leg_config.c" "default_height_mm" "Missing default height config."
+Assert-Contains "project/code/leg_config.h" "l1_mm" "Missing configured link length L1."
+Assert-Contains "project/code/leg_config.h" "default_height_mm" "Missing default height config."
 
 Assert-Contains "project/code/app_types.h" "leg_diag_struct" "Missing leg diagnostics."
 Assert-Contains "project/code/app_types.h" "target_height_mm" "Leg diagnostics must expose target height."

@@ -8,10 +8,10 @@
 static const leg_config_struct leg_config_default =
 {
     {
-        {0,  90.0f,  90.0f, 15.0f, 165.0f,  1.0f,  1.0f,  1.0f},
-        {1,  90.0f,  90.0f, 15.0f, 165.0f, -1.0f,  1.0f, -1.0f},
-        {2,  90.0f,  90.0f, 15.0f, 165.0f, -1.0f, -1.0f,  1.0f},
-        {3,  90.0f,  90.0f, 15.0f, 165.0f,  1.0f, -1.0f, -1.0f}
+        {0,  90.0f,  90.0f, 10.0f, 170.0f,  1.0f,  1.0f,  1.0f},
+        {1,  90.0f,  90.0f, 10.0f, 170.0f, -1.0f,  1.0f, -1.0f},
+        {2,  90.0f,  90.0f, 10.0f, 170.0f, -1.0f, -1.0f,  1.0f},
+        {3,  90.0f,  90.0f, 10.0f, 170.0f,  1.0f, -1.0f, -1.0f}
     },
     {
         60.0f,   /* L1 — driven link (measured) */
@@ -27,8 +27,8 @@ static const leg_config_struct leg_config_default =
         0.0f,
         LEG_IK_BRANCH_PLUS,   /* left alpha */
         LEG_IK_BRANCH_MINUS,  /* left beta  */
-        LEG_IK_BRANCH_MINUS,  /* right alpha — mirrored */
-        LEG_IK_BRANCH_PLUS    /* right beta  — mirrored */
+        LEG_IK_BRANCH_PLUS,   /* right alpha */
+        LEG_IK_BRANCH_MINUS   /* right beta  */
     },
     {
         80.0f,

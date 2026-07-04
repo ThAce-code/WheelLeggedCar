@@ -1,4 +1,4 @@
-<^ diagnostic="true">param(
+param(
     [string]$Port = "COM6",
     [int]$Baud = 460800,
     [string]$Out = "",

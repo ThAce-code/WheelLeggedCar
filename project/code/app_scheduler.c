@@ -103,6 +103,11 @@ void app_scheduler_run_pending(void)
         app_safety_update(now_ms);
     }
 
+    if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
+    {
+        control_leg_update(now_ms);
+    }
+
     if(APP_TRUE == app_task_elapsed(now_ms, &chassis_last_ms, APP_CHASSIS_PERIOD_MS))
     {
         control_chassis_update(now_ms);
@@ -121,11 +126,6 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {
         telemetry_update(now_ms);
-    }
-
-    if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
-    {
-        control_leg_update(now_ms);
     }
 
     if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))

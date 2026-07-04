@@ -7,6 +7,7 @@
 #include "actuator_motor.h"
 #include "control_chassis.h"
 #include "control_balance.h"
+#include "control_leg.h"
 #include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
 
@@ -302,6 +303,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float drive_turn_kp;
     float ks;
     float pos_kp;
+    float fourth;
     float period_ms_f;
     uint8 read_index = 0;
     uint8 write_index = 0;
@@ -319,6 +321,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
+        control_leg_set_mode(LEG_MODE_LOCK);
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
         control_chassis_set_fast_enable(APP_FALSE);
         control_chassis_stop(now_ms);
@@ -335,6 +338,26 @@ static void host_command_process_line(char *line, uint32 now_ms)
         lsm6dsv16x_gyro_offset_init();
         actuator_motor_record_command_error(APP_FALSE);
         return;
+    }
+
+    if(('L' == line[0]) && ('H' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_number(&line[3], &value)))
+    {
+        if(APP_TRUE == control_leg_set_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_four_numbers(&line[4], &kp, &ki, &kd, &fourth)))
+    {
+        if(APP_TRUE == control_leg_set_calib_angles(kp, ki, kd, fourth))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
     }
 
     if(('B' == line[0]) && ('Z' == line[1]) && ('\0' == line[2]))

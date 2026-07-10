@@ -13,7 +13,7 @@ Local build-tool check: `IarBuild.exe` was not found at the common IAR 9.40 inst
 | Gate | Build SHA | Height start/end (mm) | Safe-pose measured height (mm) | Max pitch (deg) | Max wheel RPM | IK margin min | IK faults | Safety trips | Result | Notes |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|---|
 | bench/no wheel output | working tree | TBD | ~55 | TBD | TBD | TBD | TBD | TBD | needs rerun | Rebuild after empirical differential height-map update; confirm servo PWM behavior with wheel/motor output disabled. |
-| supported stationary at low/default/high heights | working tree | 45 / 55 / 65 | ~55 | TBD | TBD | TBD | TBD | TBD | needs rerun | Phase 1 `LH` uses measured differential servo mapping: `Y ~= 55 + 0.595 * d`, `d=a0-a1=a3-a2`. |
+| supported stationary at low/default/high heights | working tree | 30 / 55 / 80 | ~55 | TBD | TBD | TBD | TBD | TBD | needs rerun | Validate the extended empirical range one endpoint at a time; `Y ~= 55 + 0.595 * d`, `d=a0-a1=a3-a2`. |
 | LH S-curve re-target (supported) | TBD | 55 -> 65 -> 45 -> 55 | ~55 | TBD | TBD | TBD | TBD | TBD | not run | Run `collect_balance_data.ps1 -Port COM6 -Duration 18 -Commands "0:STOP;2:LH,55;4:LH,65;6:LH,45;12:LH,55" -Out data\phase1_gate1_lh_scurve_retarget.csv -Note phase1_gate1_lh_scurve_retarget`; record pitch/rate, target-versus-output mismatch, fault state, and observed jerk. A 55 mm stationary shake is a hardware/servo-hold investigation. |
 | balance-in-place transition | TBD | 45 -> 65 -> 45 | TBD | TBD | TBD | TBD | TBD | TBD | not run | Confirm `TRANSITION` and `STABLE` telemetry, no leg soft faults, and acceptable pitch. |
 | low-speed straight transition | TBD | 45 -> 65 -> 45 | TBD | TBD | TBD | TBD | TBD | TBD | not run | Confirm 30 RPM transition cap and fast-drive interlock during height motion. |
@@ -24,9 +24,14 @@ Telemetry file: TBD
 ## Fast-height bench comparison only
 
 `LHF,<height_mm>` is the global-height fast profile for response testing. It
-uses the same 45–65 mm empirical map as `LH`, but completes the reference
+uses the same 30–80 mm empirical map as `LH`, but completes the reference
 move in exactly 500 ms with a quintic no-overshoot blend. It does not alter
 roll, balance, chassis drive, or individual left/right leg height.
+
+Only `LHF` raises the software servo slew cap to 180 °/s; normal `LH`, lock,
+calibration, and all other paths retain the 90 °/s cap. This permits a 30→80
+mm reference move to be evaluated without making normal low-speed driving
+more aggressive.
 
 Keep the vehicle supported with wheels stopped, rebuild the affected IAR core,
 then collect one trace:
@@ -40,9 +45,24 @@ powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
 ```
 
 Pass only if `leg_fault_reason` remains zero, `leg_height_ref_mm` stays within
-45–65 mm, each leg-height move reaches its target without reversing past it,
+30–80 mm, each leg-height move reaches its target without reversing past it,
 and no linkage interference, supply sag, or wheel movement occurs. A failed
 bench result blocks any moving-chassis test.
+
+After the two 25 mm endpoint moves pass, run the 50 mm fast-span comparison
+with the vehicle still supported and wheel motors stopped:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
+  -Port COM6 -Duration 7 `
+  -Commands "0:STOP;2:LHF,30;3:LHF,80;5:STOP" `
+  -Out data\phase1_lhf_30_to_80_fast.csv `
+  -Note phase1_lhf_30_to_80_fast
+```
+
+Abort immediately on linkage interference, sustained servo chatter, supply
+sag, or any wheel movement. The CSV only reports PWM commands, so visually
+confirm the physical move completes before judging the result.
 
 ## Direct-step bench comparison only
 

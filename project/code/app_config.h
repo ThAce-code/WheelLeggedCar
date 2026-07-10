@@ -40,6 +40,7 @@
 #define APP_SERVO_MID_DEG               (90.0f)
 #define APP_SERVO_MAX_DEG               (180.0f)
 #define APP_SERVO_MAX_SPEED_DPS         (90.0f)
+#define APP_LEG_FAST_SERVO_MAX_SPEED_DPS (180.0f)
 #define APP_SERVO_MAX_UPDATE_GAP_MS     (20U)
 #define APP_SERVO_PERIOD_MS             (10U)
 #define APP_SERVO_TEST_ENABLE           (0U)

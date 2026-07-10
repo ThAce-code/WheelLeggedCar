@@ -627,6 +627,14 @@ void control_leg_update(uint32 now_ms)
 #endif
     }
 
+    if(LEG_MODE_FAST_HEIGHT == control_leg_mode)
+    {
+        actuator_servo_set_speed_limit(APP_LEG_FAST_SERVO_MAX_SPEED_DPS);
+    }
+    else
+    {
+        actuator_servo_set_speed_limit(APP_SERVO_MAX_SPEED_DPS);
+    }
     actuator_servo_set_cmd(&control_leg_servo_cmd);
     if(LEG_MODE_DIRECT_STEP == control_leg_mode)
     {

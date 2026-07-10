@@ -131,21 +131,31 @@ function Get-FastHeightReference {
 }
 
 function Assert-FastHeightTrajectory {
-    param([double]$DurationMs)
+    param(
+        [double]$StartMm,
+        [double]$TargetMm,
+        [double]$LowMm,
+        [double]$HighMm,
+        [double]$DurationMs
+    )
 
-    $previousMm = 45.0
+    $previousMm = $StartMm
+    $direction = [math]::Sign($TargetMm - $StartMm)
     for($elapsedMs = 0; $elapsedMs -lt $DurationMs; $elapsedMs += 6) {
-        $referenceMm = Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs $elapsedMs -DurationMs $DurationMs
-        if((45.0 -gt $referenceMm) -or (65.0 -lt $referenceMm)) {
+        $referenceMm = Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $elapsedMs -DurationMs $DurationMs
+        if(($LowMm -gt $referenceMm) -or ($HighMm -lt $referenceMm)) {
             throw ("Fast height reference overshot its command interval at {0} ms: {1}." -f $elapsedMs, $referenceMm)
         }
-        if($previousMm -gt ($referenceMm + 0.000001)) {
+        if((0.0 -lt $direction) -and ($previousMm -gt ($referenceMm + 0.000001))) {
+            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        }
+        if((0.0 -gt $direction) -and ($previousMm -lt ($referenceMm - 0.000001))) {
             throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
         }
         $previousMm = $referenceMm
     }
-    Assert-Near -Actual (Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected 45.0 -Tolerance 0.000001 -Message "Fast height start reference"
-    Assert-Near -Actual (Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected 65.0 -Tolerance 0.000001 -Message "Fast height completes at configured duration"
+    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected $StartMm -Tolerance 0.000001 -Message "Fast height start reference"
+    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected $TargetMm -Tolerance 0.000001 -Message "Fast height completes at configured duration"
 }
 
 function Assert-SoftFaultSafeRate {
@@ -219,14 +229,14 @@ function Assert-MotionPolicy {
 function Assert-HeightCommandRange {
     param([hashtable]$Config)
 
-    $lowReject = 44.0
-    $highReject = 66.0
+    $lowReject = 29.0
+    $highReject = 81.0
     $phase1RejectedHigh = 120.0
     if(($lowReject -ge $Config["low_height_mm"]) -and ($lowReject -le $Config["high_height_mm"])) {
-        throw "44 mm command must be outside the empirical Phase 1 height interval."
+        throw "29 mm command must be outside the extended empirical height interval."
     }
     if(($highReject -ge $Config["low_height_mm"]) -and ($highReject -le $Config["high_height_mm"])) {
-        throw "66 mm command must be outside the empirical Phase 1 height interval."
+        throw "81 mm command must be outside the extended empirical height interval."
     }
     if(($phase1RejectedHigh -ge $Config["low_height_mm"]) -and ($phase1RejectedHigh -le $Config["high_height_mm"])) {
         throw "120 mm command must be outside the empirical Phase 1 height interval."
@@ -390,8 +400,8 @@ int main(void)
 }
 
 $config = Get-LegTransitionConfig
-Assert-Equal -Actual $config["low_height_mm"] -Expected 45.0 -Message "Empirical Phase 1 low height"
-Assert-Equal -Actual $config["high_height_mm"] -Expected 65.0 -Message "Empirical Phase 1 high height"
+Assert-Equal -Actual $config["low_height_mm"] -Expected 30.0 -Message "Extended empirical low height"
+Assert-Equal -Actual $config["high_height_mm"] -Expected 80.0 -Message "Extended empirical high height"
 Assert-Equal -Actual $config["default_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 default height"
 Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 20.0 -Message "Fast-response maximum height speed"
 Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Fast-response maximum height acceleration"
@@ -410,7 +420,9 @@ Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*pr
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
 
 Assert-JerkLimitedHeightTrajectory -PositionKpS $config["height_position_kp_s"] -RateKpS $config["height_rate_kp_s"]
-Assert-FastHeightTrajectory -DurationMs $config["fast_height_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 45.0 -TargetMm 65.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 30.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy

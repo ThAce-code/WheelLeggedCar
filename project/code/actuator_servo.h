@@ -11,6 +11,7 @@
 void actuator_servo_init(void);
 void actuator_servo_set_cmd(const servo_cmd_struct *cmd);
 void actuator_servo_set_angle(uint8 index, float angle_deg);
+void actuator_servo_set_speed_limit(float speed_limit_dps);
 void actuator_servo_update(uint32 now_ms);
 void actuator_servo_apply_immediate(void);
 void actuator_servo_enable(void);

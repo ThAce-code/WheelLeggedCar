@@ -9,6 +9,7 @@
 static servo_cmd_struct actuator_servo_cmd;
 static float actuator_servo_current_angle[APP_SERVO_COUNT];
 static uint32 actuator_servo_last_update_ms = 0;
+static float actuator_servo_speed_limit_dps = APP_SERVO_MAX_SPEED_DPS;
 static const pwm_channel_enum actuator_servo_pwm_ch[APP_SERVO_COUNT] =
 {
     APP_SERVO0_PWM_CH,
@@ -77,6 +78,7 @@ void actuator_servo_init(void)
         }
     }
     actuator_servo_last_update_ms = 0;
+    actuator_servo_speed_limit_dps = APP_SERVO_MAX_SPEED_DPS;
 }
 
 void actuator_servo_set_cmd(const servo_cmd_struct *cmd)
@@ -99,6 +101,16 @@ void actuator_servo_set_angle(uint8 index, float angle_deg)
     actuator_servo_cmd.angle_deg[index] = actuator_servo_limit(angle_deg);
 }
 
+void actuator_servo_set_speed_limit(float speed_limit_dps)
+{
+    if((speed_limit_dps != speed_limit_dps) || (0.0f >= speed_limit_dps))
+    {
+        actuator_servo_speed_limit_dps = APP_SERVO_MAX_SPEED_DPS;
+        return;
+    }
+    actuator_servo_speed_limit_dps = speed_limit_dps;
+}
+
 void actuator_servo_update(uint32 now_ms)
 {
     uint8 i;
@@ -111,7 +123,7 @@ void actuator_servo_update(uint32 now_ms)
     {
         elapsed_ms = APP_SERVO_PERIOD_MS;
     }
-    max_step = APP_SERVO_MAX_SPEED_DPS * (float)elapsed_ms / 1000.0f;
+    max_step = actuator_servo_speed_limit_dps * (float)elapsed_ms / 1000.0f;
 
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {

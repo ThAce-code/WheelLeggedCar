@@ -31,8 +31,8 @@ static const leg_config_struct leg_config_default =
         LEG_IK_BRANCH_MINUS   /* right beta  */
     },
     {
-        .low_height_mm = 45.0f,
-        .high_height_mm = 65.0f,
+        .low_height_mm = 30.0f,
+        .high_height_mm = 80.0f,
         .default_height_mm = 55.0f,
         .max_height_speed_mm_s = 20.0f,
         .max_height_accel_mm_s2 = 20.0f,

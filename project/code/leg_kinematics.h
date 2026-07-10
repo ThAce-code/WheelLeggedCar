@@ -14,12 +14,14 @@ typedef struct
     float servo_deg[2];
     float alpha_rad;
     float beta_rad;
+    float singularity_margin;
     uint8 valid;
 }leg_ik_result_struct;
 
 uint8 leg_kinematics_solve(uint8 right_side,
                            float x_mm,
                            float y_mm,
+                           const leg_ik_result_struct *previous,
                            leg_ik_result_struct *result);
 uint8 leg_kinematics_forward(uint8 right_side,
                              float servo_a_deg,

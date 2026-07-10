@@ -30,10 +30,15 @@ function Assert-NotContains {
 
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_solve" "Missing IK solve API."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_forward" "Missing IK forward-check API."
+Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
+Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept a previous solution."
 Assert-Contains "project/code/leg_kinematics.c" "sqrt" "IK implementation must solve five-bar geometry."
 Assert-Contains "project/code/leg_kinematics.c" "LEG_IK_BRANCH_PLUS" "IK implementation must use configured branches."
 Assert-Contains "project/code/leg_kinematics.c" "x_min_mm" "IK must validate x workspace."
 Assert-Contains "project/code/leg_kinematics.c" "y_min_mm" "IK must validate y workspace."
+Assert-Contains "project/code/leg_kinematics.c" "ik_min_margin" "IK must reject candidates below the configured singularity margin."
+Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_wrapped_distance" "IK must select continuous wrapped-angle candidates."
+Assert-Contains "project/code/leg_kinematics.c" "projection" "FK must calculate the circle-intersection projection."
 
 Assert-Contains "project/code/leg_config.h" "leg_kinematics_config_struct" "Missing kinematics config struct."
 Assert-Contains "project/code/leg_config.h" "leg_height_profile_struct" "Missing height profile struct."

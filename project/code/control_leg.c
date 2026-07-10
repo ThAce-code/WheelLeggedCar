@@ -299,8 +299,8 @@ void control_leg_update(uint32 now_ms)
             control_leg_diag.left_y_mm = control_leg_actual_height_mm;
             control_leg_diag.right_y_mm = control_leg_actual_height_mm;
 
-            if((APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_actual_height_mm, &left_ik)) &&
-               (APP_TRUE == leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_actual_height_mm, &right_ik)) &&
+            if((APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_actual_height_mm, NULL, &left_ik)) &&
+               (APP_TRUE == leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_actual_height_mm, NULL, &right_ik)) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FL, left_ik.servo_deg[0], &servo_fl_deg)) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_RL, left_ik.servo_deg[1], &servo_rl_deg)) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FR, right_ik.servo_deg[0], &servo_fr_deg)) &&

@@ -25,6 +25,104 @@ function Assert-Contains {
     }
 }
 
+function Step-HeightSupervisor {
+    param(
+        [double]$ReferenceMm,
+        [double]$RateMmS,
+        [double]$TargetMm,
+        [double]$MaxSpeedMmS,
+        [double]$AccelMmS2,
+        [double]$DtS
+    )
+
+    $errorMm = $TargetMm - $ReferenceMm
+    $desiredRateMmS = [math]::Min([math]::Sqrt(2.0 * $AccelMmS2 * [math]::Abs($errorMm)) - ($AccelMmS2 * $DtS), $MaxSpeedMmS)
+    $desiredRateMmS = [math]::Max(0.0, $desiredRateMmS)
+    if(0.0 -gt $errorMm) {
+        $desiredRateMmS = -$desiredRateMmS
+    }
+    $maxRateDeltaMmS = $AccelMmS2 * $DtS
+    $rateDeltaMmS = $desiredRateMmS - $RateMmS
+    if([math]::Abs($rateDeltaMmS) -le $maxRateDeltaMmS) {
+        $RateMmS = $desiredRateMmS
+    }
+    else {
+        $RateMmS += [math]::Sign($rateDeltaMmS) * $maxRateDeltaMmS
+    }
+    if(0.0001 -ge [math]::Abs($RateMmS)) {
+        $RateMmS = 0.0
+    }
+    $nextReferenceMm = $ReferenceMm + ($RateMmS * $DtS)
+    if(((0.0 -lt $errorMm) -and ($TargetMm -le $nextReferenceMm)) -or
+       ((0.0 -gt $errorMm) -and ($TargetMm -ge $nextReferenceMm))) {
+        $nextReferenceMm = $TargetMm
+        $RateMmS = 0.0
+    }
+    return @($nextReferenceMm, $RateMmS)
+}
+
+function Assert-BoundedHeightTrajectory {
+    param([double[]]$TargetsMm)
+
+    $referenceMm = $TargetsMm[0]
+    $rateMmS = 0.0
+    $targetIndex = 1
+    $state = "STABLE"
+    for($step = 0; $step -lt 5000; $step++) {
+        if(($targetIndex -lt $TargetsMm.Count) -and (0 -lt $step) -and (0 -eq ($step % 800))) {
+            $targetMm = $TargetsMm[$targetIndex]
+            $targetIndex++
+        }
+        elseif(0 -eq $step) {
+            $targetMm = $TargetsMm[0]
+        }
+        $previousRateMmS = $rateMmS
+        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -TargetMm $targetMm -MaxSpeedMmS 20.0 -AccelMmS2 40.0 -DtS 0.01
+        $referenceMm = $result[0]
+        $rateMmS = $result[1]
+        $state = if(([math]::Abs($targetMm - $referenceMm) -le 1.0) -and (0.0 -eq $rateMmS)) { "STABLE" } else { "TRANSITION" }
+        if((20.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
+            throw "Height trajectory exceeded 20 mm/s."
+        }
+        if((0.4 + 0.0001) -lt [math]::Abs($rateMmS - $previousRateMmS)) {
+            throw ("Height trajectory exceeded 40 mm/s2 at 10 ms: step {0}, target {1}, reference {2}, rate {3}, previous {4}." -f $step, $targetMm, $referenceMm, $rateMmS, $previousRateMmS)
+        }
+        if(($state -ne "TRANSITION") -and ($state -ne "STABLE")) {
+            throw "Valid height trajectory entered an invalid state."
+        }
+        if(($targetIndex -ge $TargetsMm.Count) -and ($state -eq "STABLE")) {
+            return
+        }
+    }
+    throw ("Height trajectory did not settle: target {0}, reference {1}, rate {2}." -f $targetMm, $referenceMm, $rateMmS)
+}
+
+function Assert-SoftFaultSafeRate {
+    $angleDeg = 135.0
+    for($step = 0; $step -lt 20; $step++) {
+        $previousAngleDeg = $angleDeg
+        $angleDeg += [math]::Sign(90.0 - $angleDeg) * [math]::Min([math]::Abs(90.0 - $angleDeg), 4.5)
+        if((4.5 + 0.0001) -lt [math]::Abs($angleDeg - $previousAngleDeg)) {
+            throw "Soft-fault safe target exceeded 4.5 degrees per 10 ms."
+        }
+    }
+    Assert-Equal -Actual $angleDeg -Expected 90.0 -Message "Soft fault must approach 90 degree safe target"
+}
+
+function Assert-InsufficientIkMarginFault {
+    $ikMargin = 0.19
+    $minimumMargin = 0.20
+    $motionState = if($ikMargin -lt $minimumMargin) { "FAULT" } else { "TRANSITION" }
+    $driveAllowed = ($motionState -ne "FAULT")
+
+    if($motionState -ne "FAULT") {
+        throw "Insufficient IK margin must enter FAULT."
+    }
+    if($driveAllowed) {
+        throw "Insufficient IK margin fault must deny drive."
+    }
+}
+
 function Get-LegTransitionConfig {
     $text = Get-Content "project/code/leg_config.c" -Raw
     $names = @(
@@ -189,6 +287,12 @@ Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 80.0 -Message "
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
+
+Assert-BoundedHeightTrajectory -TargetsMm @(35.0, 120.0)
+Assert-BoundedHeightTrajectory -TargetsMm @(120.0, 35.0)
+Assert-BoundedHeightTrajectory -TargetsMm @(80.0, 110.0, 50.0)
+Assert-SoftFaultSafeRate
+Assert-InsufficientIkMarginFault
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-kinematics-" + [Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tempPath | Out-Null

@@ -171,3 +171,14 @@ const servo_cmd_struct *actuator_servo_get_cmd(void)
 {
     return &actuator_servo_cmd;
 }
+
+float actuator_servo_get_current_angle(uint8 index)
+{
+    if(APP_SERVO_COUNT <= index)
+    {
+        return APP_SERVO_MID_DEG;
+    }
+
+    /* This is the speed-limited PWM output command, not encoder feedback. */
+    return actuator_servo_current_angle[index];
+}

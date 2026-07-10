@@ -22,6 +22,7 @@ void control_leg_update(uint32 now_ms);
 void control_leg_set_mode(leg_mode_enum mode);
 void control_leg_set_manual_angle(uint8 leg_id, float angle_deg);
 void control_leg_set_body_cmd(float height_cmd, float pitch_cmd, float roll_cmd);
+/* A valid LH command clears only the leg controller's soft fault. */
 uint8 control_leg_set_height(float height_mm, uint32 now_ms);
 uint8 control_leg_set_calib_angles(float servo0_deg,
                                    float servo1_deg,

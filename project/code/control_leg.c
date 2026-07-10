@@ -5,9 +5,11 @@
 
 #include "control_leg.h"
 #include "app_config.h"
+#include "app_safety.h"
 #include "app_state.h"
 #include "actuator_servo.h"
 #include "leg_kinematics.h"
+#include <math.h>
 
 static servo_cmd_struct    control_leg_servo_cmd;
 static leg_mode_enum       control_leg_mode;
@@ -23,8 +25,14 @@ static uint8               control_leg_verify_active = APP_FALSE;
 
 static leg_diag_struct     control_leg_diag;
 static float               control_leg_target_height_mm;
-static float               control_leg_actual_height_mm;
+static float               control_leg_height_ref_mm;
+static float               control_leg_height_rate_mm_s;
+static leg_motion_state_enum control_leg_motion_state;
+static leg_fault_reason_enum  control_leg_fault_reason;
+static uint32              control_leg_settle_start_ms;
 static uint32              control_leg_last_update_ms;
+static leg_ik_result_struct control_leg_left_ik;
+static leg_ik_result_struct control_leg_right_ik;
 
 static float control_leg_clamp(float value, float min_val, float max_val)
 {
@@ -110,11 +118,14 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 
     profile = leg_config_get_height_profile();
     control_leg_diag.target_height_mm = control_leg_target_height_mm;
-    control_leg_diag.actual_height_mm = control_leg_actual_height_mm;
+    /* This is an open-loop command estimate; this PWM-only platform has no height feedback. */
+    control_leg_diag.actual_height_mm = control_leg_height_ref_mm;
+    control_leg_diag.height_ref_mm = control_leg_height_ref_mm;
+    control_leg_diag.height_rate_mm_s = control_leg_height_rate_mm_s;
     if(profile->high_height_mm > profile->low_height_mm)
     {
         control_leg_diag.height_norm =
-            (control_leg_actual_height_mm - profile->low_height_mm) /
+            (control_leg_height_ref_mm - profile->low_height_mm) /
             (profile->high_height_mm - profile->low_height_mm);
     }
     else
@@ -125,10 +136,21 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     control_leg_diag.mode = (uint8)control_leg_mode;
     control_leg_diag.ik_valid = ik_valid;
     control_leg_diag.output_enable = output_enable;
+    control_leg_diag.motion_state = control_leg_motion_state;
+    control_leg_diag.fault_reason = control_leg_fault_reason;
+    if(LEG_MOTION_FAULT == control_leg_motion_state)
+    {
+        control_leg_diag.drive_allowed = APP_FALSE;
+    }
+    else
+    {
+        control_leg_diag.drive_allowed =
+            ((APP_TRUE == ik_valid) && (APP_TRUE == output_enable)) ? APP_TRUE : APP_FALSE;
+    }
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         control_leg_diag.servo_target_deg[i] = control_leg_servo_cmd.angle_deg[i];
-        control_leg_diag.servo_actual_deg[i] = control_leg_servo_cmd.angle_deg[i];
+        control_leg_diag.servo_actual_deg[i] = actuator_servo_get_current_angle(i);
     }
 }
 
@@ -165,6 +187,10 @@ static uint8 control_leg_run_enabled(void)
 {
     app_run_state_enum state;
 
+    if(APP_TRUE == app_safety_is_fault())
+    {
+        return APP_FALSE;
+    }
     state = app_state_get();
     return ((APP_STATE_STANDBY == state) || (APP_STATE_RUN == state)) ? APP_TRUE : APP_FALSE;
 }
@@ -181,6 +207,20 @@ static void control_leg_write_safe_angles(const leg_config_struct *config)
                                                                servo_cfg->min_deg,
                                                                servo_cfg->max_deg);
     }
+}
+
+static void control_leg_enter_fault(leg_fault_reason_enum reason)
+{
+    const leg_config_struct *config;
+
+    config = leg_config_get();
+    control_leg_motion_state = LEG_MOTION_FAULT;
+    control_leg_fault_reason = reason;
+    control_leg_height_rate_mm_s = 0.0f;
+    control_leg_settle_start_ms = 0U;
+    control_leg_diag.ik_error_count++;
+    /* Keep PWM enabled when the application is otherwise runnable; actuator_servo limits this move. */
+    control_leg_write_safe_angles(config);
 }
 
 void control_leg_init(void)
@@ -205,13 +245,19 @@ void control_leg_init(void)
         const leg_height_profile_struct *profile;
         profile = leg_config_get_height_profile();
         control_leg_target_height_mm = profile->default_height_mm;
-        control_leg_actual_height_mm = profile->default_height_mm;
+        control_leg_height_ref_mm = profile->default_height_mm;
+        control_leg_height_rate_mm_s = 0.0f;
+        control_leg_motion_state = LEG_MOTION_LOCKED;
+        control_leg_fault_reason = LEG_FAULT_NONE;
+        control_leg_settle_start_ms = 0U;
         control_leg_last_update_ms = 0U;
         control_leg_diag.ik_error_count = 0U;
         control_leg_diag.left_x_mm = 0.0f;
         control_leg_diag.right_x_mm = 0.0f;
-        control_leg_diag.left_y_mm = control_leg_actual_height_mm;
-        control_leg_diag.right_y_mm = control_leg_actual_height_mm;
+        control_leg_diag.left_y_mm = control_leg_height_ref_mm;
+        control_leg_diag.right_y_mm = control_leg_height_ref_mm;
+        control_leg_left_ik.valid = APP_FALSE;
+        control_leg_right_ik.valid = APP_FALSE;
     }
 
     control_leg_publish_diag(APP_FALSE, APP_FALSE);
@@ -264,17 +310,26 @@ void control_leg_update(uint32 now_ms)
 
         case LEG_MODE_HEIGHT:
         {
-            leg_ik_result_struct left_ik;
-            leg_ik_result_struct right_ik;
+            leg_ik_result_struct left_ik = {0};
+            leg_ik_result_struct right_ik = {0};
             const leg_height_profile_struct *profile;
             float servo_fl_deg;
             float servo_fr_deg;
             float servo_rl_deg;
             float servo_rr_deg;
-            float max_delta;
+            float error_mm;
+            float brake_rate_mm_s;
+            float desired_rate_mm_s;
             float dt_s;
             uint32 dt_ms;
             uint8 output_enable;
+
+            if(LEG_MOTION_FAULT == control_leg_motion_state)
+            {
+                control_leg_write_safe_angles(config);
+                control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                break;
+            }
 
             dt_ms = now_ms - control_leg_last_update_ms;
             if(0U == dt_ms)
@@ -288,19 +343,41 @@ void control_leg_update(uint32 now_ms)
             control_leg_last_update_ms = now_ms;
 
             profile = leg_config_get_height_profile();
-            max_delta = profile->max_height_speed_mm_s * dt_s;
-            control_leg_actual_height_mm =
-                control_leg_ramp_toward(control_leg_actual_height_mm,
-                                        control_leg_target_height_mm,
-                                        max_delta);
+            error_mm = control_leg_target_height_mm - control_leg_height_ref_mm;
+            brake_rate_mm_s = sqrtf(2.0f * profile->max_height_accel_mm_s2 * control_leg_absf(error_mm));
+            /* Reserve one sample of deceleration so target clamping never creates a rate step. */
+            desired_rate_mm_s = control_leg_clamp(brake_rate_mm_s - (profile->max_height_accel_mm_s2 * dt_s),
+                                                   0.0f,
+                                                   profile->max_height_speed_mm_s);
+            if(0.0f > error_mm)
+            {
+                desired_rate_mm_s = -desired_rate_mm_s;
+            }
+            control_leg_height_rate_mm_s =
+                control_leg_ramp_toward(control_leg_height_rate_mm_s,
+                                        desired_rate_mm_s,
+                                        profile->max_height_accel_mm_s2 * dt_s);
+            if(0.0001f >= control_leg_absf(control_leg_height_rate_mm_s))
+            {
+                control_leg_height_rate_mm_s = 0.0f;
+            }
+            control_leg_height_ref_mm += control_leg_height_rate_mm_s * dt_s;
+            if(((0.0f < error_mm) && (control_leg_height_ref_mm >= control_leg_target_height_mm)) ||
+               ((0.0f > error_mm) && (control_leg_height_ref_mm <= control_leg_target_height_mm)))
+            {
+                control_leg_height_ref_mm = control_leg_target_height_mm;
+                control_leg_height_rate_mm_s = 0.0f;
+            }
 
             control_leg_diag.left_x_mm = 0.0f;
             control_leg_diag.right_x_mm = 0.0f;
-            control_leg_diag.left_y_mm = control_leg_actual_height_mm;
-            control_leg_diag.right_y_mm = control_leg_actual_height_mm;
+            control_leg_diag.left_y_mm = control_leg_height_ref_mm;
+            control_leg_diag.right_y_mm = control_leg_height_ref_mm;
 
-            if((APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_actual_height_mm, NULL, &left_ik)) &&
-               (APP_TRUE == leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_actual_height_mm, NULL, &right_ik)) &&
+            if((APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_height_ref_mm, &control_leg_left_ik, &left_ik)) &&
+               (APP_TRUE == leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_height_ref_mm, &control_leg_right_ik, &right_ik)) &&
+               (profile->ik_min_margin <= left_ik.singularity_margin) &&
+               (profile->ik_min_margin <= right_ik.singularity_margin) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FL, left_ik.servo_deg[0], &servo_fl_deg)) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_RL, left_ik.servo_deg[1], &servo_rl_deg)) &&
                (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FR, right_ik.servo_deg[0], &servo_fr_deg)) &&
@@ -310,16 +387,51 @@ void control_leg_update(uint32 now_ms)
                 control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_rl_deg;
                 control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_fr_deg;
                 control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_rr_deg;
+                control_leg_left_ik = left_ik;
+                control_leg_right_ik = right_ik;
+                control_leg_diag.ik_margin = (left_ik.singularity_margin < right_ik.singularity_margin) ?
+                                             left_ik.singularity_margin : right_ik.singularity_margin;
+                if((profile->height_settle_error_mm >=
+                    control_leg_absf(control_leg_target_height_mm - control_leg_height_ref_mm)) &&
+                   (0.0f == control_leg_height_rate_mm_s))
+                {
+                    if(LEG_MOTION_TRANSITION != control_leg_motion_state)
+                    {
+                        control_leg_settle_start_ms = now_ms;
+                        control_leg_motion_state = LEG_MOTION_TRANSITION;
+                    }
+                    if((now_ms - control_leg_settle_start_ms) >= profile->height_settle_ms)
+                    {
+                        control_leg_motion_state = LEG_MOTION_STABLE;
+                    }
+                }
+                else
+                {
+                    control_leg_settle_start_ms = now_ms;
+                    control_leg_motion_state = LEG_MOTION_TRANSITION;
+                }
                 output_enable = control_leg_run_enabled();
                 control_leg_publish_diag(APP_TRUE, output_enable);
             }
             else
             {
-                control_leg_diag.ik_error_count++;
-                control_leg_mode = LEG_MODE_LOCK;
-                control_leg_write_safe_angles(config);
-                output_enable = APP_FALSE;
-                control_leg_publish_diag(APP_FALSE, output_enable);
+                if((APP_TRUE == left_ik.valid) && (APP_TRUE == right_ik.valid))
+                {
+                    if((profile->ik_min_margin > left_ik.singularity_margin) ||
+                       (profile->ik_min_margin > right_ik.singularity_margin))
+                    {
+                        control_leg_enter_fault(LEG_FAULT_IK_MARGIN);
+                    }
+                    else
+                    {
+                        control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
+                    }
+                }
+                else
+                {
+                    control_leg_enter_fault(LEG_FAULT_IK_INVALID);
+                }
+                control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
             }
             break;
         }
@@ -330,6 +442,12 @@ void control_leg_update(uint32 now_ms)
         case LEG_MODE_LOCK:
         default:
             control_leg_write_safe_angles(config);
+            if(LEG_MOTION_FAULT != control_leg_motion_state)
+            {
+                control_leg_motion_state = LEG_MOTION_LOCKED;
+                control_leg_fault_reason = LEG_FAULT_NONE;
+            }
+            control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
             break;
     }
 
@@ -372,6 +490,11 @@ void control_leg_set_mode(leg_mode_enum mode)
         return;
     }
     control_leg_mode = mode;
+    if((LEG_MODE_LOCK == mode) && (LEG_MOTION_FAULT != control_leg_motion_state))
+    {
+        control_leg_motion_state = LEG_MOTION_LOCKED;
+        control_leg_fault_reason = LEG_FAULT_NONE;
+    }
 }
 
 void control_leg_set_manual_angle(uint8 leg_id, float angle_deg)
@@ -418,7 +541,6 @@ uint8 control_leg_set_height(float height_mm, uint32 now_ms)
 {
     const leg_height_profile_struct *profile;
 
-    (void)now_ms;
     profile = leg_config_get_height_profile();
     if((APP_FALSE == control_leg_is_finite(height_mm)) ||
        (profile->low_height_mm > height_mm) ||
@@ -427,6 +549,14 @@ uint8 control_leg_set_height(float height_mm, uint32 now_ms)
         return APP_FALSE;
     }
 
+    if(LEG_MOTION_FAULT == control_leg_motion_state)
+    {
+        control_leg_height_ref_mm = profile->safe_support_height_mm;
+        control_leg_height_rate_mm_s = 0.0f;
+        control_leg_fault_reason = LEG_FAULT_NONE;
+        control_leg_motion_state = LEG_MOTION_TRANSITION;
+        control_leg_settle_start_ms = now_ms;
+    }
     control_leg_target_height_mm = height_mm;
     control_leg_mode = LEG_MODE_HEIGHT;
     return APP_TRUE;

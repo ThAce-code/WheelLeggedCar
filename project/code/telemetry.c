@@ -22,8 +22,9 @@ void telemetry_update(uint32 now_ms)
     const motor_rpm_loop_diag_struct *rpm_diag;
 #if APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
+    const leg_diag_struct *leg;
     const imu_state_struct *imu;
-    float vofa_data[58];
+    float vofa_data[65];
 #else
     float vofa_data[8];
 #endif
@@ -33,6 +34,7 @@ void telemetry_update(uint32 now_ms)
 
 #if APP_TELEMETRY_BALANCE_ENABLE
     balance = control_balance_get_diag();
+    leg = control_leg_get_diag();
     imu = sensor_imu_get_state();
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)balance->mode;
@@ -72,9 +74,6 @@ void telemetry_update(uint32 now_ms)
     vofa_data[35] = balance->speed_term_rpm;
     vofa_data[36] = balance->pos_term_rpm;
     vofa_data[37] = balance->ff_term_rpm;
-    const leg_diag_struct *leg;
-    leg = control_leg_get_diag();
-
     vofa_data[38] = (float)leg->mode;
     vofa_data[39] = leg->target_height_mm;
     vofa_data[40] = leg->actual_height_mm;
@@ -85,16 +84,23 @@ void telemetry_update(uint32 now_ms)
     vofa_data[45] = leg->right_y_mm;
     vofa_data[46] = (float)leg->ik_valid;
     vofa_data[47] = (float)leg->output_enable;
-    vofa_data[48] = leg->servo_target_deg[0];
-    vofa_data[49] = leg->servo_target_deg[1];
-    vofa_data[50] = leg->servo_target_deg[2];
-    vofa_data[51] = leg->servo_target_deg[3];
+    vofa_data[48] = leg->servo_actual_deg[0];
+    vofa_data[49] = leg->servo_actual_deg[1];
+    vofa_data[50] = leg->servo_actual_deg[2];
+    vofa_data[51] = leg->servo_actual_deg[3];
     vofa_data[52] = balance->balance_pitch_kp_eff;
     vofa_data[53] = balance->balance_pitch_rate_kd_eff;
     vofa_data[54] = balance->balance_wheel_speed_ks_eff;
     vofa_data[55] = balance->balance_pitch_setpoint_base_eff_deg;
     vofa_data[56] = balance->chassis_forward_limit_eff_rpm;
     vofa_data[57] = balance->chassis_fast_forward_limit_eff_rpm;
+    vofa_data[58] = leg->height_ref_mm;
+    vofa_data[59] = leg->height_rate_mm_s;
+    vofa_data[60] = leg->ik_margin;
+    vofa_data[61] = leg->drive_forward_limit_rpm;
+    vofa_data[62] = (float)leg->motion_state;
+    vofa_data[63] = (float)leg->fault_reason;
+    vofa_data[64] = (float)leg->drive_allowed;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

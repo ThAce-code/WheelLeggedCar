@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 # ── VOFA frame constants (must match firmware telemetry) ──
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 58
+$FloatCount = 65
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
 
@@ -50,14 +50,21 @@ function Pop-Frame {
     return @{
         leg_mode             = $values[38]
         leg_target_height_mm = $values[39]
-        leg_actual_height_mm = $values[40]
+        leg_height_cmd_est_mm = $values[40]
         leg_height_norm      = $values[41]
         leg_ik_valid         = $values[46]
         leg_output_enable    = $values[47]
-        servo0_target_deg    = $values[48]
-        servo1_target_deg    = $values[49]
-        servo2_target_deg    = $values[50]
-        servo3_target_deg    = $values[51]
+        servo0_output_deg    = $values[48]
+        servo1_output_deg    = $values[49]
+        servo2_output_deg    = $values[50]
+        servo3_output_deg    = $values[51]
+        leg_height_ref_mm    = $values[58]
+        leg_height_rate_mm_s = $values[59]
+        ik_margin            = $values[60]
+        drive_forward_limit_rpm = $values[61]
+        motion_state         = $values[62]
+        fault_reason         = $values[63]
+        drive_allowed        = $values[64]
     }
 }
 
@@ -114,10 +121,10 @@ function Test-FrameMatchesCommand {
     if($null -eq $Frame) {
         return $false
     }
-    if(([double]$Frame.servo0_target_deg) -ne $A0) { return $false }
-    if(([double]$Frame.servo1_target_deg) -ne $A1) { return $false }
-    if(([double]$Frame.servo2_target_deg) -ne $A2) { return $false }
-    if(([double]$Frame.servo3_target_deg) -ne $A3) { return $false }
+    if(([double]$Frame.servo0_output_deg) -ne $A0) { return $false }
+    if(([double]$Frame.servo1_output_deg) -ne $A1) { return $false }
+    if(([double]$Frame.servo2_output_deg) -ne $A2) { return $false }
+    if(([double]$Frame.servo3_output_deg) -ne $A3) { return $false }
     return $true
 }
 
@@ -213,8 +220,10 @@ $rxBuf = New-Object System.Collections.Generic.List[byte]
 
 # ── CSV header ──
 $csvFields = "sample_id","label","cmd_a0_deg","cmd_a1_deg","cmd_a2_deg","cmd_a3_deg",
-             "servo0_deg","servo1_deg","servo2_deg","servo3_deg",
-             "ik_valid","leg_mode","measured_x_mm","measured_y_mm","note"
+             "servo0_output_deg","servo1_output_deg","servo2_output_deg","servo3_output_deg",
+             "ik_valid","leg_mode","leg_height_ref_mm","leg_height_rate_mm_s","ik_margin",
+             "drive_forward_limit_rpm","motion_state","fault_reason","drive_allowed",
+             "measured_x_mm","measured_y_mm","note"
 $writer = [System.IO.StreamWriter]::new($outPath, $false, [System.Text.Encoding]::UTF8)
 $writer.WriteLine(($csvFields -join ","))
 
@@ -256,10 +265,10 @@ try {
             Write-Host "    [SKIP] Command was not confirmed by telemetry; not recording this point.`n"
             continue
         } else {
-            $s0    = "{0:F1}" -f $frame.servo0_target_deg
-            $s1    = "{0:F1}" -f $frame.servo1_target_deg
-            $s2    = "{0:F1}" -f $frame.servo2_target_deg
-            $s3    = "{0:F1}" -f $frame.servo3_target_deg
+            $s0    = "{0:F1}" -f $frame.servo0_output_deg
+            $s1    = "{0:F1}" -f $frame.servo1_output_deg
+            $s2    = "{0:F1}" -f $frame.servo2_output_deg
+            $s3    = "{0:F1}" -f $frame.servo3_output_deg
             $ikv   = "{0:F0}" -f $frame.leg_ik_valid
             $lmode = "{0:F0}" -f $frame.leg_mode
             Write-Host ("    telemetry: servo=({0}, {1}, {2}, {3})  ik_valid={4}  leg_mode={5}" -f $s0, $s1, $s2, $s3, $ikv, $lmode)
@@ -285,6 +294,13 @@ try {
             $a0, $a1, $a2, $a3,
             $s0, $s1, $s2, $s3,
             $ikv, $lmode,
+            ("{0:F3}" -f $frame.leg_height_ref_mm),
+            ("{0:F6}" -f $frame.leg_height_rate_mm_s),
+            ("{0:F6}" -f $frame.ik_margin),
+            ("{0:F3}" -f $frame.drive_forward_limit_rpm),
+            ("{0:F0}" -f $frame.motion_state),
+            ("{0:F0}" -f $frame.fault_reason),
+            ("{0:F0}" -f $frame.drive_allowed),
             $mx, $my,
             ('"' + $note.Replace('"', '""') + '"')
         ) -join ","

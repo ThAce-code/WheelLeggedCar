@@ -33,8 +33,9 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
+Assert-True (($Fields.Split(",").Count -eq 70)) "CSV header must contain metadata, 65 telemetry fields, and note"
 
-$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0, 0.25, 12.0, 9.0, 1.5, 2.4, -8.0, 3.0, 20.0, 0.0, 1.5, 3.0, 100.0, 95.0, 0.3, 0.0, 95.0, 0.0, 95.0, 1.0, 1.0, 88.0, 92.0, 89.0, 91.0, 19.2, 8.4, 2.7, -1.35, 64.0, 190.0)
+$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0, 0.25, 12.0, 9.0, 1.5, 2.4, -8.0, 3.0, 20.0, 0.0, 1.5, 3.0, 100.0, 95.0, 0.3, 0.0, 95.0, 0.0, 95.0, 1.0, 1.0, 88.0, 92.0, 89.0, 91.0, 19.2, 8.4, 2.7, -1.35, 64.0, 190.0, 96.5, 4.0, 0.42, 30.0, 2.0, 1.0, 1.0)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -88,14 +89,24 @@ Assert-Near $frames[0].pos_term_rpm 0.0 0.001 "pos_term_rpm"
 Assert-Near $frames[0].ff_term_rpm 1.5 0.001 "ff_term_rpm"
 Assert-Near $frames[0].leg_mode 3.0 0.001 "leg_mode"
 Assert-Near $frames[0].leg_target_height_mm 100.0 0.001 "leg_target_height_mm"
-Assert-Near $frames[0].leg_actual_height_mm 95.0 0.001 "leg_actual_height_mm"
+Assert-Near $frames[0].leg_height_cmd_est_mm 95.0 0.001 "leg_height_cmd_est_mm"
 Assert-Near $frames[0].leg_height_norm 0.3 0.001 "leg_height_norm"
 Assert-Near $frames[0].leg_ik_valid 1.0 0.001 "leg_ik_valid"
 Assert-Near $frames[0].leg_output_enable 1.0 0.001 "leg_output_enable"
-Assert-Near $frames[0].leg_servo0_target_deg 88.0 0.001 "leg_servo0_target_deg"
+Assert-Near $frames[0].servo0_output_deg 88.0 0.001 "servo0_output_deg"
 Assert-Near $frames[0].balance_pitch_kp_eff 19.2 0.001 "balance_pitch_kp_eff"
 Assert-Near $frames[0].chassis_forward_limit_eff_rpm 64.0 0.001 "chassis_forward_limit_eff_rpm"
 Assert-Near $frames[0].chassis_fast_forward_limit_eff_rpm 190.0 0.001 "chassis_fast_forward_limit_eff_rpm"
+Assert-Near $frames[0].leg_height_ref_mm 96.5 0.001 "leg_height_ref_mm"
+Assert-Near $frames[0].leg_height_rate_mm_s 4.0 0.001 "leg_height_rate_mm_s"
+Assert-Near $frames[0].leg_ik_margin 0.42 0.001 "leg_ik_margin"
+Assert-Near $frames[0].leg_drive_forward_limit_rpm 30.0 0.001 "leg_drive_forward_limit_rpm"
+Assert-Near $frames[0].leg_motion_state 2.0 0.001 "leg_motion_state"
+Assert-Near $frames[0].leg_fault_reason 1.0 0.001 "leg_fault_reason"
+Assert-Near $frames[0].leg_drive_allowed 1.0 0.001 "leg_drive_allowed"
+Assert-True ($Fields -match "leg_height_ref_mm") "CSV header must include leg_height_ref_mm"
+Assert-True ($Fields -match "servo0_output_deg") "CSV header must include servo output labels"
+Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

@@ -115,6 +115,7 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 {
     uint8 i;
     const leg_height_profile_struct *profile;
+    float configured_forward_limit_rpm;
 
     profile = leg_config_get_height_profile();
     control_leg_diag.target_height_mm = control_leg_target_height_mm;
@@ -138,14 +139,31 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     control_leg_diag.output_enable = output_enable;
     control_leg_diag.motion_state = control_leg_motion_state;
     control_leg_diag.fault_reason = control_leg_fault_reason;
+    configured_forward_limit_rpm =
+        profile->chassis_forward_limit_low_rpm +
+        ((profile->chassis_forward_limit_high_rpm - profile->chassis_forward_limit_low_rpm) *
+         control_leg_diag.height_norm);
     if(LEG_MOTION_FAULT == control_leg_motion_state)
     {
         control_leg_diag.drive_allowed = APP_FALSE;
+        control_leg_diag.drive_forward_limit_rpm = 0.0f;
     }
     else
     {
         control_leg_diag.drive_allowed =
             ((APP_TRUE == ik_valid) && (APP_TRUE == output_enable)) ? APP_TRUE : APP_FALSE;
+        if(APP_FALSE == control_leg_diag.drive_allowed)
+        {
+            control_leg_diag.drive_forward_limit_rpm = 0.0f;
+        }
+        else if(LEG_MOTION_TRANSITION == control_leg_motion_state)
+        {
+            control_leg_diag.drive_forward_limit_rpm = profile->transition_forward_limit_rpm;
+        }
+        else
+        {
+            control_leg_diag.drive_forward_limit_rpm = configured_forward_limit_rpm;
+        }
     }
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {

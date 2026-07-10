@@ -77,15 +77,15 @@ function Assert-BoundedHeightTrajectory {
             $targetMm = $TargetsMm[0]
         }
         $previousRateMmS = $rateMmS
-        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -TargetMm $targetMm -MaxSpeedMmS 20.0 -AccelMmS2 40.0 -DtS 0.01
+        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -TargetMm $targetMm -MaxSpeedMmS 10.0 -AccelMmS2 20.0 -DtS 0.01
         $referenceMm = $result[0]
         $rateMmS = $result[1]
         $state = if(([math]::Abs($targetMm - $referenceMm) -le 1.0) -and (0.0 -eq $rateMmS)) { "STABLE" } else { "TRANSITION" }
-        if((20.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
-            throw "Height trajectory exceeded 20 mm/s."
+        if((10.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
+            throw "Height trajectory exceeded 10 mm/s."
         }
-        if((0.4 + 0.0001) -lt [math]::Abs($rateMmS - $previousRateMmS)) {
-            throw ("Height trajectory exceeded 40 mm/s2 at 10 ms: step {0}, target {1}, reference {2}, rate {3}, previous {4}." -f $step, $targetMm, $referenceMm, $rateMmS, $previousRateMmS)
+        if((0.2 + 0.0001) -lt [math]::Abs($rateMmS - $previousRateMmS)) {
+            throw ("Height trajectory exceeded 20 mm/s2 at 10 ms: step {0}, target {1}, reference {2}, rate {3}, previous {4}." -f $step, $targetMm, $referenceMm, $rateMmS, $previousRateMmS)
         }
         if(($state -ne "TRANSITION") -and ($state -ne "STABLE")) {
             throw "Valid height trajectory entered an invalid state."
@@ -332,12 +332,12 @@ int main(void)
 $config = Get-LegTransitionConfig
 Assert-Equal -Actual $config["low_height_mm"] -Expected 35.0 -Message "Low calibrated height"
 Assert-Equal -Actual $config["high_height_mm"] -Expected 120.0 -Message "High calibrated height"
-Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 20.0 -Message "Maximum height speed"
-Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 40.0 -Message "Maximum height acceleration"
+Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 10.0 -Message "Maximum height speed"
+Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Maximum height acceleration"
 Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
 Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
-Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 80.0 -Message "Provisional safe support height"
+Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 55.0 -Message "Measured safe support height"
 Assert-HeightCommandRange -Config $config
 
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."

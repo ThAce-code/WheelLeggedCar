@@ -52,6 +52,10 @@ Assert-Contains "project/code/leg_config.h" "height_settle_error_mm" "Missing he
 Assert-Contains "project/code/leg_config.h" "height_settle_ms" "Missing height settle time config."
 Assert-Contains "project/code/leg_config.h" "ik_min_margin" "Missing IK margin config."
 Assert-Contains "project/code/leg_config.h" "safe_support_height_mm" "Missing safe support height config."
+Assert-Contains "project/code/leg_config.c" "max_height_speed_mm_s = 10\.0f" "Height transition speed must be slowed for board validation."
+Assert-Contains "project/code/leg_config.c" "max_height_accel_mm_s2 = 20\.0f" "Height transition acceleration must be slowed for board validation."
+Assert-Contains "project/code/leg_config.c" "safe_support_height_mm = 55\.0f" "Safe support height must match measured 90 degree wheel-center height."
+Assert-Contains "project/code/app_config.h" "APP_SERVO_MAX_SPEED_DPS\s+\(180\.0f\)" "Servo PWM output slew limit must be below the 7.4V no-load servo speed."
 
 Assert-Contains "project/code/app_types.h" "leg_diag_struct" "Missing leg diagnostics."
 Assert-Contains "project/code/app_types.h" "LEG_MOTION_LOCKED" "Missing leg locked motion state."
@@ -94,6 +98,7 @@ Assert-Contains "project/code/control_leg.c" "control_leg_enter_fault" "IK failu
 Assert-Contains "project/code/control_leg.c" "LEG_MOTION_FAULT" "Soft fault must be externally observable."
 Assert-Contains "project/code/control_leg.c" "LEG_FAULT_IK_MARGIN" "Insufficient IK margin must select the margin fault reason."
 Assert-Contains "project/code/control_leg.c" "control_leg_write_safe_angles\(config\)" "Soft fault must command verified safe servo angles."
+Assert-Contains "project/code/control_leg.c" "control_leg_height_ref_mm = profile->safe_support_height_mm;[\s\S]*control_leg_height_rate_mm_s = 0\.0f;[\s\S]*control_leg_write_safe_angles\(config\)" "LOCK mode diagnostics must return the open-loop height reference to the measured safe support height."
 Assert-Contains "project/code/control_leg.c" "drive_allowed = APP_FALSE" "Soft fault must deny drive."
 Assert-Contains "project/code/control_leg.c" "app_safety_is_fault" "Global app safety must remain higher priority than the soft fault."
 Assert-Contains "project/code/control_leg.c" "open-loop command estimate" "Height diagnostics must document that actual height is an open-loop estimate."

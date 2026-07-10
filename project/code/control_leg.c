@@ -471,11 +471,19 @@ void control_leg_update(uint32 now_ms)
 
             case LEG_MODE_LOCK:
             default:
+            {
+                const leg_height_profile_struct *profile;
+
+                profile = leg_config_get_height_profile();
+                control_leg_target_height_mm = profile->safe_support_height_mm;
+                control_leg_height_ref_mm = profile->safe_support_height_mm;
+                control_leg_height_rate_mm_s = 0.0f;
                 control_leg_write_safe_angles(config);
                 control_leg_motion_state = LEG_MOTION_LOCKED;
                 control_leg_fault_reason = LEG_FAULT_NONE;
                 control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
                 break;
+            }
         }
     }
 

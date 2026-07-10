@@ -96,23 +96,28 @@ function Read-LatestFrame {
     return $latest
 }
 
+function ConvertTo-LikAngle {
+    param([double]$Angle)
+
+    return [int][math]::Round($Angle, 0, [System.MidpointRounding]::ToEven)
+}
+
 function Test-FrameMatchesCommand {
     param(
         [hashtable]$Frame,
         [double]$A0,
         [double]$A1,
         [double]$A2,
-        [double]$A3,
-        [double]$ToleranceDeg = 0.6
+        [double]$A3
     )
 
     if($null -eq $Frame) {
         return $false
     }
-    if([math]::Abs(([double]$Frame.servo0_target_deg) - $A0) -gt $ToleranceDeg) { return $false }
-    if([math]::Abs(([double]$Frame.servo1_target_deg) - $A1) -gt $ToleranceDeg) { return $false }
-    if([math]::Abs(([double]$Frame.servo2_target_deg) - $A2) -gt $ToleranceDeg) { return $false }
-    if([math]::Abs(([double]$Frame.servo3_target_deg) - $A3) -gt $ToleranceDeg) { return $false }
+    if(([double]$Frame.servo0_target_deg) -ne $A0) { return $false }
+    if(([double]$Frame.servo1_target_deg) -ne $A1) { return $false }
+    if(([double]$Frame.servo2_target_deg) -ne $A2) { return $false }
+    if(([double]$Frame.servo3_target_deg) -ne $A3) { return $false }
     return $true
 }
 
@@ -226,18 +231,18 @@ try {
     $sampleId = 0
 
     foreach($pt in $points) {
-        $a0 = $pt.A0; $a1 = $pt.A1; $a2 = $pt.A2; $a3 = $pt.A3
+        $a0 = ConvertTo-LikAngle -Angle $pt.A0; $a1 = ConvertTo-LikAngle -Angle $pt.A1; $a2 = ConvertTo-LikAngle -Angle $pt.A2; $a3 = ConvertTo-LikAngle -Angle $pt.A3
         $label = $pt.Label
+        $cmd = "LIK,{0},{1},{2},{3}" -f $a0, $a1, $a2, $a3
 
         Write-Host ("── Sample {0} / {1}  [{2}] ──" -f ($sampleId + 1), $points.Count, $label)
-        Write-Host ("    LIK,{0:F0},{1:F0},{2:F0},{3:F0}" -f $a0, $a1, $a2, $a3)
+        Write-Host ("    {0}" -f $cmd)
 
         # Send STOP first to clear state, then LIK
         $serial.WriteLine("STOP")
         Start-Sleep -Milliseconds 100
         $rxBuf.Clear()
 
-        $cmd = "LIK,{0:F0},{1:F0},{2:F0},{3:F0}" -f $a0, $a1, $a2, $a3
         $serial.WriteLine($cmd)
 
         # Wait until telemetry confirms this LIK command is active.
@@ -277,7 +282,7 @@ try {
         # Write CSV row
         $row = @(
             $sampleId, $label,
-            ("{0:F1}" -f $a0), ("{0:F1}" -f $a1), ("{0:F1}" -f $a2), ("{0:F1}" -f $a3),
+            $a0, $a1, $a2, $a3,
             $s0, $s1, $s2, $s3,
             $ikv, $lmode,
             $mx, $my,

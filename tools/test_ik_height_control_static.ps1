@@ -78,4 +78,15 @@ Assert-Contains "project/code/control_leg.c" "APP_FALSE == control_leg_servo_ang
 Assert-Contains "project/code/control_leg.c" "return APP_FALSE;[\s\S]*control_leg_set_manual_angle\(0U, servo0_deg\)" "set_calib_angles must validate all LIK inputs before writing any servo command."
 Assert-Contains "project/code/control_leg.c" "control_leg_mode = LEG_MODE_LOCK;[\s\S]*?control_leg_write_safe_angles\(config\)" "IK failure must write safe angles immediately."
 
+Assert-Contains "tools/calib_ik_servo.ps1" "function ConvertTo-LikAngle" "Calibration points must be canonicalized to transmitted LIK integers."
+Assert-Contains "tools/calib_ik_servo.ps1" '\[int\]\[math\]::Round\(\$Angle, 0, \[System\.MidpointRounding\]::ToEven\)' "LIK canonicalization must use the same nearest-even integer rounding as F0 formatting."
+Assert-Contains "tools/calib_ik_servo.ps1" '\$a0 = ConvertTo-LikAngle -Angle \$pt\.A0; \$a1 = ConvertTo-LikAngle -Angle \$pt\.A1; \$a2 = ConvertTo-LikAngle -Angle \$pt\.A2; \$a3 = ConvertTo-LikAngle -Angle \$pt\.A3' "Calibration must canonicalize all four command angles before confirmation and recording."
+Assert-Contains "tools/calib_ik_servo.ps1" '\$cmd = "LIK,\{0\},\{1\},\{2\},\{3\}" -f \$a0, \$a1, \$a2, \$a3' "LIK must transmit canonical integer command angles."
+Assert-Contains "tools/calib_ik_servo.ps1" '\[double\]\$Frame\.servo0_target_deg\) -ne \$A0' "Telemetry confirmation must compare canonical command targets exactly."
+Assert-Contains "tools/calib_ik_servo.ps1" '\[double\]\$Frame\.servo1_target_deg\) -ne \$A1' "Telemetry confirmation must compare servo 1 canonical command target exactly."
+Assert-Contains "tools/calib_ik_servo.ps1" '\[double\]\$Frame\.servo2_target_deg\) -ne \$A2' "Telemetry confirmation must compare servo 2 canonical command target exactly."
+Assert-Contains "tools/calib_ik_servo.ps1" '\[double\]\$Frame\.servo3_target_deg\) -ne \$A3' "Telemetry confirmation must compare servo 3 canonical command target exactly."
+Assert-NotContains "tools/calib_ik_servo.ps1" "ToleranceDeg" "Telemetry confirmation must not allow a degree tolerance."
+Assert-Contains "tools/calib_ik_servo.ps1" '\$sampleId, \$label,\s*\$a0, \$a1, \$a2, \$a3,' "CSV command fields must record canonical transmitted command values."
+
 Write-Host "ik height control static checks passed"

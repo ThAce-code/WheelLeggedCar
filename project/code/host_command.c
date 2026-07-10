@@ -341,6 +341,16 @@ static void host_command_process_line(char *line, uint32 now_ms)
         return;
     }
 
+    if(('L' == line[0]) && ('H' == line[1]) && ('F' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_number(&line[4], &value)))
+    {
+        if(APP_TRUE == control_leg_set_fast_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
     if(('L' == line[0]) && ('H' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_number(&line[3], &value)))
     {

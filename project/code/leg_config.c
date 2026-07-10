@@ -41,6 +41,7 @@ static const leg_config_struct leg_config_default =
         .height_rate_kp_s = 4.0f,
         .height_settle_error_mm = 1.0f,
         .height_settle_ms = 300U,
+        .fast_height_transition_ms = 500U,
         .ik_min_margin = 0.20f,
         .safe_support_height_mm = 55.0f,
         .transition_forward_limit_rpm = 30.0f,

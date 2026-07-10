@@ -66,6 +66,7 @@ typedef struct
     float height_rate_kp_s;
     float height_settle_error_mm;
     uint32 height_settle_ms;
+    uint32 fast_height_transition_ms;
     float ik_min_margin;
     float safe_support_height_mm;
     float transition_forward_limit_rpm;

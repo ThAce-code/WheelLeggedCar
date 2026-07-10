@@ -115,6 +115,39 @@ function Assert-JerkLimitedHeightTrajectory {
     throw ("Jerk-limited height trajectory did not settle: target {0}, reference {1}, rate {2}, accel {3}." -f $targetMm, $referenceMm, $rateMmS, $accelMmS2)
 }
 
+function Get-FastHeightReference {
+    param(
+        [double]$StartMm,
+        [double]$TargetMm,
+        [double]$ElapsedMs,
+        [double]$DurationMs
+    )
+
+    $u = [math]::Max(0.0, [math]::Min($ElapsedMs / $DurationMs, 1.0))
+    $blend = (10.0 * $u * $u * $u) -
+             (15.0 * $u * $u * $u * $u) +
+             (6.0 * $u * $u * $u * $u * $u)
+    return $StartMm + (($TargetMm - $StartMm) * $blend)
+}
+
+function Assert-FastHeightTrajectory {
+    param([double]$DurationMs)
+
+    $previousMm = 45.0
+    for($elapsedMs = 0; $elapsedMs -lt $DurationMs; $elapsedMs += 6) {
+        $referenceMm = Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs $elapsedMs -DurationMs $DurationMs
+        if((45.0 -gt $referenceMm) -or (65.0 -lt $referenceMm)) {
+            throw ("Fast height reference overshot its command interval at {0} ms: {1}." -f $elapsedMs, $referenceMm)
+        }
+        if($previousMm -gt ($referenceMm + 0.000001)) {
+            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        }
+        $previousMm = $referenceMm
+    }
+    Assert-Near -Actual (Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected 45.0 -Tolerance 0.000001 -Message "Fast height start reference"
+    Assert-Near -Actual (Get-FastHeightReference -StartMm 45.0 -TargetMm 65.0 -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected 65.0 -Tolerance 0.000001 -Message "Fast height completes at configured duration"
+}
+
 function Assert-SoftFaultSafeRate {
     $angleDeg = 135.0
     for($step = 0; $step -lt 20; $step++) {
@@ -213,6 +246,7 @@ function Get-LegTransitionConfig {
         "height_rate_kp_s",
         "height_settle_error_mm",
         "height_settle_ms",
+        "fast_height_transition_ms",
         "ik_min_margin",
         "safe_support_height_mm"
     )
@@ -249,7 +283,7 @@ typedef enum { LEG_SERVO_FL = 0, LEG_SERVO_FR = 1, LEG_SERVO_RL = 2, LEG_SERVO_R
 typedef struct { uint8 servo_index; float safe_deg; float neutral_deg; float min_deg; float max_deg; float direction; float mount_x; float mount_y; } leg_servo_config_struct;
 typedef enum { LEG_IK_BRANCH_PLUS = 0, LEG_IK_BRANCH_MINUS = 1 } leg_ik_branch_enum;
 typedef struct { float l1_mm; float l2_mm; float l3_mm; float l4_mm; float l5_mm; float x_min_mm; float x_max_mm; float y_min_mm; float y_max_mm; float x_offset_mm; float y_offset_mm; leg_ik_branch_enum left_alpha_branch; leg_ik_branch_enum left_beta_branch; leg_ik_branch_enum right_alpha_branch; leg_ik_branch_enum right_beta_branch; } leg_kinematics_config_struct;
-typedef struct { float low_height_mm; float high_height_mm; float default_height_mm; float max_height_speed_mm_s; float max_height_accel_mm_s2; float max_height_jerk_mm_s3; float height_position_kp_s; float height_rate_kp_s; float height_settle_error_mm; uint32 height_settle_ms; float ik_min_margin; float safe_support_height_mm; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_height_profile_struct;
+typedef struct { float low_height_mm; float high_height_mm; float default_height_mm; float max_height_speed_mm_s; float max_height_accel_mm_s2; float max_height_jerk_mm_s3; float height_position_kp_s; float height_rate_kp_s; float height_settle_error_mm; uint32 height_settle_ms; uint32 fast_height_transition_ms; float ik_min_margin; float safe_support_height_mm; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_height_profile_struct;
 typedef struct { leg_servo_config_struct servo[LEG_SERVO_COUNT]; leg_kinematics_config_struct kinematics; leg_height_profile_struct height_profile; float height_min; float height_max; float pitch_limit; float roll_limit; } leg_config_struct;
 const leg_config_struct *leg_config_get(void);
 const leg_servo_config_struct *leg_config_get_servo(uint8 leg_id);
@@ -366,6 +400,7 @@ Assert-Equal -Actual $config["height_position_kp_s"] -Expected 2.0 -Message "Fas
 Assert-Equal -Actual $config["height_rate_kp_s"] -Expected 4.0 -Message "Height velocity acceleration gain"
 Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
 Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
+Assert-Equal -Actual $config["fast_height_transition_ms"] -Expected 500.0 -Message "Fast height transition duration"
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
 Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 safe support height"
 Assert-HeightCommandRange -Config $config
@@ -375,6 +410,7 @@ Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*pr
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
 
 Assert-JerkLimitedHeightTrajectory -PositionKpS $config["height_position_kp_s"] -RateKpS $config["height_rate_kp_s"]
+Assert-FastHeightTrajectory -DurationMs $config["fast_height_transition_ms"]
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy

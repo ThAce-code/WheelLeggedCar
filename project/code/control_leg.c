@@ -30,6 +30,8 @@ static leg_motion_state_enum control_leg_motion_state;
 static leg_fault_reason_enum  control_leg_fault_reason;
 static uint32              control_leg_settle_start_ms;
 static uint32              control_leg_last_update_ms;
+static float               control_leg_fast_height_start_mm;
+static uint32              control_leg_fast_height_start_ms;
 
 #define CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM   (55.0f)
 #define CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG   (90.0f)
@@ -99,6 +101,13 @@ static uint8 control_leg_servo_angle_valid(uint8 servo_index, float angle_deg)
 static float control_leg_absf(float value)
 {
     return (0.0f > value) ? -value : value;
+}
+
+static float control_leg_fast_height_blend(float progress)
+{
+    return (10.0f * progress * progress * progress) -
+           (15.0f * progress * progress * progress * progress) +
+           (6.0f * progress * progress * progress * progress * progress);
 }
 
 static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
@@ -277,6 +286,8 @@ void control_leg_init(void)
         control_leg_fault_reason = LEG_FAULT_NONE;
         control_leg_settle_start_ms = 0U;
         control_leg_last_update_ms = 0U;
+        control_leg_fast_height_start_mm = control_leg_height_ref_mm;
+        control_leg_fast_height_start_ms = 0U;
         control_leg_diag.ik_error_count = 0U;
         control_leg_diag.left_x_mm = 0.0f;
         control_leg_diag.right_x_mm = 0.0f;
@@ -456,6 +467,80 @@ void control_leg_update(uint32 now_ms)
 
             case LEG_MODE_IK_CALIB:
                 break;
+
+            case LEG_MODE_FAST_HEIGHT:
+            {
+                const leg_height_profile_struct *profile;
+                float progress;
+                float blend;
+                float blend_rate;
+                float servo_fl_deg;
+                float servo_fr_deg;
+                float servo_rl_deg;
+                float servo_rr_deg;
+                uint32 elapsed_ms;
+                uint8 output_enable;
+
+                profile = leg_config_get_height_profile();
+                if((0U == profile->fast_height_transition_ms) ||
+                   (APP_FALSE == control_leg_is_finite(control_leg_fast_height_start_mm)) ||
+                   (APP_FALSE == control_leg_is_finite(control_leg_target_height_mm)))
+                {
+                    control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                    break;
+                }
+                elapsed_ms = now_ms - control_leg_fast_height_start_ms;
+                progress = control_leg_clamp((float)elapsed_ms /
+                                             (float)profile->fast_height_transition_ms,
+                                             0.0f,
+                                             1.0f);
+                blend = control_leg_fast_height_blend(progress);
+                blend_rate = (30.0f * progress * progress) -
+                             (60.0f * progress * progress * progress) +
+                             (30.0f * progress * progress * progress * progress);
+                control_leg_height_ref_mm = control_leg_fast_height_start_mm +
+                                            ((control_leg_target_height_mm - control_leg_fast_height_start_mm) * blend);
+                control_leg_height_rate_mm_s = ((control_leg_target_height_mm - control_leg_fast_height_start_mm) *
+                                                blend_rate * 1000.0f) /
+                                               (float)profile->fast_height_transition_ms;
+                control_leg_height_accel_mm_s2 = 0.0f;
+                control_leg_diag.left_x_mm = 0.0f;
+                control_leg_diag.right_x_mm = 0.0f;
+                control_leg_diag.left_y_mm = control_leg_height_ref_mm;
+                control_leg_diag.right_y_mm = control_leg_height_ref_mm;
+                if(APP_TRUE == control_leg_apply_empirical_height(control_leg_height_ref_mm,
+                                                                  &servo_fl_deg,
+                                                                  &servo_fr_deg,
+                                                                  &servo_rl_deg,
+                                                                  &servo_rr_deg))
+                {
+                    control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = servo_fl_deg;
+                    control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_rl_deg;
+                    control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_fr_deg;
+                    control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_rr_deg;
+                    control_leg_diag.ik_margin = CONTROL_LEG_EMPIRICAL_IK_MARGIN;
+                    if(1.0f <= progress)
+                    {
+                        control_leg_height_ref_mm = control_leg_target_height_mm;
+                        control_leg_height_rate_mm_s = 0.0f;
+                        control_leg_motion_state = LEG_MOTION_STABLE;
+                    }
+                    else
+                    {
+                        control_leg_motion_state = LEG_MOTION_TRANSITION;
+                    }
+                    control_leg_fault_reason = LEG_FAULT_NONE;
+                    output_enable = control_leg_run_enabled();
+                    control_leg_publish_diag(APP_TRUE, output_enable);
+                }
+                else
+                {
+                    control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                }
+                break;
+            }
 
             case LEG_MODE_DIRECT_STEP:
             {
@@ -657,6 +742,32 @@ uint8 control_leg_set_direct_step_height(float height_mm, uint32 now_ms)
     control_leg_motion_state = LEG_MOTION_TRANSITION;
     control_leg_fault_reason = LEG_FAULT_NONE;
     control_leg_mode = LEG_MODE_DIRECT_STEP;
+    return APP_TRUE;
+}
+
+uint8 control_leg_set_fast_height(float height_mm, uint32 now_ms)
+{
+    const leg_height_profile_struct *profile;
+
+    profile = leg_config_get_height_profile();
+    if((APP_FALSE == control_leg_is_finite(height_mm)) ||
+       (profile->low_height_mm > height_mm) ||
+       (profile->high_height_mm < height_mm) ||
+       (LEG_MOTION_FAULT == control_leg_motion_state))
+    {
+        return APP_FALSE;
+    }
+    control_leg_fast_height_start_mm = control_leg_clamp(control_leg_height_ref_mm,
+                                                          profile->low_height_mm,
+                                                          profile->high_height_mm);
+    control_leg_fast_height_start_ms = now_ms;
+    control_leg_target_height_mm = height_mm;
+    control_leg_height_rate_mm_s = 0.0f;
+    control_leg_height_accel_mm_s2 = 0.0f;
+    control_leg_settle_start_ms = now_ms;
+    control_leg_motion_state = LEG_MOTION_TRANSITION;
+    control_leg_fault_reason = LEG_FAULT_NONE;
+    control_leg_mode = LEG_MODE_FAST_HEIGHT;
     return APP_TRUE;
 }
 

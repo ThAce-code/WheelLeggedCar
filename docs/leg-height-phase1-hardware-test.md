@@ -21,6 +21,29 @@ Local build-tool check: `IarBuild.exe` was not found at the common IAR 9.40 inst
 
 Telemetry file: TBD
 
+## Fast-height bench comparison only
+
+`LHF,<height_mm>` is the global-height fast profile for response testing. It
+uses the same 45–65 mm empirical map as `LH`, but completes the reference
+move in exactly 500 ms with a quintic no-overshoot blend. It does not alter
+roll, balance, chassis drive, or individual left/right leg height.
+
+Keep the vehicle supported with wheels stopped, rebuild the affected IAR core,
+then collect one trace:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
+  -Port COM6 -Duration 8 `
+  -Commands "0:STOP;2:LHF,65;4:LHF,45;6:STOP" `
+  -Out data\phase1_lhf_500ms_bench.csv `
+  -Note phase1_lhf_500ms_bench
+```
+
+Pass only if `leg_fault_reason` remains zero, `leg_height_ref_mm` stays within
+45–65 mm, each leg-height move reaches its target without reversing past it,
+and no linkage interference, supply sag, or wheel movement occurs. A failed
+bench result blocks any moving-chassis test.
+
 ## Direct-step bench comparison only
 
 `LJ,<height_mm>` is excluded from normal Phase 1 gates. To build the temporary

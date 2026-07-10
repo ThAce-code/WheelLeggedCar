@@ -124,6 +124,11 @@ Assert-Contains "project/code/control_leg.c" "APP_FALSE == control_leg_servo_ang
 Assert-Contains "project/code/control_leg.c" "return APP_FALSE;[\s\S]*control_leg_set_manual_angle\(0U, servo0_deg\)" "set_calib_angles must validate all LIK inputs before writing any servo command."
 Assert-Contains "project/code/control_leg.c" "control_leg_mode = LEG_MODE_LOCK;[\s\S]*?control_leg_write_safe_angles\(config\)" "IK failure must write safe angles immediately."
 
+Assert-Contains "project/code/control_leg.c" "config = leg_config_get\(\);[\s\S]*?if\(LEG_MOTION_FAULT == control_leg_motion_state\)[\s\S]*?control_leg_write_safe_angles\(config\);[\s\S]*?control_leg_publish_diag\(APP_FALSE, control_leg_run_enabled\(\)\);[\s\S]*?else[\s\S]*?case LEG_MODE_MANUAL" "A latched leg fault must keep manual and calibration update paths on safe angles."
+Assert-Contains "project/code/control_leg.c" "uint8 control_leg_set_calib_angles[\s\S]*?if\(LEG_MOTION_FAULT == control_leg_motion_state\)[\s\S]*?return APP_FALSE;[\s\S]*?control_leg_servo_angle_valid\(0U, servo0_deg\)" "LIK calibration must be rejected while a leg fault is latched."
+Assert-Contains "project/code/control_leg.c" "left_ik_solved = leg_kinematics_solve[\s\S]*?right_ik_solved = leg_kinematics_solve" "Height control must collect both IK results before selecting a fault reason."
+Assert-Contains "project/code/control_leg.c" "left_margin_fault[\s\S]*?right_margin_fault[\s\S]*?LEG_FAULT_IK_MARGIN[\s\S]*?LEG_FAULT_IK_INVALID" "A rejected IK solution with a published low margin must report IK margin fault before generic invalid IK."
+
 Assert-Contains "tools/calib_ik_servo.ps1" "function ConvertTo-LikAngle" "Calibration points must be canonicalized to transmitted LIK integers."
 Assert-Contains "tools/calib_ik_servo.ps1" '\[int\]\[math\]::Round\(\$Angle, 0, \[System\.MidpointRounding\]::ToEven\)' "LIK canonicalization must use the same nearest-even integer rounding as F0 formatting."
 Assert-Contains "tools/calib_ik_servo.ps1" '\$a0 = ConvertTo-LikAngle -Angle \$pt\.A0; \$a1 = ConvertTo-LikAngle -Angle \$pt\.A1; \$a2 = ConvertTo-LikAngle -Angle \$pt\.A2; \$a3 = ConvertTo-LikAngle -Angle \$pt\.A3' "Calibration must canonicalize all four command angles before confirmation and recording."

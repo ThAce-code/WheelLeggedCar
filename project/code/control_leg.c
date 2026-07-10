@@ -8,6 +8,7 @@
 #include "app_safety.h"
 #include "app_state.h"
 #include "actuator_servo.h"
+#include "leg_kinematics.h"
 
 static servo_cmd_struct    control_leg_servo_cmd;
 static leg_mode_enum       control_leg_mode;
@@ -32,6 +33,13 @@ static uint32              control_leg_settle_start_ms;
 static uint32              control_leg_last_update_ms;
 static float               control_leg_fast_height_start_mm;
 static uint32              control_leg_fast_height_start_ms;
+static float               control_leg_ik_target_x_mm;
+static float               control_leg_ik_target_y_mm;
+static leg_ik_result_struct control_leg_ik_reference_left;
+static leg_ik_result_struct control_leg_ik_reference_right;
+static leg_ik_result_struct control_leg_ik_previous_left;
+static leg_ik_result_struct control_leg_ik_previous_right;
+static uint8               control_leg_ik_reference_valid;
 
 #define CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM   (55.0f)
 #define CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG   (90.0f)
@@ -92,6 +100,24 @@ static uint8 control_leg_servo_angle_valid(uint8 servo_index, float angle_deg)
         return APP_FALSE;
     }
     if((servo_cfg->min_deg > angle_deg) || (servo_cfg->max_deg < angle_deg))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
+static uint8 control_leg_ik_validation_point_valid(const leg_kinematics_config_struct *cfg,
+                                                    float x_mm,
+                                                    float y_mm)
+{
+    if((NULL == cfg) ||
+       (APP_FALSE == control_leg_is_finite(x_mm)) ||
+       (APP_FALSE == control_leg_is_finite(y_mm)))
+    {
+        return APP_FALSE;
+    }
+    if((cfg->validate_x_min_mm > x_mm) || (cfg->validate_x_max_mm < x_mm) ||
+       (cfg->validate_y_min_mm > y_mm) || (cfg->validate_y_max_mm < y_mm))
     {
         return APP_FALSE;
     }
@@ -288,6 +314,13 @@ void control_leg_init(void)
         control_leg_last_update_ms = 0U;
         control_leg_fast_height_start_mm = control_leg_height_ref_mm;
         control_leg_fast_height_start_ms = 0U;
+        control_leg_ik_target_x_mm = 0.0f;
+        control_leg_ik_target_y_mm = 0.0f;
+        control_leg_ik_reference_left.valid = APP_FALSE;
+        control_leg_ik_reference_right.valid = APP_FALSE;
+        control_leg_ik_previous_left.valid = APP_FALSE;
+        control_leg_ik_previous_right.valid = APP_FALSE;
+        control_leg_ik_reference_valid = APP_FALSE;
         control_leg_diag.ik_error_count = 0U;
         control_leg_diag.left_x_mm = 0.0f;
         control_leg_diag.right_x_mm = 0.0f;
@@ -580,6 +613,93 @@ void control_leg_update(uint32 now_ms)
                 break;
             }
 
+            case LEG_MODE_IK_REFERENCE:
+            {
+                const leg_kinematics_config_struct *kinematics;
+                float servo_deg[LEG_SERVO_COUNT];
+                uint8 output_enable;
+
+                kinematics = leg_config_get_kinematics();
+                if((NULL == kinematics) || (APP_FALSE == control_leg_ik_reference_valid) ||
+                   (APP_TRUE != leg_kinematics_map_reference_pose(&control_leg_ik_reference_left,
+                                                                   &control_leg_ik_reference_right,
+                                                                   servo_deg)))
+                {
+                    control_leg_enter_fault(LEG_FAULT_IK_INVALID);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                    break;
+                }
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = servo_deg[LEG_SERVO_FL];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_deg[LEG_SERVO_FR];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_deg[LEG_SERVO_RL];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_deg[LEG_SERVO_RR];
+                control_leg_diag.left_x_mm = kinematics->reference_x_mm;
+                control_leg_diag.left_y_mm = kinematics->reference_y_mm;
+                control_leg_diag.right_x_mm = kinematics->reference_x_mm;
+                control_leg_diag.right_y_mm = kinematics->reference_y_mm;
+                control_leg_diag.ik_margin = (control_leg_ik_reference_left.singularity_margin <
+                                               control_leg_ik_reference_right.singularity_margin) ?
+                                              control_leg_ik_reference_left.singularity_margin :
+                                              control_leg_ik_reference_right.singularity_margin;
+                control_leg_motion_state = LEG_MOTION_STABLE;
+                control_leg_fault_reason = LEG_FAULT_NONE;
+                output_enable = control_leg_run_enabled();
+                control_leg_publish_diag(APP_TRUE, output_enable);
+                break;
+            }
+
+            case LEG_MODE_IK_VALIDATE:
+            {
+                leg_ik_result_struct left_target;
+                leg_ik_result_struct right_target;
+                float servo_deg[LEG_SERVO_COUNT];
+                uint8 output_enable;
+
+                if((APP_FALSE == control_leg_ik_reference_valid) ||
+                   (APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                                      control_leg_ik_target_x_mm,
+                                                      control_leg_ik_target_y_mm,
+                                                      &control_leg_ik_previous_left,
+                                                      &left_target)) ||
+                   (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                                      control_leg_ik_target_x_mm,
+                                                      control_leg_ik_target_y_mm,
+                                                      &control_leg_ik_previous_right,
+                                                      &right_target)))
+                {
+                    control_leg_enter_fault(LEG_FAULT_IK_INVALID);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                    break;
+                }
+                if(APP_TRUE != leg_kinematics_map_target_pose(&control_leg_ik_reference_left,
+                                                               &control_leg_ik_reference_right,
+                                                               &left_target,
+                                                               &right_target,
+                                                               servo_deg))
+                {
+                    control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                    break;
+                }
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = servo_deg[LEG_SERVO_FL];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_deg[LEG_SERVO_FR];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_deg[LEG_SERVO_RL];
+                control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_deg[LEG_SERVO_RR];
+                control_leg_ik_previous_left = left_target;
+                control_leg_ik_previous_right = right_target;
+                control_leg_diag.left_x_mm = control_leg_ik_target_x_mm;
+                control_leg_diag.left_y_mm = control_leg_ik_target_y_mm;
+                control_leg_diag.right_x_mm = control_leg_ik_target_x_mm;
+                control_leg_diag.right_y_mm = control_leg_ik_target_y_mm;
+                control_leg_diag.ik_margin = (left_target.singularity_margin < right_target.singularity_margin) ?
+                                              left_target.singularity_margin : right_target.singularity_margin;
+                control_leg_motion_state = LEG_MOTION_STABLE;
+                control_leg_fault_reason = LEG_FAULT_NONE;
+                output_enable = control_leg_run_enabled();
+                control_leg_publish_diag(APP_TRUE, output_enable);
+                break;
+            }
+
             case LEG_MODE_LOCK:
             default:
             {
@@ -644,7 +764,7 @@ void control_leg_update(uint32 now_ms)
 
 void control_leg_set_mode(leg_mode_enum mode)
 {
-    if(mode > LEG_MODE_DIRECT_STEP)
+    if(mode > LEG_MODE_IK_VALIDATE)
     {
         control_leg_mode = LEG_MODE_LOCK;
         return;
@@ -654,6 +774,8 @@ void control_leg_set_mode(leg_mode_enum mode)
     {
         control_leg_motion_state = LEG_MOTION_LOCKED;
         control_leg_fault_reason = LEG_FAULT_NONE;
+        control_leg_ik_previous_left.valid = APP_FALSE;
+        control_leg_ik_previous_right.valid = APP_FALSE;
     }
 }
 
@@ -750,6 +872,78 @@ uint8 control_leg_set_direct_step_height(float height_mm, uint32 now_ms)
     control_leg_motion_state = LEG_MOTION_TRANSITION;
     control_leg_fault_reason = LEG_FAULT_NONE;
     control_leg_mode = LEG_MODE_DIRECT_STEP;
+    return APP_TRUE;
+}
+
+uint8 control_leg_set_ik_reference(uint32 now_ms)
+{
+    const leg_kinematics_config_struct *kinematics;
+    leg_ik_result_struct left_reference;
+    leg_ik_result_struct right_reference;
+    float servo_deg[LEG_SERVO_COUNT];
+
+    (void)now_ms;
+    if(LEG_MOTION_FAULT == control_leg_motion_state)
+    {
+        return APP_FALSE;
+    }
+    kinematics = leg_config_get_kinematics();
+    if((NULL == kinematics) ||
+       (APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                          kinematics->reference_x_mm,
+                                          kinematics->reference_y_mm,
+                                          NULL,
+                                          &left_reference)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                          kinematics->reference_x_mm,
+                                          kinematics->reference_y_mm,
+                                          NULL,
+                                          &right_reference)) ||
+       (APP_TRUE != leg_kinematics_map_reference_pose(&left_reference,
+                                                       &right_reference,
+                                                       servo_deg)))
+    {
+        return APP_FALSE;
+    }
+
+    control_leg_ik_reference_left = left_reference;
+    control_leg_ik_reference_right = right_reference;
+    control_leg_ik_previous_left = left_reference;
+    control_leg_ik_previous_right = right_reference;
+    control_leg_ik_reference_valid = APP_TRUE;
+    control_leg_ik_target_x_mm = kinematics->reference_x_mm;
+    control_leg_ik_target_y_mm = kinematics->reference_y_mm;
+    control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = servo_deg[LEG_SERVO_FL];
+    control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_deg[LEG_SERVO_FR];
+    control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_deg[LEG_SERVO_RL];
+    control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_deg[LEG_SERVO_RR];
+    control_leg_motion_state = LEG_MOTION_STABLE;
+    control_leg_fault_reason = LEG_FAULT_NONE;
+    control_leg_mode = LEG_MODE_IK_REFERENCE;
+    return APP_TRUE;
+}
+
+uint8 control_leg_set_xy(float x_mm, float y_mm, uint32 now_ms)
+{
+    const leg_kinematics_config_struct *kinematics;
+
+    (void)now_ms;
+    if((LEG_MOTION_FAULT == control_leg_motion_state) ||
+       (APP_FALSE == control_leg_ik_reference_valid))
+    {
+        return APP_FALSE;
+    }
+    kinematics = leg_config_get_kinematics();
+    if(APP_FALSE == control_leg_ik_validation_point_valid(kinematics, x_mm, y_mm))
+    {
+        return APP_FALSE;
+    }
+
+    control_leg_ik_target_x_mm = x_mm;
+    control_leg_ik_target_y_mm = y_mm;
+    control_leg_motion_state = LEG_MOTION_TRANSITION;
+    control_leg_fault_reason = LEG_FAULT_NONE;
+    control_leg_mode = LEG_MODE_IK_VALIDATE;
     return APP_TRUE;
 }
 

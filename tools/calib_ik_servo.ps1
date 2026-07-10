@@ -96,6 +96,48 @@ function Read-LatestFrame {
     return $latest
 }
 
+function Test-FrameMatchesCommand {
+    param(
+        [hashtable]$Frame,
+        [double]$A0,
+        [double]$A1,
+        [double]$A2,
+        [double]$A3,
+        [double]$ToleranceDeg = 0.6
+    )
+
+    if($null -eq $Frame) {
+        return $false
+    }
+    if([math]::Abs(([double]$Frame.servo0_target_deg) - $A0) -gt $ToleranceDeg) { return $false }
+    if([math]::Abs(([double]$Frame.servo1_target_deg) - $A1) -gt $ToleranceDeg) { return $false }
+    if([math]::Abs(([double]$Frame.servo2_target_deg) - $A2) -gt $ToleranceDeg) { return $false }
+    if([math]::Abs(([double]$Frame.servo3_target_deg) - $A3) -gt $ToleranceDeg) { return $false }
+    return $true
+}
+
+function Read-MatchingFrame {
+    param(
+        [System.IO.Ports.SerialPort]$Port,
+        [System.Collections.Generic.List[byte]]$Buffer,
+        [double]$A0,
+        [double]$A1,
+        [double]$A2,
+        [double]$A3,
+        [double]$TimeoutS = 2.0
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutS)
+    $latest = $null
+    while((Get-Date) -lt $deadline) {
+        $latest = Read-LatestFrame -Port $Port -Buffer $Buffer -TimeoutS 0.25
+        if(Test-FrameMatchesCommand -Frame $latest -A0 $A0 -A1 $A1 -A2 $A2 -A3 $A3) {
+            return $latest
+        }
+    }
+    return $latest
+}
+
 # ── Predefined calibration point sets ──
 $DefaultPoints = @(
     # (a0, a1, a2, a3, label)
@@ -198,14 +240,16 @@ try {
         $cmd = "LIK,{0:F0},{1:F0},{2:F0},{3:F0}" -f $a0, $a1, $a2, $a3
         $serial.WriteLine($cmd)
 
-        # Wait for servos to settle and read latest telemetry
-        $frame = Read-LatestFrame -Port $serial -Buffer $rxBuf -TimeoutS 1.2
+        # Wait until telemetry confirms this LIK command is active.
+        $frame = Read-MatchingFrame -Port $serial -Buffer $rxBuf -A0 $a0 -A1 $a1 -A2 $a2 -A3 $a3 -TimeoutS 2.0
 
         if($null -eq $frame) {
             Write-Host "    [WARN] No telemetry frame received"
             $s0 = $s1 = $s2 = $s3 = 0
             $ikv = 0
             $lmode = 0
+            Write-Host "    [SKIP] Command was not confirmed by telemetry; not recording this point.`n"
+            continue
         } else {
             $s0    = "{0:F1}" -f $frame.servo0_target_deg
             $s1    = "{0:F1}" -f $frame.servo1_target_deg
@@ -214,6 +258,10 @@ try {
             $ikv   = "{0:F0}" -f $frame.leg_ik_valid
             $lmode = "{0:F0}" -f $frame.leg_mode
             Write-Host ("    telemetry: servo=({0}, {1}, {2}, {3})  ik_valid={4}  leg_mode={5}" -f $s0, $s1, $s2, $s3, $ikv, $lmode)
+            if(-not (Test-FrameMatchesCommand -Frame $frame -A0 $a0 -A1 $a1 -A2 $a2 -A3 $a3)) {
+                Write-Host "    [SKIP] Telemetry did not match this LIK command; not recording this point.`n"
+                continue
+            }
         }
 
         # Prompt user for measured coordinates

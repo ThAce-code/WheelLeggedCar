@@ -71,8 +71,11 @@ Assert-Contains "tools/collect_balance_data.ps1" "leg_actual_height_mm" "Collect
 Assert-Contains "tools/collect_balance_data.ps1" "balance_pitch_kp_eff" "Collector must write effective balance gain."
 Assert-Contains "tools/collect_balance_data.ps1" "chassis_forward_limit_eff_rpm" "Collector must write effective chassis limit."
 
-Assert-Contains "project/code/control_leg.c" "control_leg_clamp\(calibrated" "apply_calib must clamp calibrated angle to per-servo limits."
-Assert-Contains "project/code/control_leg.c" "control_leg_mode = LEG_MODE_LOCK;[\s\S]*?control_leg_servo_cmd.angle_deg\[i\] = control_leg_clamp\(servo_cfg->safe_deg" "IK failure must write safe angles immediately."
-Assert-Contains "project/code/control_leg.c" "control_leg_clamp\(servo0_deg, servo_cfg->min_deg" "set_calib_angles must clamp raw LIK input to per-servo limits."
+Assert-Contains "project/code/control_leg.c" "static uint8 control_leg_apply_calib\(uint8 servo_index,[\s\S]*float \*calibrated_deg\)" "apply_calib must report failure instead of silently clamping calibrated angle."
+Assert-Contains "project/code/control_leg.c" "APP_FALSE == control_leg_servo_angle_valid\(servo_index, calibrated\)" "apply_calib must reject calibrated angles outside per-servo limits."
+Assert-Contains "project/code/control_leg.c" "control_leg_apply_calib\(LEG_SERVO_FL,[\s\S]*control_leg_apply_calib\(LEG_SERVO_RR" "Height mode must require all calibrated IK angles to validate."
+Assert-Contains "project/code/control_leg.c" "APP_FALSE == control_leg_servo_angle_valid\(0U, servo0_deg\)" "set_calib_angles must reject invalid LIK input instead of silently clamping."
+Assert-Contains "project/code/control_leg.c" "return APP_FALSE;[\s\S]*control_leg_set_manual_angle\(0U, servo0_deg\)" "set_calib_angles must validate all LIK inputs before writing any servo command."
+Assert-Contains "project/code/control_leg.c" "control_leg_mode = LEG_MODE_LOCK;[\s\S]*?control_leg_write_safe_angles\(config\)" "IK failure must write safe angles immediately."
 
 Write-Host "ik height control static checks passed"

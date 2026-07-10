@@ -90,8 +90,9 @@ static uint8 leg_kinematics_solve_angle_candidates(float a,
 {
     float disc;
     float root;
-    float denom;
     float magnitude;
+    float phase_rad;
+    float offset_rad;
 
     if((NULL == plus_rad) || (NULL == minus_rad) || (NULL == margin))
     {
@@ -124,14 +125,11 @@ static uint8 leg_kinematics_solve_angle_candidates(float a,
         return APP_FALSE;
     }
 
-    denom = a + c;
-    if(LEG_KINEMATICS_EPS > leg_kinematics_absf(denom))
-    {
-        return APP_FALSE;
-    }
-
-    *plus_rad = leg_kinematics_wrap_positive(2.0f * atanf((b + root) / denom));
-    *minus_rad = leg_kinematics_wrap_positive(2.0f * atanf((b - root) / denom));
+    /* a*cos(theta) + b*sin(theta) = c.  This form keeps both roots when a+c is zero. */
+    phase_rad = atan2f(b, a);
+    offset_rad = atan2f(root, c);
+    *plus_rad = leg_kinematics_wrap_positive(phase_rad + offset_rad);
+    *minus_rad = leg_kinematics_wrap_positive(phase_rad - offset_rad);
     if((APP_FALSE == leg_kinematics_is_finite(*plus_rad)) ||
        (APP_FALSE == leg_kinematics_is_finite(*minus_rad)))
     {

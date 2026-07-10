@@ -39,6 +39,8 @@ Assert-Contains "project/code/leg_kinematics.c" "y_min_mm" "IK must validate y w
 Assert-Contains "project/code/leg_kinematics.c" "ik_min_margin" "IK must reject candidates below the configured singularity margin."
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_wrapped_distance" "IK must select continuous wrapped-angle candidates."
 Assert-Contains "project/code/leg_kinematics.c" "projection" "FK must calculate the circle-intersection projection."
+Assert-Contains "project/code/leg_kinematics.c" "atan2f\(b, a\)" "IK candidate generation must use the stable angle phase."
+Assert-Contains "project/code/leg_kinematics.c" "atan2f\(root, c\)" "IK candidate generation must avoid the degenerate half-angle denominator."
 
 Assert-Contains "project/code/leg_config.h" "leg_kinematics_config_struct" "Missing kinematics config struct."
 Assert-Contains "project/code/leg_config.h" "leg_height_profile_struct" "Missing height profile struct."

@@ -146,8 +146,19 @@ static int check_side(uint8 right_side)
 int main(void)
 {
     leg_ik_result_struct result = {0};
+    float off_center_y_mm = sqrtf(2576.0f);
     if((0 != check_side(APP_FALSE)) || (0 != check_side(APP_TRUE)))
     {
+        return 1;
+    }
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, -20.0f, off_center_y_mm, 0, &result)) ||
+       (APP_TRUE != result.valid) ||
+       (0.20f >= result.singularity_margin) ||
+       (1.0f < fabsf(result.servo_deg[0] - 151.9f)) ||
+       (1.0f < fabsf(result.servo_deg[1] - 97.7f)))
+    {
+        printf("Off-center denominator-degenerate IK point rejected or incorrect: %.3f, %.3f, margin %.3f\\n",
+               result.servo_deg[0], result.servo_deg[1], result.singularity_margin);
         return 1;
     }
     if(APP_TRUE == leg_kinematics_solve(APP_FALSE, 36.0f, 80.0f, 0, &result))

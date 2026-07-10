@@ -64,6 +64,27 @@ Abort immediately on linkage interference, sustained servo chatter, supply
 sag, or any wheel movement. The CSV only reports PWM commands, so visually
 confirm the physical move completes before judging the result.
 
+## PWM frame-rate A/B comparison
+
+The current A/B build uses `APP_SERVO_PWM_FREQ_HZ = 100U`; the pulse period is
+derived automatically as 10,000 µs. Keep `APP_SERVO_PERIOD_MS = 10U` unchanged
+so the comparison changes only the hardware pulse frame rate. With the vehicle
+supported and wheel motors stopped, run five 30↔80 mm fast-height cycles:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
+  -Port COM6 -Duration 14 `
+  -Commands "0:STOP;2:LHF,30;3:LHF,80;4:LHF,30;5:LHF,80;6:LHF,30;7:LHF,80;8:LHF,30;9:LHF,80;10:LHF,30;11:LHF,80;12:STOP" `
+  -Out data\phase1_lhf_100hz_ab.csv `
+  -Note phase1_lhf_100hz_ab
+```
+
+Compare this trace and the physical result against the existing 50 Hz test.
+Retain 100 Hz only if no fault, supply sag, extra chatter, heating, linkage
+interference, or physical completion delay is observed; otherwise restore
+`APP_SERVO_PWM_FREQ_HZ` to `50U` and rebuild. Do not test 200 Hz or higher
+without a documented BDS300 input-frame specification.
+
 ## Direct-step bench comparison only
 
 `LJ,<height_mm>` is excluded from normal Phase 1 gates. To build the temporary

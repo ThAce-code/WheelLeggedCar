@@ -31,8 +31,8 @@
 /* --- Servo actuator configuration --- */
 #define APP_SERVO_COUNT                 (4U)
 #define APP_SERVO_ACTIVE_MASK           (0x0FU)
-#define APP_SERVO_PWM_FREQ_HZ           (50U)
-#define APP_SERVO_PWM_PERIOD_US         (20000U)
+#define APP_SERVO_PWM_FREQ_HZ           (100U)
+#define APP_SERVO_PWM_PERIOD_US         (1000000U / APP_SERVO_PWM_FREQ_HZ)
 #define APP_SERVO_MIN_PULSE_US          (500U)
 #define APP_SERVO_MID_PULSE_US          (1500U)
 #define APP_SERVO_MAX_PULSE_US          (2500U)

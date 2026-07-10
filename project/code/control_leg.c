@@ -8,8 +8,6 @@
 #include "app_safety.h"
 #include "app_state.h"
 #include "actuator_servo.h"
-#include "leg_kinematics.h"
-#include <math.h>
 
 static servo_cmd_struct    control_leg_servo_cmd;
 static leg_mode_enum       control_leg_mode;
@@ -27,12 +25,16 @@ static leg_diag_struct     control_leg_diag;
 static float               control_leg_target_height_mm;
 static float               control_leg_height_ref_mm;
 static float               control_leg_height_rate_mm_s;
+static float               control_leg_height_accel_mm_s2;
 static leg_motion_state_enum control_leg_motion_state;
 static leg_fault_reason_enum  control_leg_fault_reason;
 static uint32              control_leg_settle_start_ms;
 static uint32              control_leg_last_update_ms;
-static leg_ik_result_struct control_leg_left_ik;
-static leg_ik_result_struct control_leg_right_ik;
+
+#define CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM   (55.0f)
+#define CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG   (90.0f)
+#define CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG   (0.595f)
+#define CONTROL_LEG_EMPIRICAL_IK_MARGIN          (1.0f)
 
 static float control_leg_clamp(float value, float min_val, float max_val)
 {
@@ -99,18 +101,6 @@ static float control_leg_absf(float value)
     return (0.0f > value) ? -value : value;
 }
 
-static float control_leg_ramp_toward(float current, float target, float max_delta)
-{
-    float delta;
-
-    delta = target - current;
-    if(max_delta >= control_leg_absf(delta))
-    {
-        return target;
-    }
-    return current + ((0.0f < delta) ? max_delta : -max_delta);
-}
-
 static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 {
     uint8 i;
@@ -172,32 +162,47 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     }
 }
 
-static uint8 control_leg_apply_calib(uint8 servo_index, float ik_angle_deg, float *calibrated_deg)
+static uint8 control_leg_apply_empirical_height(float height_mm,
+                                                float *servo_fl_deg,
+                                                float *servo_fr_deg,
+                                                float *servo_rl_deg,
+                                                float *servo_rr_deg)
 {
-    const leg_servo_config_struct *servo_cfg;
-    float calibrated;
+    float delta_deg;
+    float half_delta_deg;
 
-    if(NULL == calibrated_deg)
-    {
-        return APP_FALSE;
-    }
-    servo_cfg = leg_config_get_servo(servo_index);
-    if(NULL == servo_cfg)
-    {
-        return APP_FALSE;
-    }
-    if(APP_FALSE == control_leg_is_finite(ik_angle_deg))
+    if((NULL == servo_fl_deg) ||
+       (NULL == servo_fr_deg) ||
+       (NULL == servo_rl_deg) ||
+       (NULL == servo_rr_deg) ||
+       (APP_FALSE == control_leg_is_finite(height_mm)) ||
+       (0.0f == CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG))
     {
         return APP_FALSE;
     }
 
-    calibrated = servo_cfg->neutral_deg + (servo_cfg->direction * (ik_angle_deg - servo_cfg->neutral_deg));
-    if(APP_FALSE == control_leg_servo_angle_valid(servo_index, calibrated))
+    /*
+     * Phase 1 uses the measured differential height map instead of the
+     * uncalibrated five-bar leg_kinematics_solve model:
+     *   Y_real ~= 55mm + 0.595mm/deg * d
+     *   d = a0 - a1 = a3 - a2
+     */
+    delta_deg = (height_mm - CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM) / CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG;
+    half_delta_deg = 0.5f * delta_deg;
+
+    *servo_fl_deg = CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG + half_delta_deg;
+    *servo_fr_deg = CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG - half_delta_deg;
+    *servo_rl_deg = CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG - half_delta_deg;
+    *servo_rr_deg = CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG + half_delta_deg;
+
+    if((APP_FALSE == control_leg_servo_angle_valid(LEG_SERVO_FL, *servo_fl_deg)) ||
+       (APP_FALSE == control_leg_servo_angle_valid(LEG_SERVO_FR, *servo_fr_deg)) ||
+       (APP_FALSE == control_leg_servo_angle_valid(LEG_SERVO_RL, *servo_rl_deg)) ||
+       (APP_FALSE == control_leg_servo_angle_valid(LEG_SERVO_RR, *servo_rr_deg)))
     {
         return APP_FALSE;
     }
 
-    *calibrated_deg = calibrated;
     return APP_TRUE;
 }
 
@@ -235,6 +240,7 @@ static void control_leg_enter_fault(leg_fault_reason_enum reason)
     control_leg_motion_state = LEG_MOTION_FAULT;
     control_leg_fault_reason = reason;
     control_leg_height_rate_mm_s = 0.0f;
+    control_leg_height_accel_mm_s2 = 0.0f;
     control_leg_settle_start_ms = 0U;
     control_leg_diag.ik_error_count++;
     /* Keep PWM enabled when the application is otherwise runnable; actuator_servo limits this move. */
@@ -265,6 +271,7 @@ void control_leg_init(void)
         control_leg_target_height_mm = profile->default_height_mm;
         control_leg_height_ref_mm = profile->default_height_mm;
         control_leg_height_rate_mm_s = 0.0f;
+        control_leg_height_accel_mm_s2 = 0.0f;
         control_leg_motion_state = LEG_MOTION_LOCKED;
         control_leg_fault_reason = LEG_FAULT_NONE;
         control_leg_settle_start_ms = 0U;
@@ -274,8 +281,6 @@ void control_leg_init(void)
         control_leg_diag.right_x_mm = 0.0f;
         control_leg_diag.left_y_mm = control_leg_height_ref_mm;
         control_leg_diag.right_y_mm = control_leg_height_ref_mm;
-        control_leg_left_ik.valid = APP_FALSE;
-        control_leg_right_ik.valid = APP_FALSE;
     }
 
     control_leg_publish_diag(APP_FALSE, APP_FALSE);
@@ -335,23 +340,18 @@ void control_leg_update(uint32 now_ms)
 
             case LEG_MODE_HEIGHT:
             {
-                leg_ik_result_struct left_ik = {0};
-                leg_ik_result_struct right_ik = {0};
                 const leg_height_profile_struct *profile;
                 float servo_fl_deg;
                 float servo_fr_deg;
                 float servo_rl_deg;
                 float servo_rr_deg;
                 float error_mm;
-                float brake_rate_mm_s;
                 float desired_rate_mm_s;
+                float desired_accel_mm_s2;
+                float accel_delta_mm_s2;
                 float dt_s;
                 uint32 dt_ms;
                 uint8 output_enable;
-                uint8 left_ik_solved;
-                uint8 right_ik_solved;
-                uint8 left_margin_fault;
-                uint8 right_margin_fault;
 
                 dt_ms = now_ms - control_leg_last_update_ms;
                 if(0U == dt_ms)
@@ -365,30 +365,46 @@ void control_leg_update(uint32 now_ms)
                 control_leg_last_update_ms = now_ms;
 
                 profile = leg_config_get_height_profile();
+                if((APP_FALSE == control_leg_is_finite(control_leg_height_ref_mm)) ||
+                   (APP_FALSE == control_leg_is_finite(control_leg_height_rate_mm_s)) ||
+                   (APP_FALSE == control_leg_is_finite(control_leg_height_accel_mm_s2)) ||
+                   (0.0f >= profile->max_height_speed_mm_s) ||
+                   (0.0f >= profile->max_height_accel_mm_s2) ||
+                   (0.0f >= profile->max_height_jerk_mm_s3) ||
+                   (0.0f >= profile->height_position_kp_s) ||
+                   (0.0f >= profile->height_rate_kp_s))
+                {
+                    control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
+                    control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+                    break;
+                }
                 error_mm = control_leg_target_height_mm - control_leg_height_ref_mm;
-                brake_rate_mm_s = sqrtf(2.0f * profile->max_height_accel_mm_s2 * control_leg_absf(error_mm));
-                /* Reserve one sample of deceleration so target clamping never creates a rate step. */
-                desired_rate_mm_s = control_leg_clamp(brake_rate_mm_s - (profile->max_height_accel_mm_s2 * dt_s),
-                                                       0.0f,
+                desired_rate_mm_s = control_leg_clamp(error_mm * profile->height_position_kp_s,
+                                                       -profile->max_height_speed_mm_s,
                                                        profile->max_height_speed_mm_s);
-                if(0.0f > error_mm)
-                {
-                    desired_rate_mm_s = -desired_rate_mm_s;
-                }
-                control_leg_height_rate_mm_s =
-                    control_leg_ramp_toward(control_leg_height_rate_mm_s,
-                                            desired_rate_mm_s,
-                                            profile->max_height_accel_mm_s2 * dt_s);
-                if(0.0001f >= control_leg_absf(control_leg_height_rate_mm_s))
-                {
-                    control_leg_height_rate_mm_s = 0.0f;
-                }
+                desired_accel_mm_s2 = control_leg_clamp(
+                    (desired_rate_mm_s - control_leg_height_rate_mm_s) * profile->height_rate_kp_s,
+                    -profile->max_height_accel_mm_s2,
+                    profile->max_height_accel_mm_s2);
+                accel_delta_mm_s2 = control_leg_clamp(desired_accel_mm_s2 - control_leg_height_accel_mm_s2,
+                                                       -profile->max_height_jerk_mm_s3 * dt_s,
+                                                       profile->max_height_jerk_mm_s3 * dt_s);
+                control_leg_height_accel_mm_s2 = control_leg_clamp(control_leg_height_accel_mm_s2 + accel_delta_mm_s2,
+                                                                    -profile->max_height_accel_mm_s2,
+                                                                    profile->max_height_accel_mm_s2);
+                control_leg_height_rate_mm_s = control_leg_clamp(control_leg_height_rate_mm_s +
+                                                                  (control_leg_height_accel_mm_s2 * dt_s),
+                                                                  -profile->max_height_speed_mm_s,
+                                                                  profile->max_height_speed_mm_s);
                 control_leg_height_ref_mm += control_leg_height_rate_mm_s * dt_s;
-                if(((0.0f < error_mm) && (control_leg_height_ref_mm >= control_leg_target_height_mm)) ||
-                   ((0.0f > error_mm) && (control_leg_height_ref_mm <= control_leg_target_height_mm)))
+                if((0.01f >= control_leg_absf(control_leg_target_height_mm - control_leg_height_ref_mm)) &&
+                   (0.05f >= control_leg_absf(control_leg_height_rate_mm_s)) &&
+                   ((profile->max_height_jerk_mm_s3 * dt_s) >=
+                    control_leg_absf(control_leg_height_accel_mm_s2)))
                 {
                     control_leg_height_ref_mm = control_leg_target_height_mm;
                     control_leg_height_rate_mm_s = 0.0f;
+                    control_leg_height_accel_mm_s2 = 0.0f;
                 }
 
                 control_leg_diag.left_x_mm = 0.0f;
@@ -396,32 +412,17 @@ void control_leg_update(uint32 now_ms)
                 control_leg_diag.left_y_mm = control_leg_height_ref_mm;
                 control_leg_diag.right_y_mm = control_leg_height_ref_mm;
 
-                left_ik_solved = leg_kinematics_solve(APP_FALSE, 0.0f, control_leg_height_ref_mm, &control_leg_left_ik, &left_ik);
-                right_ik_solved = leg_kinematics_solve(APP_TRUE, 0.0f, control_leg_height_ref_mm, &control_leg_right_ik, &right_ik);
-                left_margin_fault = ((APP_FALSE == left_ik_solved) &&
-                                     (0.0f < left_ik.singularity_margin) &&
-                                     (profile->ik_min_margin > left_ik.singularity_margin)) ? APP_TRUE : APP_FALSE;
-                right_margin_fault = ((APP_FALSE == right_ik_solved) &&
-                                      (0.0f < right_ik.singularity_margin) &&
-                                      (profile->ik_min_margin > right_ik.singularity_margin)) ? APP_TRUE : APP_FALSE;
-
-                if((APP_TRUE == left_ik_solved) &&
-                   (APP_TRUE == right_ik_solved) &&
-                   (profile->ik_min_margin <= left_ik.singularity_margin) &&
-                   (profile->ik_min_margin <= right_ik.singularity_margin) &&
-                   (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FL, left_ik.servo_deg[0], &servo_fl_deg)) &&
-                   (APP_TRUE == control_leg_apply_calib(LEG_SERVO_RL, left_ik.servo_deg[1], &servo_rl_deg)) &&
-                   (APP_TRUE == control_leg_apply_calib(LEG_SERVO_FR, right_ik.servo_deg[0], &servo_fr_deg)) &&
-                   (APP_TRUE == control_leg_apply_calib(LEG_SERVO_RR, right_ik.servo_deg[1], &servo_rr_deg)))
+                if(APP_TRUE == control_leg_apply_empirical_height(control_leg_height_ref_mm,
+                                                                  &servo_fl_deg,
+                                                                  &servo_fr_deg,
+                                                                  &servo_rl_deg,
+                                                                  &servo_rr_deg))
                 {
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_FL] = servo_fl_deg;
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_RL] = servo_rl_deg;
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_fr_deg;
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_rr_deg;
-                    control_leg_left_ik = left_ik;
-                    control_leg_right_ik = right_ik;
-                    control_leg_diag.ik_margin = (left_ik.singularity_margin < right_ik.singularity_margin) ?
-                                                 left_ik.singularity_margin : right_ik.singularity_margin;
+                    control_leg_diag.ik_margin = CONTROL_LEG_EMPIRICAL_IK_MARGIN;
                     if((profile->height_settle_error_mm >=
                         control_leg_absf(control_leg_target_height_mm - control_leg_height_ref_mm)) &&
                        (0.0f == control_leg_height_rate_mm_s))
@@ -446,21 +447,7 @@ void control_leg_update(uint32 now_ms)
                 }
                 else
                 {
-                    if((APP_TRUE == left_margin_fault) ||
-                       (APP_TRUE == right_margin_fault) ||
-                       (((APP_TRUE == left_ik.valid) && (profile->ik_min_margin > left_ik.singularity_margin)) ||
-                        ((APP_TRUE == right_ik.valid) && (profile->ik_min_margin > right_ik.singularity_margin))))
-                    {
-                        control_leg_enter_fault(LEG_FAULT_IK_MARGIN);
-                    }
-                    else if((APP_TRUE == left_ik.valid) && (APP_TRUE == right_ik.valid))
-                    {
-                        control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
-                    }
-                    else
-                    {
-                        control_leg_enter_fault(LEG_FAULT_IK_INVALID);
-                    }
+                    control_leg_enter_fault(LEG_FAULT_SERVO_LIMIT);
                     control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
                 }
                 break;
@@ -478,6 +465,7 @@ void control_leg_update(uint32 now_ms)
                 control_leg_target_height_mm = profile->safe_support_height_mm;
                 control_leg_height_ref_mm = profile->safe_support_height_mm;
                 control_leg_height_rate_mm_s = 0.0f;
+                control_leg_height_accel_mm_s2 = 0.0f;
                 control_leg_write_safe_angles(config);
                 control_leg_motion_state = LEG_MOTION_LOCKED;
                 control_leg_fault_reason = LEG_FAULT_NONE;
@@ -593,6 +581,7 @@ uint8 control_leg_set_height(float height_mm, uint32 now_ms)
     {
         control_leg_height_ref_mm = profile->safe_support_height_mm;
         control_leg_height_rate_mm_s = 0.0f;
+        control_leg_height_accel_mm_s2 = 0.0f;
         control_leg_fault_reason = LEG_FAULT_NONE;
         control_leg_motion_state = LEG_MOTION_TRANSITION;
         control_leg_settle_start_ms = now_ms;

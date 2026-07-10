@@ -52,11 +52,11 @@ clipping.
 
 The generator tracks position, velocity, and acceleration. Each 10 ms update:
 
-1. Calculates a stopping-aware desired acceleration toward the current target.
-2. Ramps acceleration toward that demand by no more than `max_height_jerk_mm_s3 * dt`.
-3. Integrates acceleration and clamps velocity to `max_height_speed_mm_s`.
-4. Integrates velocity into `height_ref_mm`; only an actual target crossing may
-   snap position to the target and clear velocity/acceleration.
+1. Calculates a bounded desired rate from position error using `height_position_kp_s`.
+2. Calculates a bounded desired acceleration from rate error using `height_rate_kp_s`.
+3. Ramps acceleration toward that demand by no more than `max_height_jerk_mm_s3 * dt`.
+4. Integrates acceleration, clamps velocity to `max_height_speed_mm_s`, and
+   integrates velocity into `height_ref_mm`.
 
 When a new valid `LH` target arrives mid-motion, the planner retains the
 current reference position, velocity, and acceleration and replans toward the
@@ -68,11 +68,14 @@ Initial Phase 1 limits remain conservative:
 - maximum height speed: 5 mm/s
 - maximum height acceleration: 10 mm/s2
 - maximum height jerk: 80 mm/s3
+- position-to-rate gain: 1.0 s-1
+- rate-to-acceleration gain: 4.0 s-1
 
-The jerk value gives a 125 ms acceleration ramp. It removes the instantaneous
-acceleration steps in the current trapezoidal profile without making the normal
-45--65 mm test needlessly slow. It is a configuration constant so hardware
-validation can lower it if the mechanism still resonates.
+The jerk value gives a 125 ms acceleration ramp. Together with the two
+configured damping gains, it removes instantaneous acceleration steps and
+avoids the target-crossing oscillation of a simple bang-bang brake law. All
+three values are configuration constants so hardware validation can lower jerk
+or gains if the mechanism still resonates.
 
 ## Safety and Fault Handling
 

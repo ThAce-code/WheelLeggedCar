@@ -61,6 +61,9 @@ typedef struct
     float default_height_mm;
     float max_height_speed_mm_s;
     float max_height_accel_mm_s2;
+    float max_height_jerk_mm_s3;
+    float height_position_kp_s;
+    float height_rate_kp_s;
     float height_settle_error_mm;
     uint32 height_settle_ms;
     float ik_min_margin;

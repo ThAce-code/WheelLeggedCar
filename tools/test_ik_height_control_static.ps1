@@ -159,4 +159,10 @@ Assert-Contains "tools/calib_ik_servo.ps1" '\[double\]\$Frame\.servo3_output_deg
 Assert-NotContains "tools/calib_ik_servo.ps1" "ToleranceDeg" "Telemetry confirmation must not allow a degree tolerance."
 Assert-Contains "tools/calib_ik_servo.ps1" '\$sampleId, \$label,\s*\$a0, \$a1, \$a2, \$a3,' "CSV command fields must record canonical transmitted command values."
 
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "\| Gate \| Build SHA \| Height start/end \(mm\) \| Safe-pose measured height \(mm\) \| Max pitch \(deg\) \| Max wheel RPM \| IK margin min \| IK faults \| Safety trips \| Result \| Notes \|" "Hardware record must contain the required gate table."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "bench/no wheel output[\s\S]*supported stationary at low/default/high heights[\s\S]*balance-in-place transition[\s\S]*low-speed straight transition[\s\S]*low-speed turn and stop" "Hardware gates must be listed in the immutable order."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "A failure blocks all later gates" "Hardware record must state that failures block later gates."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "IAR Embedded Workbench 9\.40\.1" "Hardware record must name the required IAR version."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "not run" "Unexecuted build or hardware gates must be marked not run, not passed."
+
 Write-Host "ik height control static checks passed"

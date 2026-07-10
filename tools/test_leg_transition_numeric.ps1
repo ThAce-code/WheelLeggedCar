@@ -165,6 +165,19 @@ function Assert-MotionPolicy {
     }
 }
 
+function Assert-HeightCommandRange {
+    param([hashtable]$Config)
+
+    $lowReject = 34.0
+    $highReject = 121.0
+    if(($lowReject -ge $Config["low_height_mm"]) -and ($lowReject -le $Config["high_height_mm"])) {
+        throw "34 mm command must be outside the configured Phase 1 height interval."
+    }
+    if(($highReject -ge $Config["low_height_mm"]) -and ($highReject -le $Config["high_height_mm"])) {
+        throw "121 mm command must be outside the configured Phase 1 height interval."
+    }
+}
+
 function Get-LegTransitionConfig {
     $text = Get-Content "project/code/leg_config.c" -Raw
     $names = @(
@@ -325,6 +338,7 @@ Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "H
 Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
 Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 80.0 -Message "Provisional safe support height"
+Assert-HeightCommandRange -Config $config
 
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."

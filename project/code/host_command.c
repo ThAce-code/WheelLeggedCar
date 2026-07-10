@@ -376,6 +376,32 @@ static void host_command_process_line(char *line, uint32 now_ms)
     }
 #endif
 
+    if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) &&
+       ('R' == line[3]) && ('E' == line[4]) && ('F' == line[5]) && ('\0' == line[6]))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_ik_reference(now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('L' == line[0]) && ('X' == line[1]) && ('Y' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[4], &value, &period_ms_f)))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_xy(value, period_ms_f, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
     if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) && (',' == line[3]) &&
        (APP_TRUE == host_command_parse_four_numbers(&line[4], &kp, &ki, &kd, &fourth)))
     {

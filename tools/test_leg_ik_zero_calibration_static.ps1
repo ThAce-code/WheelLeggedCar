@@ -97,6 +97,12 @@ Assert-Contains "project/code/host_command.c" "(?s)'L' == line\[0\].*'I' == line
 Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'X' == line\[1\].*'Y' == line\[2\]" "Missing LXY command parser."
 Assert-Contains "project/code/host_command.c" "control_leg_set_ik_reference" "LIKREF must enter the reference controller mode."
 Assert-Contains "project/code/host_command.c" "control_leg_set_xy" "LXY must enter the restricted XY controller mode."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF" "Hardware procedure must include LIKREF."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55" "Hardware procedure must include reference XY check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,5,55" "Hardware procedure must include positive X check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-5,55" "Hardware procedure must include negative X check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,52" "Hardware procedure must include lower Y check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,58" "Hardware procedure must include higher Y check."
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-ik-zero-" + [Guid]::NewGuid().ToString())
 $originalPath = $null

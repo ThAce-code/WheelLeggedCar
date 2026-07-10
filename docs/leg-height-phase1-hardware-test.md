@@ -96,3 +96,11 @@ Offline checks to record before bench work:
 - `powershell -ExecutionPolicy Bypass -File .\tools\test_leg_transition_numeric.ps1`
 - `powershell -ExecutionPolicy Bypass -File .\tools\test_ik_height_control_static.ps1`
 - `git diff --check`
+
+## IK zero-calibration path is separate from Phase 1 height control
+
+The experimental `LIKREF` and restricted `LXY,x,y` commands are documented in
+[`leg-ik-zero-calibration-hardware-test.md`](leg-ik-zero-calibration-hardware-test.md).
+They stop drive and balance before commanding the legs and do not replace the
+empirical `LH/LHF` height map. Complete the reference-pose and small-range
+bench procedure before considering any wider 2D IK work.

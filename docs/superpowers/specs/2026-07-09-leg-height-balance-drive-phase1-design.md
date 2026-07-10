@@ -80,7 +80,7 @@ permits the configured conservative transition limit and disables fast drive.
 ## Leg Control Behavior
 
 1. Validate a requested height against calibrated workspace and configuration.
-2. Generate a speed- and acceleration-limited S-curve trajectory.  Initial
+2. Generate a speed- and acceleration-limited trajectory.  Initial
    limits come from configuration and are hardware-tuned; no new safety number
    is hard-coded into control logic.
 3. Solve both legs from the trajectory point, with a candidate set for each

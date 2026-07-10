@@ -1,0 +1,14 @@
+a0,a1,a2,a3,label
+90,90,90,90,center_90
+85,85,85,85,all_85
+95,95,95,95,all_95
+80,80,80,80,all_80
+100,100,100,100,all_100
+82,82,98,98,left_front_low_rear_high
+98,98,82,82,left_front_high_rear_low
+82,98,82,98,left_low_right_high_pair
+98,82,98,82,left_high_right_low_pair
+88,88,92,92,front_88_rear_92
+92,92,88,88,front_92_rear_88
+88,92,88,92,cross_a
+92,88,92,88,cross_b

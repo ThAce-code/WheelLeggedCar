@@ -32,14 +32,14 @@ static const leg_config_struct leg_config_default =
     },
     {
         .low_height_mm = 35.0f,
-        .high_height_mm = 120.0f,
-        .default_height_mm = 80.0f,
+        .high_height_mm = 80.0f,
+        .default_height_mm = 35.0f,
         .max_height_speed_mm_s = 10.0f,
         .max_height_accel_mm_s2 = 20.0f,
         .height_settle_error_mm = 1.0f,
         .height_settle_ms = 300U,
         .ik_min_margin = 0.20f,
-        .safe_support_height_mm = 55.0f,
+        .safe_support_height_mm = 35.0f,
         .transition_forward_limit_rpm = 30.0f,
         .balance_pitch_kp_low = 18.0f,
         .balance_pitch_kp_high = 22.0f,
@@ -55,7 +55,7 @@ static const leg_config_struct leg_config_default =
         .chassis_fast_forward_limit_high_rpm = 120.0f
     },
     35.0f,
-    120.0f,
+    80.0f,
     30.0f,
     30.0f
 };

@@ -169,12 +169,16 @@ function Assert-HeightCommandRange {
     param([hashtable]$Config)
 
     $lowReject = 34.0
-    $highReject = 121.0
+    $highReject = 81.0
+    $phase1RejectedHigh = 120.0
     if(($lowReject -ge $Config["low_height_mm"]) -and ($lowReject -le $Config["high_height_mm"])) {
         throw "34 mm command must be outside the configured Phase 1 height interval."
     }
     if(($highReject -ge $Config["low_height_mm"]) -and ($highReject -le $Config["high_height_mm"])) {
-        throw "121 mm command must be outside the configured Phase 1 height interval."
+        throw "81 mm command must be outside the mapped Phase 1 height interval."
+    }
+    if(($phase1RejectedHigh -ge $Config["low_height_mm"]) -and ($phase1RejectedHigh -le $Config["high_height_mm"])) {
+        throw "120 mm command must be outside the mapped Phase 1 height interval."
     }
 }
 
@@ -183,6 +187,7 @@ function Get-LegTransitionConfig {
     $names = @(
         "low_height_mm",
         "high_height_mm",
+        "default_height_mm",
         "max_height_speed_mm_s",
         "max_height_accel_mm_s2",
         "height_settle_error_mm",
@@ -261,7 +266,7 @@ static int check_side(uint8 right_side)
 {
     int height;
     leg_ik_result_struct previous = {0};
-    for(height = 35; height <= 120; height++)
+    for(height = 35; height <= 80; height++)
     {
         float x_mm;
         float y_mm;
@@ -331,22 +336,23 @@ int main(void)
 
 $config = Get-LegTransitionConfig
 Assert-Equal -Actual $config["low_height_mm"] -Expected 35.0 -Message "Low calibrated height"
-Assert-Equal -Actual $config["high_height_mm"] -Expected 120.0 -Message "High calibrated height"
+Assert-Equal -Actual $config["high_height_mm"] -Expected 80.0 -Message "Mapped Phase 1 high height"
+Assert-Equal -Actual $config["default_height_mm"] -Expected 35.0 -Message "Mapped Phase 1 default height"
 Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 10.0 -Message "Maximum height speed"
 Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Maximum height acceleration"
 Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
 Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
-Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 55.0 -Message "Measured safe support height"
+Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 35.0 -Message "Mapped Phase 1 safe support height"
 Assert-HeightCommandRange -Config $config
 
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
 
-Assert-BoundedHeightTrajectory -TargetsMm @(35.0, 120.0)
-Assert-BoundedHeightTrajectory -TargetsMm @(120.0, 35.0)
-Assert-BoundedHeightTrajectory -TargetsMm @(80.0, 110.0, 50.0)
+Assert-BoundedHeightTrajectory -TargetsMm @(35.0, 80.0)
+Assert-BoundedHeightTrajectory -TargetsMm @(80.0, 35.0)
+Assert-BoundedHeightTrajectory -TargetsMm @(35.0, 55.0, 80.0, 35.0)
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy

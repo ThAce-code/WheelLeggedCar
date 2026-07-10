@@ -222,7 +222,7 @@ $rxBuf = New-Object System.Collections.Generic.List[byte]
 $csvFields = "sample_id","label","cmd_a0_deg","cmd_a1_deg","cmd_a2_deg","cmd_a3_deg",
              "servo0_output_deg","servo1_output_deg","servo2_output_deg","servo3_output_deg",
              "ik_valid","leg_mode","leg_height_ref_mm","leg_height_rate_mm_s","ik_margin",
-             "drive_forward_limit_rpm","motion_state","fault_reason","drive_allowed",
+             "drive_forward_limit_rpm","motion_state","fault_reason","drive_allowed","telemetry_match",
              "measured_x_mm","measured_y_mm","note"
 $writer = [System.IO.StreamWriter]::new($outPath, $false, [System.Text.Encoding]::UTF8)
 $writer.WriteLine(($csvFields -join ","))
@@ -271,10 +271,11 @@ try {
             $s3    = "{0:F1}" -f $frame.servo3_output_deg
             $ikv   = "{0:F0}" -f $frame.leg_ik_valid
             $lmode = "{0:F0}" -f $frame.leg_mode
+            $telemetryMatch = Test-FrameMatchesCommand -Frame $frame -A0 $a0 -A1 $a1 -A2 $a2 -A3 $a3
             Write-Host ("    telemetry: servo=({0}, {1}, {2}, {3})  ik_valid={4}  leg_mode={5}" -f $s0, $s1, $s2, $s3, $ikv, $lmode)
-            if(-not (Test-FrameMatchesCommand -Frame $frame -A0 $a0 -A1 $a1 -A2 $a2 -A3 $a3)) {
-                Write-Host "    [SKIP] Telemetry did not match this LIK command; not recording this point.`n"
-                continue
+            if(-not $telemetryMatch) {
+                Write-Host "    [WARN] Telemetry did not match this LIK command; visually confirm the pose before measuring."
+                Write-Host "           IK_CALIB telemetry can be stale because diagnostics publish before servo slew completes."
             }
         }
 
@@ -301,6 +302,7 @@ try {
             ("{0:F0}" -f $frame.motion_state),
             ("{0:F0}" -f $frame.fault_reason),
             ("{0:F0}" -f $frame.drive_allowed),
+            ($(if($telemetryMatch) { "1" } else { "0" })),
             $mx, $my,
             ('"' + $note.Replace('"', '""') + '"')
         ) -join ","

@@ -24,9 +24,17 @@ uint8 leg_kinematics_solve(uint8 right_side,
                            const leg_ik_result_struct *previous,
                            leg_ik_result_struct *result);
 uint8 leg_kinematics_forward(uint8 right_side,
-                             float servo_a_deg,
-                             float servo_b_deg,
-                             float *x_mm,
-                             float *y_mm);
+                              float servo_a_deg,
+                              float servo_b_deg,
+                              float *x_mm,
+                              float *y_mm);
+uint8 leg_kinematics_map_reference_pose(const leg_ik_result_struct *left,
+                                        const leg_ik_result_struct *right,
+                                        float servo_deg[LEG_SERVO_COUNT]);
+uint8 leg_kinematics_map_target_pose(const leg_ik_result_struct *left_reference,
+                                     const leg_ik_result_struct *right_reference,
+                                     const leg_ik_result_struct *left_target,
+                                     const leg_ik_result_struct *right_target,
+                                     float servo_deg[LEG_SERVO_COUNT]);
 
 #endif

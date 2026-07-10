@@ -25,6 +25,7 @@ typedef struct
     float  min_deg;
     float  max_deg;
     float  direction;
+    float  ik_offset_deg;
     float  mount_x;
     float  mount_y;
 }leg_servo_config_struct;
@@ -48,6 +49,12 @@ typedef struct
     float y_max_mm;
     float x_offset_mm;
     float y_offset_mm;
+    float validate_x_min_mm;
+    float validate_x_max_mm;
+    float validate_y_min_mm;
+    float validate_y_max_mm;
+    float reference_x_mm;
+    float reference_y_mm;
     leg_ik_branch_enum left_alpha_branch;
     leg_ik_branch_enum left_beta_branch;
     leg_ik_branch_enum right_alpha_branch;

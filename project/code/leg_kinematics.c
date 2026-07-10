@@ -81,6 +81,35 @@ static uint8 leg_kinematics_servo_valid(uint8 servo_index, float angle_deg)
     return leg_kinematics_is_finite(angle_deg);
 }
 
+static uint8 leg_kinematics_map_one(uint8 servo_index,
+                                     float reference_deg,
+                                     float target_deg,
+                                     float *command_deg)
+{
+    const leg_servo_config_struct *cfg;
+    float value;
+
+    if(NULL == command_deg)
+    {
+        return APP_FALSE;
+    }
+    cfg = leg_config_get_servo(servo_index);
+    if((NULL == cfg) ||
+       (APP_FALSE == leg_kinematics_is_finite(reference_deg)) ||
+       (APP_FALSE == leg_kinematics_is_finite(target_deg)))
+    {
+        return APP_FALSE;
+    }
+
+    value = cfg->neutral_deg + (cfg->direction * (target_deg - reference_deg)) + cfg->ik_offset_deg;
+    if(APP_FALSE == leg_kinematics_servo_valid(servo_index, value))
+    {
+        return APP_FALSE;
+    }
+    *command_deg = value;
+    return APP_TRUE;
+}
+
 static uint8 leg_kinematics_solve_angle_candidates(float a,
                                                     float b,
                                                     float c,
@@ -355,6 +384,56 @@ uint8 leg_kinematics_solve(uint8 right_side,
     result->alpha_rad = alpha_rad;
     result->beta_rad = beta_rad;
     result->valid = APP_TRUE;
+    return APP_TRUE;
+}
+
+uint8 leg_kinematics_map_reference_pose(const leg_ik_result_struct *left,
+                                        const leg_ik_result_struct *right,
+                                        float servo_deg[LEG_SERVO_COUNT])
+{
+    return leg_kinematics_map_target_pose(left, right, left, right, servo_deg);
+}
+
+uint8 leg_kinematics_map_target_pose(const leg_ik_result_struct *left_reference,
+                                     const leg_ik_result_struct *right_reference,
+                                     const leg_ik_result_struct *left_target,
+                                     const leg_ik_result_struct *right_target,
+                                     float servo_deg[LEG_SERVO_COUNT])
+{
+    float mapped_deg[LEG_SERVO_COUNT];
+
+    if((NULL == left_reference) || (NULL == right_reference) ||
+       (NULL == left_target) || (NULL == right_target) || (NULL == servo_deg) ||
+       (APP_FALSE == left_reference->valid) || (APP_FALSE == right_reference->valid) ||
+       (APP_FALSE == left_target->valid) || (APP_FALSE == right_target->valid))
+    {
+        return APP_FALSE;
+    }
+
+    if((APP_FALSE == leg_kinematics_map_one(LEG_SERVO_FL,
+                                             left_reference->servo_deg[0],
+                                             left_target->servo_deg[0],
+                                             &mapped_deg[LEG_SERVO_FL])) ||
+       (APP_FALSE == leg_kinematics_map_one(LEG_SERVO_RL,
+                                             left_reference->servo_deg[1],
+                                             left_target->servo_deg[1],
+                                             &mapped_deg[LEG_SERVO_RL])) ||
+       (APP_FALSE == leg_kinematics_map_one(LEG_SERVO_FR,
+                                             right_reference->servo_deg[0],
+                                             right_target->servo_deg[0],
+                                             &mapped_deg[LEG_SERVO_FR])) ||
+       (APP_FALSE == leg_kinematics_map_one(LEG_SERVO_RR,
+                                             right_reference->servo_deg[1],
+                                             right_target->servo_deg[1],
+                                             &mapped_deg[LEG_SERVO_RR])))
+    {
+        return APP_FALSE;
+    }
+
+    servo_deg[LEG_SERVO_FL] = mapped_deg[LEG_SERVO_FL];
+    servo_deg[LEG_SERVO_FR] = mapped_deg[LEG_SERVO_FR];
+    servo_deg[LEG_SERVO_RL] = mapped_deg[LEG_SERVO_RL];
+    servo_deg[LEG_SERVO_RR] = mapped_deg[LEG_SERVO_RR];
     return APP_TRUE;
 }
 

@@ -60,6 +60,11 @@ typedef struct
     float high_height_mm;
     float default_height_mm;
     float max_height_speed_mm_s;
+    float max_height_accel_mm_s2;
+    float height_settle_error_mm;
+    uint32 height_settle_ms;
+    float ik_min_margin;
+    float safe_support_height_mm;
     float transition_forward_limit_rpm;
     float balance_pitch_kp_low;
     float balance_pitch_kp_high;

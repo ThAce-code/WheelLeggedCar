@@ -237,20 +237,43 @@ typedef struct
     uint8 enable[4];
 }servo_cmd_struct;
 
+typedef enum
+{
+    LEG_MOTION_LOCKED = 0,
+    LEG_MOTION_STABLE,
+    LEG_MOTION_TRANSITION,
+    LEG_MOTION_FAULT
+}leg_motion_state_enum;
+
+typedef enum
+{
+    LEG_FAULT_NONE = 0,
+    LEG_FAULT_IK_INVALID,
+    LEG_FAULT_IK_MARGIN,
+    LEG_FAULT_SERVO_LIMIT
+}leg_fault_reason_enum;
+
 typedef struct
 {
     float target_height_mm;
     float actual_height_mm;
+    float height_ref_mm;
+    float height_rate_mm_s;
     float height_norm;
+    float ik_margin;
     float left_x_mm;
     float left_y_mm;
     float right_x_mm;
     float right_y_mm;
     float servo_target_deg[4];
     float servo_actual_deg[4];
+    float drive_forward_limit_rpm;
     uint8 mode;
     uint8 ik_valid;
     uint8 output_enable;
+    uint8 drive_allowed;
+    leg_motion_state_enum motion_state;
+    leg_fault_reason_enum fault_reason;
     uint32 ik_error_count;
 }leg_diag_struct;
 

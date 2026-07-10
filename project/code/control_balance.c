@@ -207,11 +207,13 @@ void control_balance_update(uint32 now_ms)
     float wheel_speed_rpm;
     float wheel_pos_delta_rev;
     uint32 imu_age_ms;
+    const leg_diag_struct *leg;
 
     imu = sensor_imu_get_state();
     wheel = actuator_motor_get_feedback();
     chassis = control_chassis_get_output();
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
+    leg = control_leg_get_diag();
 
     control_balance_diag.mode = control_balance_mode;
     control_balance_diag.pitch_deg = imu->pitch;
@@ -277,6 +279,14 @@ void control_balance_update(uint32 now_ms)
 
     /* BALANCE_TEST only from here: safety gates + motor output */
     control_balance_diag.safety_blocked = APP_FALSE;
+    if(LEG_MOTION_FAULT == leg->motion_state)
+    {
+        control_balance_diag.safety_blocked = APP_TRUE;
+        control_balance_reset_motion_state();
+        control_balance_stop_output();
+        return;
+    }
+
     if((APP_STATE_FAULT == app_state_get()) ||
        (APP_FALSE == imu->healthy) ||
        (APP_FALSE == wheel->online) ||
@@ -303,7 +313,6 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
 
     {
-        const leg_diag_struct *leg;
         const leg_height_profile_struct *height_profile;
         float height_norm;
         float pitch_kp_eff;
@@ -311,11 +320,23 @@ void control_balance_update(uint32 now_ms)
         float wheel_speed_ks_base_eff;
         float pitch_setpoint_base_eff;
 
-        leg = control_leg_get_diag();
         height_profile = leg_config_get_height_profile();
-        height_norm = control_balance_limit_abs(leg->height_norm, 1.0f);
+        if(height_profile->high_height_mm > height_profile->low_height_mm)
+        {
+            height_norm = (leg->height_ref_mm - height_profile->low_height_mm) /
+                          (height_profile->high_height_mm - height_profile->low_height_mm);
+        }
+        else
+        {
+            height_norm = 0.0f;
+        }
+        height_norm = control_balance_clamp01(height_norm);
 
-        if((APP_TRUE == leg->ik_valid) && (APP_TRUE == leg->output_enable))
+        if(((LEG_MOTION_TRANSITION == leg->motion_state) ||
+            (LEG_MOTION_STABLE == leg->motion_state)) &&
+           (APP_TRUE == leg->ik_valid) &&
+           (APP_TRUE == leg->output_enable) &&
+           (APP_TRUE == leg->drive_allowed))
         {
             pitch_kp_eff = control_balance_lerp(height_profile->balance_pitch_kp_low,
                                                 height_profile->balance_pitch_kp_high,

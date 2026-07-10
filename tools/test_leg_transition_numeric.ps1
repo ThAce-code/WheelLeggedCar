@@ -123,6 +123,48 @@ function Assert-InsufficientIkMarginFault {
     }
 }
 
+function Resolve-ChassisMotionPolicy {
+    param(
+        [string]$MotionState,
+        [bool]$DriveAllowed,
+        [bool]$FastRequested,
+        [double]$ConfiguredForwardLimitRpm,
+        [double]$ConfiguredFastForwardLimitRpm,
+        [double]$TransitionForwardLimitRpm
+    )
+
+    if(($MotionState -eq "FAULT") -or (-not $DriveAllowed)) {
+        return @{
+            ForwardLimitRpm = 0.0
+            EffectiveFast = $false
+        }
+    }
+    if($MotionState -eq "TRANSITION") {
+        return @{
+            ForwardLimitRpm = $TransitionForwardLimitRpm
+            EffectiveFast = $false
+        }
+    }
+    return @{
+        ForwardLimitRpm = if($FastRequested) { $ConfiguredFastForwardLimitRpm } else { $ConfiguredForwardLimitRpm }
+        EffectiveFast = $FastRequested
+    }
+}
+
+function Assert-MotionPolicy {
+    $transition = Resolve-ChassisMotionPolicy -MotionState "TRANSITION" -DriveAllowed $true -FastRequested $true -ConfiguredForwardLimitRpm 80.0 -ConfiguredFastForwardLimitRpm 220.0 -TransitionForwardLimitRpm 30.0
+    Assert-Equal -Actual $transition.ForwardLimitRpm -Expected 30.0 -Message "Transition forward limit"
+    if($transition.EffectiveFast) {
+        throw "Transition must disable effective fast blend without clearing the operator request."
+    }
+
+    $fault = Resolve-ChassisMotionPolicy -MotionState "FAULT" -DriveAllowed $false -FastRequested $true -ConfiguredForwardLimitRpm 80.0 -ConfiguredFastForwardLimitRpm 220.0 -TransitionForwardLimitRpm 30.0
+    Assert-Equal -Actual $fault.ForwardLimitRpm -Expected 0.0 -Message "Fault forward limit"
+    if($fault.EffectiveFast) {
+        throw "Fault must disable effective fast blend."
+    }
+}
+
 function Get-LegTransitionConfig {
     $text = Get-Content "project/code/leg_config.c" -Raw
     $names = @(
@@ -293,6 +335,7 @@ Assert-BoundedHeightTrajectory -TargetsMm @(120.0, 35.0)
 Assert-BoundedHeightTrajectory -TargetsMm @(80.0, 110.0, 50.0)
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
+Assert-MotionPolicy
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-kinematics-" + [Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tempPath | Out-Null

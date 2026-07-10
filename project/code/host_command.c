@@ -8,6 +8,7 @@
 #include "control_chassis.h"
 #include "control_balance.h"
 #include "control_leg.h"
+#include "app_config.h"
 #include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
 
@@ -349,6 +350,21 @@ static void host_command_process_line(char *line, uint32 now_ms)
             return;
         }
     }
+
+#if (APP_LEG_DIRECT_STEP_TEST_ENABLE == 1U)
+    if(('L' == line[0]) && ('J' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_number(&line[3], &value)))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_direct_step_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+#endif
 
     if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) && (',' == line[3]) &&
        (APP_TRUE == host_command_parse_four_numbers(&line[4], &kp, &ki, &kd, &fourth)))

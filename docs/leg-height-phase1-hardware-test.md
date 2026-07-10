@@ -21,6 +21,24 @@ Local build-tool check: `IarBuild.exe` was not found at the common IAR 9.40 inst
 
 Telemetry file: TBD
 
+## Direct-step bench comparison only
+
+`LJ,<height_mm>` is excluded from normal Phase 1 gates. To build the temporary
+bench binary, change `APP_LEG_DIRECT_STEP_TEST_ENABLE` from `0U` to `1U`,
+rebuild, and keep the vehicle supported with wheel motors stopped. Send only:
+
+```text
+STOP
+LJ,55
+LJ,65
+STOP
+```
+
+The direct-step mode bypasses both software trajectory layers and forces drive
+permission off. Abort on linkage interference, servo heating, supply sag, or
+wheel movement. Restore `APP_LEG_DIRECT_STEP_TEST_ENABLE` to `0U` before any
+supported drive or balance test.
+
 Offline checks to record before bench work:
 
 - `powershell -ExecutionPolicy Bypass -File .\tools\test_leg_transition_numeric.ps1`

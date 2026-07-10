@@ -147,6 +147,7 @@
 #define APP_LEG_CALIB_ENABLE            (0U)
 #define APP_LEG_CALIB_SERVO_ID          LEG_SERVO_FL
 #define APP_LEG_CALIB_OFFSET_DEG        (0.0f)
+#define APP_LEG_DIRECT_STEP_TEST_ENABLE (0U)
 
 #define APP_LEG_VERIFY_ENABLE           (0U)
 #define APP_LEG_VERIFY_DELAY_MS         (2000U)

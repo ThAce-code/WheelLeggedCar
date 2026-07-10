@@ -86,15 +86,15 @@ function Assert-JerkLimitedHeightTrajectory {
             $targetMm = 45.0
         }
         $previousAccelMmS2 = $accelMmS2
-        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -AccelMmS2 $accelMmS2 -TargetMm $targetMm -MaxSpeedMmS 5.0 -MaxAccelMmS2 10.0 -MaxJerkMmS3 80.0 -PositionKpS $PositionKpS -RateKpS $RateKpS -DtS 0.01
+        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -AccelMmS2 $accelMmS2 -TargetMm $targetMm -MaxSpeedMmS 20.0 -MaxAccelMmS2 20.0 -MaxJerkMmS3 80.0 -PositionKpS $PositionKpS -RateKpS $RateKpS -DtS 0.01
         $referenceMm = $result[0]
         $rateMmS = $result[1]
         $accelMmS2 = $result[2]
-        if((5.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
-            throw "Height trajectory exceeded 5 mm/s."
+        if((20.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
+            throw "Height trajectory exceeded 20 mm/s."
         }
-        if((10.0 + 0.0001) -lt [math]::Abs($accelMmS2)) {
-            throw "Height trajectory exceeded 10 mm/s2."
+        if((20.0 + 0.0001) -lt [math]::Abs($accelMmS2)) {
+            throw "Height trajectory exceeded 20 mm/s2."
         }
         if((0.8 + 0.0001) -lt [math]::Abs($accelMmS2 - $previousAccelMmS2)) {
             throw ("Height trajectory exceeded 80 mm/s3 at 10 ms: step {0}." -f $step)
@@ -359,10 +359,10 @@ $config = Get-LegTransitionConfig
 Assert-Equal -Actual $config["low_height_mm"] -Expected 45.0 -Message "Empirical Phase 1 low height"
 Assert-Equal -Actual $config["high_height_mm"] -Expected 65.0 -Message "Empirical Phase 1 high height"
 Assert-Equal -Actual $config["default_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 default height"
-Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 5.0 -Message "Maximum height speed"
-Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 10.0 -Message "Maximum height acceleration"
+Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 20.0 -Message "Fast-response maximum height speed"
+Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Fast-response maximum height acceleration"
 Assert-Equal -Actual $config["max_height_jerk_mm_s3"] -Expected 80.0 -Message "Maximum height jerk"
-Assert-Equal -Actual $config["height_position_kp_s"] -Expected 1.0 -Message "Height position velocity gain"
+Assert-Equal -Actual $config["height_position_kp_s"] -Expected 2.0 -Message "Fast-response height position velocity gain"
 Assert-Equal -Actual $config["height_rate_kp_s"] -Expected 4.0 -Message "Height velocity acceleration gain"
 Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
 Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"

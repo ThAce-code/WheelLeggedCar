@@ -126,6 +126,20 @@ void actuator_servo_update(uint32 now_ms)
     }
 }
 
+void actuator_servo_apply_immediate(void)
+{
+    uint8 i;
+
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        if(APP_TRUE == actuator_servo_cmd.enable[i])
+        {
+            actuator_servo_current_angle[i] = actuator_servo_cmd.angle_deg[i];
+            actuator_servo_write(i, actuator_servo_current_angle[i]);
+        }
+    }
+}
+
 void actuator_servo_enable(void)
 {
     uint8 i;

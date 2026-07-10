@@ -14,7 +14,8 @@ typedef enum
     LEG_MODE_LOCK = 0,
     LEG_MODE_MANUAL,
     LEG_MODE_IK_CALIB,
-    LEG_MODE_HEIGHT
+    LEG_MODE_HEIGHT,
+    LEG_MODE_DIRECT_STEP
 }leg_mode_enum;
 
 void control_leg_init(void);
@@ -24,6 +25,7 @@ void control_leg_set_manual_angle(uint8 leg_id, float angle_deg);
 void control_leg_set_body_cmd(float height_cmd, float pitch_cmd, float roll_cmd);
 /* A valid LH command clears only the leg controller's soft fault. */
 uint8 control_leg_set_height(float height_mm, uint32 now_ms);
+uint8 control_leg_set_direct_step_height(float height_mm, uint32 now_ms);
 uint8 control_leg_set_calib_angles(float servo0_deg,
                                    float servo1_deg,
                                    float servo2_deg,

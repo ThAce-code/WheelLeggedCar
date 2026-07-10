@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - `LH` bounds remain exactly 45--65 mm.
-- Maximum speed is exactly 5 mm/s; maximum acceleration is exactly 10 mm/s2; maximum jerk is exactly 80 mm/s3; position and rate gains are exactly 1.0 s-1 and 4.0 s-1.
+- Maximum speed is exactly 10 mm/s; maximum acceleration is exactly 10 mm/s2; maximum jerk is exactly 80 mm/s3; position and rate gains are exactly 1.0 s-1 and 4.0 s-1.
 - `LIK` remains a direct calibration/debug command and receives no trajectory-planner change.
 - Do not change pins, scheduler periods, motor limits, balance laws, chassis laws, or the PWM 90 deg/s secondary limiter.
 - Actual wheel height and servo position are not measured on this PWM-only platform; telemetry is an open-loop command estimate.
@@ -57,7 +57,7 @@ $RateMmS = [math]::Max(-$MaxSpeedMmS,
 $nextReferenceMm = $ReferenceMm + ($RateMmS * $DtS)
 ```
 
-Assert at every 10 ms sample: absolute rate <= 5.0, absolute acceleration <= 10.0, and absolute acceleration delta <= 0.8. Simulate `55 -> 65`, retarget to `45` at 2.0 s, then require final 45 mm with zero rate and zero acceleration. At every sample assert the empirical output equations:
+Assert at every 10 ms sample: absolute rate <= 10.0, absolute acceleration <= 10.0, and absolute acceleration delta <= 0.8. Simulate `55 -> 65`, retarget to `45` at 2.0 s, then require final 45 mm with zero rate and zero acceleration. At every sample assert the empirical output equations:
 
 ```powershell
 $halfDeltaDeg = 0.5 * (($referenceMm - 55.0) / 0.595)

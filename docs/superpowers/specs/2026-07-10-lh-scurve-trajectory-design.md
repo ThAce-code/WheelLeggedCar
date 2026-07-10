@@ -65,13 +65,16 @@ therefore brakes through zero velocity before moving the other way.
 
 Initial Phase 1 limits remain conservative:
 
-- maximum height speed: 5 mm/s
+- maximum height speed: 10 mm/s (PWM-quantization A/B setting)
 - maximum height acceleration: 10 mm/s2
 - maximum height jerk: 80 mm/s3
 - position-to-rate gain: 1.0 s-1
 - rate-to-acceleration gain: 4.0 s-1
 
-The jerk value gives a 125 ms acceleration ramp. Together with the two
+The jerk value gives a 125 ms acceleration ramp. The 10 mm/s speed setting
+raises the 2 us PWM pulse-step cadence from roughly 23 Hz toward the 50 Hz
+servo frame rate without increasing the configured acceleration or jerk.
+Together with the two
 configured damping gains, it removes instantaneous acceleration steps and
 avoids the target-crossing oscillation of a simple bang-bang brake law. All
 three values are configuration constants so hardware validation can lower jerk

@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 # ── VOFA frame constants (must match firmware telemetry) ──
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 80
+$FloatCount = 32
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
 
@@ -118,13 +118,14 @@ function Test-FrameMatchesCommand {
         [double]$A3
     )
 
+    $tolerance = 0.3  # LPF settles to within 0.2 deg; allow 0.3 deg for float rounding
     if($null -eq $Frame) {
         return $false
     }
-    if(([double]$Frame.servo0_output_deg) -ne $A0) { return $false }
-    if(([double]$Frame.servo1_output_deg) -ne $A1) { return $false }
-    if(([double]$Frame.servo2_output_deg) -ne $A2) { return $false }
-    if(([double]$Frame.servo3_output_deg) -ne $A3) { return $false }
+    if([Math]::Abs(([double]$Frame.servo0_output_deg) - $A0) -gt $tolerance) { return $false }
+    if([Math]::Abs(([double]$Frame.servo1_output_deg) - $A1) -gt $tolerance) { return $false }
+    if([Math]::Abs(([double]$Frame.servo2_output_deg) - $A2) -gt $tolerance) { return $false }
+    if([Math]::Abs(([double]$Frame.servo3_output_deg) - $A3) -gt $tolerance) { return $false }
     return $true
 }
 

@@ -142,13 +142,6 @@ Assert-Contains "project/code/actuator_servo.c" "speed_limit_dps" "Servo module 
 Assert-Contains "project/code/control_leg.c" "actuator_servo_get_diag" "Control leg must snapshot actuator diagnostics."
 Assert-Contains "project/code/control_leg.c" "control_leg_motion_can_stabilize" "Control leg must gate stable state on actuator settling."
 
-Assert-Contains "tools/collect_balance_data.ps1" "servo0_target_deg" "Collector must write servo target angles."
-Assert-Contains "tools/collect_balance_data.ps1" "servo0_filtered_deg" "Collector must write servo filtered angles."
-Assert-Contains "tools/collect_balance_data.ps1" "servo_max_error_deg" "Collector must write max servo error."
-Assert-Contains "tools/collect_balance_data.ps1" "servo_settled" "Collector must write servo settled flag."
-Assert-Contains "tools/collect_balance_data.ps1" "servo_s7_progress" "Collector must write S7 progress."
-Assert-Contains "tools/collect_balance_data.ps1" "servo_trajectory_mode" "Collector must write trajectory mode."
-Assert-Contains "tools/collect_balance_data.ps1" "servo_s7_remaining_ms" "Collector must write S7 remaining time."
 Assert-Contains "project/code/control_leg.c" "control_leg_actuator_diag" "Leg diagnostics must use the actuator diagnostic snapshot."
 
 Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'H' == line\[1\]" "Host command must parse LH."
@@ -172,10 +165,9 @@ Assert-Contains "project/code/control_balance.c" "LEG_MOTION_TRANSITION" "Balanc
 Assert-Contains "project/code/control_balance.c" "LEG_MOTION_STABLE" "Balance must schedule gains during stable height control."
 Assert-Contains "project/code/control_balance.c" "height_ref_mm" "Balance scheduling must use the open-loop height reference."
 
-Assert-Contains "project/code/telemetry.c" "float vofa_data\[80\]" "Telemetry must emit 80 floats."
-Assert-Contains "project/code/telemetry.c" "vofa_data\[65\] = leg->servo_target_deg\[0\]" "Telemetry must append servo target without reordering earlier fields."
-Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 80" "Collector must parse 80 floats."
-Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 80" "Calibration tool must parse 80 floats."
+Assert-Contains "project/code/telemetry.c" "float vofa_data\[32\]" "Telemetry must emit 32 floats."
+Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 32" "Collector must parse 32 floats."
+Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 32" "Calibration tool must parse 32 floats."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_height_ref_mm" "Collector must write leg height reference."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_height_cmd_est_mm" "Collector must label PWM-only height as a command estimate."
 Assert-Contains "tools/collect_balance_data.ps1" "servo0_output_deg" "Collector must label servo output command, not encoder angle."
@@ -185,8 +177,7 @@ Assert-Contains "tools/collect_balance_data.ps1" "leg_drive_allowed" "Collector 
 Assert-NotContains "tools/collect_balance_data.ps1" "leg_actual_height_mm" "Collector CSV must not imply measured leg height."
 Assert-Contains "tools/calib_ik_servo.ps1" "servo0_output_deg" "Calibration CSV must record servo output command."
 Assert-Contains "tools/calib_ik_servo.ps1" "leg_height_ref_mm" "Calibration CSV must record height reference."
-Assert-Contains "tools/collect_balance_data.ps1" "balance_pitch_kp_eff" "Collector must write effective balance gain."
-Assert-Contains "tools/collect_balance_data.ps1" "chassis_forward_limit_eff_rpm" "Collector must write effective chassis limit."
+Assert-Contains "tools/collect_balance_data.ps1" "leg_ik_margin" "Collector must write IK margin."
 
 Assert-Contains "project/code/control_leg.c" "CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG[\s\S]*0\.595f" "Height mode must use the measured differential servo height slope."
 Assert-Contains "project/code/control_leg.c" "delta_deg = \(height_mm - CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM\) / CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG" "Height mode must map measured height to differential servo angle."

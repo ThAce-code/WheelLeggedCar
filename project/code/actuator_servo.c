@@ -96,6 +96,7 @@ void actuator_servo_publish_cmd(const servo_cmd_struct *cmd,
 {
     uint8 i;
     uint8 inactive;
+    uint32 primask;
 
     if(NULL == cmd)
     {
@@ -127,7 +128,7 @@ void actuator_servo_publish_cmd(const servo_cmd_struct *cmd,
 
     if(APP_TRUE == direct_bypass)
     {
-        interrupt_global_disable();
+        primask = interrupt_global_disable();
         actuator_servo_active_frame = inactive;
         for(i = 0; i < APP_SERVO_COUNT; i++)
         {
@@ -139,13 +140,13 @@ void actuator_servo_publish_cmd(const servo_cmd_struct *cmd,
                 actuator_servo_write(i, actuator_servo_motion[i].output_deg);
             }
         }
-        interrupt_global_enable();
+        interrupt_global_enable(primask);
     }
     else
     {
-        interrupt_global_disable();
+        primask = interrupt_global_disable();
         actuator_servo_active_frame = inactive;
-        interrupt_global_enable();
+        interrupt_global_enable(primask);
     }
 }
 
@@ -224,22 +225,25 @@ void actuator_servo_tick_300hz(void)
 
 void actuator_servo_get_diag(actuator_servo_diag_struct *diag)
 {
+    uint32 primask;
+
     if(NULL == diag)
     {
         return;
     }
-    interrupt_global_disable();
+    primask = interrupt_global_disable();
     *diag = actuator_servo_diag;
-    interrupt_global_enable();
+    interrupt_global_enable(primask);
 }
 
 uint8 actuator_servo_is_settled(void)
 {
     uint8 settled;
+    uint32 primask;
 
-    interrupt_global_disable();
+    primask = interrupt_global_disable();
     settled = actuator_servo_diag.settled;
-    interrupt_global_enable();
+    interrupt_global_enable(primask);
     return settled;
 }
 
@@ -262,8 +266,13 @@ void actuator_servo_disable(void)
 {
     uint8 i;
     uint8 inactive;
+    uint32 primask;
 
     inactive = (0U == actuator_servo_active_frame) ? 1U : 0U;
+
+    /* Frame switch and PWM clear must be in the same critical section:
+       PIT_CH1 must not see the new frame until all channels are zeroed. */
+    primask = interrupt_global_disable();
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         actuator_servo_frame[inactive].cmd.enable[i] = APP_FALSE;
@@ -272,9 +281,8 @@ void actuator_servo_disable(void)
             pwm_set_duty(actuator_servo_pwm_ch[i], 0);
         }
     }
-    interrupt_global_disable();
     actuator_servo_active_frame = inactive;
-    interrupt_global_enable();
+    interrupt_global_enable(primask);
 }
 
 uint32 actuator_servo_angle_to_duty(float angle_deg)
@@ -296,6 +304,7 @@ float actuator_servo_get_current_angle(uint8 index)
 {
     uint8 active;
     float angle;
+    uint32 primask;
 
     if(APP_SERVO_COUNT <= index)
     {
@@ -303,10 +312,10 @@ float actuator_servo_get_current_angle(uint8 index)
     }
 
     /* This is the low-pass-filtered PWM output command, not encoder feedback. */
-    interrupt_global_disable();
+    primask = interrupt_global_disable();
     active = actuator_servo_active_frame;
     angle = actuator_servo_motion[index].output_deg;
-    interrupt_global_enable();
+    interrupt_global_enable(primask);
     (void)active;
     return angle;
 }

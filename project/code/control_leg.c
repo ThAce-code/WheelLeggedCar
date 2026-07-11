@@ -171,13 +171,23 @@ static uint8 control_leg_pose_start_if_changed(const float desired_deg[APP_SERVO
     float max_delta_deg;
     float duration_s;
 
-    changed = APP_FALSE;
-    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    /* Force a fresh trajectory when re-entering pose mode after a non-pose
+       mode (e.g. LH → LIKREF).  The old timeline is stale even when the
+       target angles happen to match. */
+    if(LEG_TRAJECTORY_POSE != control_leg_trajectory_mode)
     {
-        if(0.01f < control_leg_absf(desired_deg[i] - control_leg_pose_target_deg[i]))
+        changed = APP_TRUE;
+    }
+    else
+    {
+        changed = APP_FALSE;
+        for(i = 0U; i < APP_SERVO_COUNT; i++)
         {
-            changed = APP_TRUE;
-            break;
+            if(0.01f < control_leg_absf(desired_deg[i] - control_leg_pose_target_deg[i]))
+            {
+                changed = APP_TRUE;
+                break;
+            }
         }
     }
     if(APP_FALSE == changed)

@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 80
+$FloatCount = 32
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,balance_kp,balance_kd,forward_target_rpm,forward_actual_rpm,speed_pitch_offset_deg,pitch_setpoint_deg,turn_target_dps,gyro_z_dps,turn_rpm,gyro_z_raw_dps,turn_error_dps,turn_integral,turn_kp,turn_ki,imu_age_ms,wheel_age_ms,fast_blend,speed_integral,speed_pitch_limit_deg,speed_ff_rpm,wheel_speed_ks,pitch_term_rpm,rate_term_rpm,speed_term_rpm,pos_term_rpm,ff_term_rpm,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_left_x_mm,leg_left_y_mm,leg_right_x_mm,leg_right_y_mm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,balance_pitch_kp_eff,balance_pitch_rate_kd_eff,balance_wheel_speed_ks_eff,balance_pitch_setpoint_base_eff_deg,chassis_forward_limit_eff_rpm,chassis_fast_forward_limit_eff_rpm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_drive_forward_limit_rpm,leg_motion_state,leg_fault_reason,leg_drive_allowed,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,servo_direct_bypass,servo_fast_mode,servo_trajectory_mode,servo_s7_remaining_ms,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_left_x_mm,leg_left_y_mm,leg_right_x_mm,leg_right_y_mm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_allowed,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -132,74 +132,26 @@ function Pop-BalanceFrames {
                 right_motor_rpm = $values[9]
                 left_duty = $values[10]
                 right_duty = $values[11]
-                balance_kp = $values[12]
-                balance_kd = $values[13]
-                forward_target_rpm = $values[14]
-                forward_actual_rpm = $values[15]
-                speed_pitch_offset_deg = $values[16]
-                pitch_setpoint_deg = $values[17]
-                turn_target_dps = $values[18]
-                gyro_z_dps = $values[19]
-                turn_rpm = $values[20]
-                gyro_z_raw_dps = $values[21]
-                turn_error_dps = $values[22]
-                turn_integral = $values[23]
-                turn_kp = $values[24]
-                turn_ki = $values[25]
-                imu_age_ms = $values[26]
-                wheel_age_ms = $values[27]
-                fast_blend = $values[28]
-                speed_integral = $values[29]
-                speed_pitch_limit_deg = $values[30]
-                speed_ff_rpm = $values[31]
-                wheel_speed_ks = $values[32]
-                pitch_term_rpm = $values[33]
-                rate_term_rpm = $values[34]
-                speed_term_rpm = $values[35]
-                pos_term_rpm = $values[36]
-                ff_term_rpm = $values[37]
-                leg_mode = $values[38]
-                leg_target_height_mm = $values[39]
-                leg_height_cmd_est_mm = $values[40]
-                leg_height_norm = $values[41]
-                leg_left_x_mm = $values[42]
-                leg_left_y_mm = $values[43]
-                leg_right_x_mm = $values[44]
-                leg_right_y_mm = $values[45]
-                leg_ik_valid = $values[46]
-                leg_output_enable = $values[47]
-                servo0_output_deg = $values[48]
-                servo1_output_deg = $values[49]
-                servo2_output_deg = $values[50]
-                servo3_output_deg = $values[51]
-                balance_pitch_kp_eff = $values[52]
-                balance_pitch_rate_kd_eff = $values[53]
-                balance_wheel_speed_ks_eff = $values[54]
-                balance_pitch_setpoint_base_eff_deg = $values[55]
-                chassis_forward_limit_eff_rpm = $values[56]
-                chassis_fast_forward_limit_eff_rpm = $values[57]
-                leg_height_ref_mm = $values[58]
-                leg_height_rate_mm_s = $values[59]
-                leg_ik_margin = $values[60]
-                leg_drive_forward_limit_rpm = $values[61]
-                leg_motion_state = $values[62]
-                leg_fault_reason = $values[63]
-                leg_drive_allowed = $values[64]
-                servo0_target_deg = $values[65]
-                servo1_target_deg = $values[66]
-                servo2_target_deg = $values[67]
-                servo3_target_deg = $values[68]
-                servo0_filtered_deg = $values[69]
-                servo1_filtered_deg = $values[70]
-                servo2_filtered_deg = $values[71]
-                servo3_filtered_deg = $values[72]
-                servo_max_error_deg = $values[73]
-                servo_settled = $values[74]
-                servo_s7_progress = $values[75]
-                servo_direct_bypass = $values[76]
-                servo_fast_mode = $values[77]
-                servo_trajectory_mode = $values[78]
-                servo_s7_remaining_ms = $values[79]
+                leg_mode = $values[12]
+                leg_target_height_mm = $values[13]
+                leg_height_cmd_est_mm = $values[14]
+                leg_height_norm = $values[15]
+                leg_left_x_mm = $values[16]
+                leg_left_y_mm = $values[17]
+                leg_right_x_mm = $values[18]
+                leg_right_y_mm = $values[19]
+                leg_ik_valid = $values[20]
+                leg_output_enable = $values[21]
+                servo0_output_deg = $values[22]
+                servo1_output_deg = $values[23]
+                servo2_output_deg = $values[24]
+                servo3_output_deg = $values[25]
+                leg_height_ref_mm = $values[26]
+                leg_height_rate_mm_s = $values[27]
+                leg_ik_margin = $values[28]
+                leg_motion_state = $values[29]
+                leg_fault_reason = $values[30]
+                leg_drive_allowed = $values[31]
             })
         }
 
@@ -309,32 +261,6 @@ try {
                     ("{0:F3}" -f $frame.right_motor_rpm),
                     ("{0:F3}" -f $frame.left_duty),
                     ("{0:F3}" -f $frame.right_duty),
-                    ("{0:F6}" -f $frame.balance_kp),
-                    ("{0:F6}" -f $frame.balance_kd),
-                    ("{0:F3}" -f $frame.forward_target_rpm),
-                    ("{0:F3}" -f $frame.forward_actual_rpm),
-                    ("{0:F6}" -f $frame.speed_pitch_offset_deg),
-                    ("{0:F6}" -f $frame.pitch_setpoint_deg),
-                    ("{0:F3}" -f $frame.turn_target_dps),
-                    ("{0:F6}" -f $frame.gyro_z_dps),
-                    ("{0:F3}" -f $frame.turn_rpm),
-                    ("{0:F6}" -f $frame.gyro_z_raw_dps),
-                    ("{0:F6}" -f $frame.turn_error_dps),
-                    ("{0:F6}" -f $frame.turn_integral),
-                    ("{0:F6}" -f $frame.turn_kp),
-                    ("{0:F6}" -f $frame.turn_ki),
-                    ("{0:F3}" -f $frame.imu_age_ms),
-                    ("{0:F3}" -f $frame.wheel_age_ms),
-                    ("{0:F6}" -f $frame.fast_blend),
-                    ("{0:F6}" -f $frame.speed_integral),
-                    ("{0:F6}" -f $frame.speed_pitch_limit_deg),
-                    ("{0:F6}" -f $frame.speed_ff_rpm),
-                    ("{0:F6}" -f $frame.wheel_speed_ks),
-                    ("{0:F6}" -f $frame.pitch_term_rpm),
-                    ("{0:F6}" -f $frame.rate_term_rpm),
-                    ("{0:F6}" -f $frame.speed_term_rpm),
-                    ("{0:F6}" -f $frame.pos_term_rpm),
-                    ("{0:F6}" -f $frame.ff_term_rpm),
                     ("{0:F3}" -f $frame.leg_mode),
                     ("{0:F3}" -f $frame.leg_target_height_mm),
                     ("{0:F3}" -f $frame.leg_height_cmd_est_mm),
@@ -349,34 +275,12 @@ try {
                     ("{0:F6}" -f $frame.servo1_output_deg),
                     ("{0:F6}" -f $frame.servo2_output_deg),
                     ("{0:F6}" -f $frame.servo3_output_deg),
-                    ("{0:F6}" -f $frame.balance_pitch_kp_eff),
-                    ("{0:F6}" -f $frame.balance_pitch_rate_kd_eff),
-                    ("{0:F6}" -f $frame.balance_wheel_speed_ks_eff),
-                    ("{0:F6}" -f $frame.balance_pitch_setpoint_base_eff_deg),
-                    ("{0:F3}" -f $frame.chassis_forward_limit_eff_rpm),
-                    ("{0:F3}" -f $frame.chassis_fast_forward_limit_eff_rpm),
                     ("{0:F3}" -f $frame.leg_height_ref_mm),
                     ("{0:F6}" -f $frame.leg_height_rate_mm_s),
                     ("{0:F6}" -f $frame.leg_ik_margin),
-                    ("{0:F3}" -f $frame.leg_drive_forward_limit_rpm),
                     ("{0:F3}" -f $frame.leg_motion_state),
                     ("{0:F3}" -f $frame.leg_fault_reason),
                     ("{0:F3}" -f $frame.leg_drive_allowed),
-                    ("{0:F6}" -f $frame.servo0_target_deg),
-                    ("{0:F6}" -f $frame.servo1_target_deg),
-                    ("{0:F6}" -f $frame.servo2_target_deg),
-                    ("{0:F6}" -f $frame.servo3_target_deg),
-                    ("{0:F6}" -f $frame.servo0_filtered_deg),
-                    ("{0:F6}" -f $frame.servo1_filtered_deg),
-                    ("{0:F6}" -f $frame.servo2_filtered_deg),
-                    ("{0:F6}" -f $frame.servo3_filtered_deg),
-                    ("{0:F6}" -f $frame.servo_max_error_deg),
-                    ("{0:F3}" -f $frame.servo_settled),
-                    ("{0:F6}" -f $frame.servo_s7_progress),
-                    ("{0:F3}" -f $frame.servo_direct_bypass),
-                    ("{0:F3}" -f $frame.servo_fast_mode),
-                    ("{0:F3}" -f $frame.servo_trajectory_mode),
-                    ("{0:F3}" -f $frame.servo_s7_remaining_ms),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

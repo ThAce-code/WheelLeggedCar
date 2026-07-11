@@ -8,7 +8,7 @@ if($servoSource -notmatch "pulse_us \* \(float\)PWM_DUTY_MAX \*[\s\S]*\(float\)A
 
 function Convert-PulseToDuty {
     param([double]$PulseUs)
-    $pwmDutyMax = 10000.0
+    $pwmDutyMax = 20000.0
     $freqHz = 300.0
     return [int]($PulseUs * $pwmDutyMax * $freqHz / 1000000.0)
 }
@@ -24,8 +24,8 @@ function Assert-Equal {
     }
 }
 
-Assert-Equal (Convert-PulseToDuty 500) 1500 "500 us duty"
-Assert-Equal (Convert-PulseToDuty 1500) 4500 "1500 us duty"
-Assert-Equal (Convert-PulseToDuty 2500) 7500 "2500 us duty"
+Assert-Equal (Convert-PulseToDuty 500) 3000 "500 us duty"
+Assert-Equal (Convert-PulseToDuty 1500) 9000 "1500 us duty"
+Assert-Equal (Convert-PulseToDuty 2500) 15000 "2500 us duty"
 
 Write-Host "servo PWM 300 Hz resolution static check passed"

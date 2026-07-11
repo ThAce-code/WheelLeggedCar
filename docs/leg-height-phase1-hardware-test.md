@@ -64,6 +64,25 @@ Abort immediately on linkage interference, sustained servo chatter, supply
 sag, or any wheel movement. The CSV only reports PWM commands, so visually
 confirm the physical move completes before judging the result.
 
+## Fresh 300 Hz validation
+
+Before any balance or wheel-drive test, complete this sequence:
+
+1. Support the vehicle and keep wheel output stopped.
+2. Confirm approximately 3.333 ms frame period and 1.5 ms pulse at the
+   all-90-degree pose with an oscilloscope.
+3. Hold all four servos at 90 degrees for 30 seconds; abort on sustained
+   chatter, loss of holding force, supply sag, or abnormal temperature rise.
+4. Run `LIKREF` before any `LXY` command.
+5. Run one small command at a time: `LXY,5,55`, `LXY,-5,55`, `LXY,0,52`,
+   `LXY,0,58`.
+6. Run a small `LH` move before `LHF`.
+7. On any failure, stop PWM and return to the known 50 Hz build; do not
+   continue to terrain or balance testing.
+
+Pass criteria: zero leg faults, valid IK, monotonic target/filter/output
+traces, actuator settled before `STABLE`, and no unexpected heating or chatter.
+
 ## Superseded PWM input-rate record
 
 The earlier 100 Hz shaking result was produced with an incorrect servo-control

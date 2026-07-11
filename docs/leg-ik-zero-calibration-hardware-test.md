@@ -24,6 +24,9 @@ compensation, or balance gains.
    control algorithm. For the new 300 Hz build, verify the frame period and
    pulse width on an oscilloscope before moving the linkage. Do not enable the
    direct-step bench switch for this procedure.
+6. On any failure (chatter, heating, supply sag, unexpected motion, nonzero
+   fault), stop PWM immediately and return to the 50 Hz build. Do not continue
+   with the 300 Hz build until the root cause is resolved.
 
 Stop immediately if a linkage approaches an end stop, a servo chatters or
 heats, the supply sags, a wheel moves, telemetry reports a nonzero leg fault,

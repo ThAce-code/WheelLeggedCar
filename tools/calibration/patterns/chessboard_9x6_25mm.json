@@ -1,0 +1,18 @@
+{
+  "pattern_inner_corners": [
+    9,
+    6
+  ],
+  "square_count": [
+    10,
+    7
+  ],
+  "nominal_square_size_mm": 25.0,
+  "board_pattern_width_mm": 250.0,
+  "board_pattern_height_mm": 175.0,
+  "page_width_mm": 270.0,
+  "page_height_mm": 195.0,
+  "margin_mm": 10.0,
+  "print_scale": "100_percent_actual_size",
+  "note": "For best accuracy, measure 5 consecutive squares with calipers and divide by 5. Use --square-size-mm with the measured value."
+}

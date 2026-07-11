@@ -8,15 +8,15 @@ sample_id,label,cmd_a0_deg,cmd_a1_deg,cmd_a2_deg,cmd_a3_deg,servo0_output_deg,se
 2,all_95,95,95,95,95,95,95,95,95,0,0,0,0,0,0,0,0,0,22,60,""
 '@ | Set-Content $csv -Encoding UTF8
 
-$output = python tools\fit_leg_ik_calibration.py --input $csv --max-iter 10 2>&1
+$output = python tools\fit_leg_ik_calibration.py --input $csv --no-split 2>&1
 if(0 -ne $LASTEXITCODE) {
     $output | Write-Host
     throw "fit script failed"
 }
-if(($output -join "`n") -notmatch "usable_rows=3") {
-    throw "fit script must report usable row count"
+if(($output -join "`n") -notmatch "candidate_n=3") {
+    throw "fit script must report candidate row count"
 }
-if(($output -join "`n") -notmatch "rmse_y_mm=") {
+if(($output -join "`n") -notmatch "candidate_rmse_y_mm=") {
     throw "fit script must report y RMSE"
 }
 if(($output -join "`n") -notmatch "candidate_leg_config") {

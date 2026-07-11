@@ -224,6 +224,13 @@ void control_chassis_update(uint32 now_ms)
     const wheel_feedback_struct *wheel_feedback;
     float dt_s;
 
+    if((APP_TRUE == control_chassis_cmd.enable) &&
+       (0U != control_chassis_cmd.last_cmd_ms) &&
+       (APP_CHASSIS_CMD_TIMEOUT_MS < (now_ms - control_chassis_cmd.last_cmd_ms)))
+    {
+        control_chassis_stop(now_ms);
+    }
+
     if(0U == control_chassis_cmd.last_update_ms)
     {
         dt_s = (float)APP_CHASSIS_PERIOD_MS / 1000.0f;

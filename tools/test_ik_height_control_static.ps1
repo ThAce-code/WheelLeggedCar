@@ -165,9 +165,9 @@ Assert-Contains "project/code/control_balance.c" "LEG_MOTION_TRANSITION" "Balanc
 Assert-Contains "project/code/control_balance.c" "LEG_MOTION_STABLE" "Balance must schedule gains during stable height control."
 Assert-Contains "project/code/control_balance.c" "height_ref_mm" "Balance scheduling must use the open-loop height reference."
 
-Assert-Contains "project/code/telemetry.c" "float vofa_data\[46\]" "Telemetry must emit 46 floats."
-Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 46" "Collector must parse 46 floats."
-Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 46" "Calibration tool must parse 46 floats."
+Assert-Contains "project/code/telemetry.c" "float vofa_data\[55\]" "Telemetry must emit 55 floats."
+Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 55" "Collector must parse 55 floats."
+Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 55" "Calibration tool must parse 55 floats."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_height_ref_mm" "Collector must write leg height reference."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_height_cmd_est_mm" "Collector must label PWM-only height as a command estimate."
 Assert-Contains "tools/collect_balance_data.ps1" "servo0_output_deg" "Collector must label servo output command, not encoder angle."

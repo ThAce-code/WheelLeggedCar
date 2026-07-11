@@ -241,10 +241,6 @@ static void control_leg_pose_update(uint32 now_ms)
     uint32 elapsed_ms;
     float u;
 
-    if(control_leg_pose_start_ms > now_ms)
-    {
-        control_leg_pose_start_ms = now_ms;
-    }
     elapsed_ms = now_ms - control_leg_pose_start_ms;
     if(elapsed_ms >= control_leg_pose_duration_ms)
     {
@@ -345,7 +341,7 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     }
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
-        control_leg_diag.servo_target_deg[i] = control_leg_servo_cmd.angle_deg[i];
+        control_leg_diag.servo_target_deg[i] = control_leg_actuator_diag.target_deg[i];
         control_leg_diag.servo_actual_deg[i] = control_leg_actuator_diag.output_deg[i];
         control_leg_diag.servo_filtered_deg[i] = control_leg_actuator_diag.filtered_deg[i];
     }

@@ -23,6 +23,7 @@ typedef struct
     char  last_unknown_ascii[BLDC_FOC_ASCII_LINE_MAX];
     uint32 last_rx_ms;
     uint32 checksum_error_count;
+    uint32 feedback_range_error_count;
     uint32 unknown_frame_count;
     uint32 tx_frame_count;
     uint8 last_tx_func;

@@ -92,6 +92,7 @@ typedef struct
     int16 last_tx_left;
     int16 last_tx_right;
     uint32 checksum_error_count;
+    uint32 feedback_range_error_count;
     uint32 unknown_frame_count;
     uint32 tx_frame_count;
     uint8 last_tx_func;

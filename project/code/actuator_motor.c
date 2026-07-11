@@ -5,6 +5,7 @@
 
 #include "actuator_motor.h"
 #include "app_config.h"
+#include "app_scheduler.h"
 #include "app_state.h"
 #include "bldc_foc_uart.h"
 #include "control_pid.h"
@@ -119,6 +120,7 @@ static void actuator_motor_clear_snapshot(void)
     actuator_motor_diag.last_tx_left = 0;
     actuator_motor_diag.last_tx_right = 0;
     actuator_motor_diag.checksum_error_count = 0;
+    actuator_motor_diag.feedback_range_error_count = 0;
     actuator_motor_diag.unknown_frame_count = 0;
     actuator_motor_diag.tx_frame_count = 0;
     actuator_motor_diag.last_tx_func = 0;
@@ -186,7 +188,7 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
     actuator_motor_feedback.right_reduced_angle = raw->right_reduced_angle;
     actuator_motor_feedback.last_rx_ms = raw->last_rx_ms;
 
-    if((APP_TRUE == raw->online) && (now_ms >= raw->last_rx_ms))
+    if(APP_TRUE == raw->online)
     {
         actuator_motor_feedback.age_ms = now_ms - raw->last_rx_ms;
         actuator_motor_feedback.online = (APP_BLDC_FEEDBACK_TIMEOUT_MS >= actuator_motor_feedback.age_ms) ? APP_TRUE : APP_FALSE;
@@ -266,6 +268,7 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
     actuator_motor_diag.last_tx_left = raw->last_tx_left;
     actuator_motor_diag.last_tx_right = raw->last_tx_right;
     actuator_motor_diag.checksum_error_count = raw->checksum_error_count;
+    actuator_motor_diag.feedback_range_error_count = raw->feedback_range_error_count;
     actuator_motor_diag.unknown_frame_count = raw->unknown_frame_count;
     actuator_motor_diag.tx_frame_count = raw->tx_frame_count;
     actuator_motor_diag.last_tx_func = raw->last_tx_func;
@@ -497,12 +500,24 @@ static void actuator_motor_update_rpm_loop(uint32 now_ms)
     int16 right_duty_i;
 
     if((APP_STATE_FAULT == app_state_get()) ||
-       (APP_FALSE == actuator_motor_cmd.enable) ||
-       (APP_FALSE == actuator_motor_feedback.online) ||
+       (APP_FALSE == actuator_motor_cmd.enable))
+    {
+        if(APP_TRUE == actuator_motor_output_active)
+        {
+            actuator_motor_stop();
+        }
+        else
+        {
+            actuator_motor_send_duty_periodic(now_ms, 0, 0);
+            actuator_motor_reset_rpm_loop();
+        }
+        return;
+    }
+
+    if((APP_FALSE == actuator_motor_feedback.online) ||
        (APP_FALSE == actuator_motor_feedback.left_online) ||
        (APP_FALSE == actuator_motor_feedback.right_online))
     {
-        actuator_motor_send_duty_periodic(now_ms, 0, 0);
         actuator_motor_stop();
         return;
     }
@@ -560,8 +575,14 @@ static void actuator_motor_update_open_loop(uint32 now_ms)
 
     if(APP_STATE_FAULT == app_state_get())
     {
-        actuator_motor_send_duty_periodic(now_ms, 0, 0);
-        actuator_motor_stop();
+        if(APP_TRUE == actuator_motor_output_active)
+        {
+            actuator_motor_stop();
+        }
+        else
+        {
+            actuator_motor_send_duty_periodic(now_ms, 0, 0);
+        }
         return;
     }
 
@@ -688,7 +709,7 @@ void actuator_motor_stop(void)
     actuator_motor_rpm_diag.right_target_motor_rpm = 0.0f;
     bldc_foc_uart_stop();
     actuator_motor_output_active = APP_FALSE;
-    actuator_motor_last_send_ms = 0;
+    actuator_motor_last_send_ms = app_scheduler_get_ms();
     actuator_motor_left_rpm_zero_since_ms = 0U;
     actuator_motor_right_rpm_zero_since_ms = 0U;
     actuator_motor_reset_rpm_loop();

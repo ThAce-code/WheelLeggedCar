@@ -17,6 +17,9 @@
 #define LSM6DSV_SFLP_GAME_ENABLE        (0x02)
 #define LSM6DSV_SFLP_FIFO_ENABLE        (0x02)
 #define LSM6DSV_SFLP_ODR_120HZ          (0x18)
+#define LSM6DSV_FIFO_MAX_FRAMES         (32U)
+#define LSM6DSV_GYRO_CAL_SAMPLE_MS      (9U)
+#define LSM6DSV_GYRO_CAL_MAX_VARIANCE   (0.64f)
 #define LSM6DSV_ACC_FS_4G               (0x01)
 #define LSM6DSV_GYRO_FS_2000DPS         (0x04)
 #define LSM6DSV_FIFO_STREAM_MODE        (0x06)
@@ -28,6 +31,7 @@ static lsm6dsv16x_angle_data_struct lsm6dsv16x_angle_data;
 static float lsm6dsv16x_gyro_offset_x = 0.0f;
 static float lsm6dsv16x_gyro_offset_y = 0.0f;
 static float lsm6dsv16x_gyro_offset_z = 0.0f;
+static uint32 lsm6dsv16x_invalid_sample_count = 0U;
 static uint8 lsm6dsv16x_angle_ready = 0;
 
 volatile uint8 lsm6dsv16x_debug_who_am_i = 0;
@@ -117,6 +121,13 @@ static float lsm6dsv16x_half_to_float(uint16 half)
 
     conv.u32 = bits;
     return conv.f32;
+}
+
+static uint8 lsm6dsv16x_float_is_finite(float value)
+{
+    return ((value == value) &&
+            (3.402823466e+38F >= value) &&
+            (-3.402823466e+38F <= value)) ? 1U : 0U;
 }
 
 static void lsm6dsv16x_quat_to_angle(float qw, float qx, float qy, float qz)
@@ -217,7 +228,7 @@ void lsm6dsv16x_get_gyro(int16 *x, int16 *y, int16 *z)
     *z = (int16)(((uint16)dat[5] << 8) | dat[4]);
 }
 
-void lsm6dsv16x_gyro_offset_init(void)
+uint8 lsm6dsv16x_gyro_offset_init(void)
 {
     int16 gyro_x;
     int16 gyro_y;
@@ -225,6 +236,18 @@ void lsm6dsv16x_gyro_offset_init(void)
     float sum_x = 0.0f;
     float sum_y = 0.0f;
     float sum_z = 0.0f;
+    float sum_sq_x = 0.0f;
+    float sum_sq_y = 0.0f;
+    float sum_sq_z = 0.0f;
+    float sample_x;
+    float sample_y;
+    float sample_z;
+    float mean_x;
+    float mean_y;
+    float mean_z;
+    float variance_x;
+    float variance_y;
+    float variance_z;
     uint16 i;
 
     system_delay_ms(100);
@@ -232,15 +255,36 @@ void lsm6dsv16x_gyro_offset_init(void)
     for(i = 0; i < LSM6DSV_GYRO_OFFSET_SAMPLES; i++)
     {
         lsm6dsv16x_get_gyro(&gyro_x, &gyro_y, &gyro_z);
-        sum_x += (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS;
-        sum_y += (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS;
-        sum_z += (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS;
-        system_delay_ms(5);
+        sample_x = (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS;
+        sample_y = (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS;
+        sample_z = (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS;
+        sum_x += sample_x;
+        sum_y += sample_y;
+        sum_z += sample_z;
+        sum_sq_x += sample_x * sample_x;
+        sum_sq_y += sample_y * sample_y;
+        sum_sq_z += sample_z * sample_z;
+        system_delay_ms(LSM6DSV_GYRO_CAL_SAMPLE_MS);
     }
 
-    lsm6dsv16x_gyro_offset_x = sum_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
-    lsm6dsv16x_gyro_offset_y = sum_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
-    lsm6dsv16x_gyro_offset_z = sum_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
+    mean_x = sum_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
+    mean_y = sum_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
+    mean_z = sum_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
+    variance_x = sum_sq_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_x * mean_x;
+    variance_y = sum_sq_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_y * mean_y;
+    variance_z = sum_sq_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_z * mean_z;
+
+    if((LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_x) ||
+       (LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_y) ||
+       (LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_z))
+    {
+        return 1U;
+    }
+
+    lsm6dsv16x_gyro_offset_x = mean_x;
+    lsm6dsv16x_gyro_offset_y = mean_y;
+    lsm6dsv16x_gyro_offset_z = mean_z;
+    return 0U;
 }
 
 void lsm6dsv16x_gyro_update(void)
@@ -403,6 +447,15 @@ uint8 lsm6dsv16x_sflp_update(void)
         return 1;
     }
 
+    if((0U != (status[1] & LSM6DSV_FIFO_OVR_IA)) ||
+       (LSM6DSV_FIFO_MAX_FRAMES < fifo_count))
+    {
+        lsm6dsv16x_invalid_sample_count++;
+        lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL4, 0U);
+        lsm6dsv16x_write_reg(LSM6DSV_FIFO_CTRL4, LSM6DSV_FIFO_STREAM_MODE);
+        return 1;
+    }
+
     for(i = 0; i < fifo_count; i++)
     {
         lsm6dsv16x_read_regs(LSM6DSV_FIFO_DATA_TAG, frame, 7U);
@@ -416,7 +469,22 @@ uint8 lsm6dsv16x_sflp_update(void)
             qx = lsm6dsv16x_half_to_float(raw_x);
             qy = lsm6dsv16x_half_to_float(raw_y);
             qz = lsm6dsv16x_half_to_float(raw_z);
+
+            if((0U == lsm6dsv16x_float_is_finite(qx)) ||
+               (0U == lsm6dsv16x_float_is_finite(qy)) ||
+               (0U == lsm6dsv16x_float_is_finite(qz)))
+            {
+                lsm6dsv16x_invalid_sample_count++;
+                continue;
+            }
+
             sumsq = qx * qx + qy * qy + qz * qz;
+
+            if((0U == lsm6dsv16x_float_is_finite(sumsq)) || (1.01f < sumsq))
+            {
+                lsm6dsv16x_invalid_sample_count++;
+                continue;
+            }
 
             if(1.0f < sumsq)
             {
@@ -428,6 +496,11 @@ uint8 lsm6dsv16x_sflp_update(void)
             }
 
             qw = sqrtf(1.0f - sumsq);
+            if(0U == lsm6dsv16x_float_is_finite(qw))
+            {
+                lsm6dsv16x_invalid_sample_count++;
+                continue;
+            }
             lsm6dsv16x_angle_data.quat_w = qw;
             lsm6dsv16x_angle_data.quat_x = qx;
             lsm6dsv16x_angle_data.quat_y = qy;
@@ -438,6 +511,11 @@ uint8 lsm6dsv16x_sflp_update(void)
     }
 
     return got_game_vector ? 0 : 1;
+}
+
+uint32 lsm6dsv16x_get_invalid_sample_count(void)
+{
+    return lsm6dsv16x_invalid_sample_count;
 }
 
 lsm6dsv16x_angle_data_struct *lsm6dsv16x_get_angle_data(void)

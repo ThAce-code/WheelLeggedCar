@@ -11,12 +11,15 @@
 #include "app_config.h"
 #include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
+#include "zf_common_interrupt.h"
 
-#define HOST_COMMAND_RX_BUFFER_LEN       (32U)
+#define HOST_COMMAND_RX_BUFFER_LEN       (64U)
 #define HOST_COMMAND_LINE_MAX            (32U)
+#define HOST_COMMAND_LINE_TIMEOUT_MS     (100U)
 
 static char host_command_line[HOST_COMMAND_LINE_MAX];
 static uint8 host_command_index = 0;
+static uint32 host_command_last_byte_ms = 0U;
 
 static uint8 host_command_is_space(uint8 ch)
 {
@@ -336,8 +339,14 @@ static void host_command_process_line(char *line, uint32 now_ms)
        ('_' == line[3]) && ('Z' == line[4]) && ('E' == line[5]) &&
        ('R' == line[6]) && ('O' == line[7]) && ('\0' == line[8]))
     {
-        lsm6dsv16x_gyro_offset_init();
-        actuator_motor_record_command_error(APP_FALSE);
+        if(0U == lsm6dsv16x_gyro_offset_init())
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+        }
+        else
+        {
+            actuator_motor_record_command_error(APP_TRUE);
+        }
         return;
     }
 
@@ -575,6 +584,7 @@ static void host_command_push_byte(uint8 ch, uint32 now_ms)
             host_command_line[host_command_index] = '\0';
             host_command_process_line(host_command_line, now_ms);
             host_command_index = 0;
+            host_command_last_byte_ms = 0U;
         }
         return;
     }
@@ -583,10 +593,12 @@ static void host_command_push_byte(uint8 ch, uint32 now_ms)
     {
         host_command_line[host_command_index] = (char)ch;
         host_command_index++;
+        host_command_last_byte_ms = now_ms;
     }
     else if((HOST_COMMAND_LINE_MAX - 1U) <= host_command_index)
     {
         host_command_index = 0;
+        host_command_last_byte_ms = 0U;
         actuator_motor_record_command_error(APP_TRUE);
     }
 }
@@ -595,6 +607,7 @@ void host_command_init(void)
 {
     host_command_index = 0;
     host_command_line[0] = '\0';
+    host_command_last_byte_ms = 0U;
 }
 
 void host_command_update(uint32 now_ms)
@@ -602,10 +615,19 @@ void host_command_update(uint32 now_ms)
     uint8 buffer[HOST_COMMAND_RX_BUFFER_LEN];
     uint32 count;
     uint32 index;
+    uint32 primask;
 
-    (void)now_ms;
+    if((0U < host_command_index) &&
+       (HOST_COMMAND_LINE_TIMEOUT_MS < (now_ms - host_command_last_byte_ms)))
+    {
+        host_command_index = 0U;
+        host_command_last_byte_ms = 0U;
+        actuator_motor_record_command_error(APP_TRUE);
+    }
 
+    primask = interrupt_global_disable();
     count = debug_read_ring_buffer(buffer, HOST_COMMAND_RX_BUFFER_LEN);
+    interrupt_global_enable(primask);
     for(index = 0; index < count; index++)
     {
         host_command_push_byte(buffer[index], now_ms);

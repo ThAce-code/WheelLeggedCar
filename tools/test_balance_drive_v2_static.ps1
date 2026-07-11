@@ -44,7 +44,7 @@ Assert-Contains "project/code/app_config.h" "APP_CHASSIS_WHEEL_MAX_AGE_MS" "Miss
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_ZERO_TARGET_DPS" "Missing turn zero-target threshold."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_ZERO_TARGET_RPM" "Missing forward zero-target threshold."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_INTEGRAL_DECAY" "Missing turn integral decay."
-Assert-NotContains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS" "C command timeout must not be reintroduced."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS\s+\(500U\)" "C command must stop after host loss."
 
 Assert-Contains "project/code/app_types.h" "target_turn_dps" "chassis_cmd_struct must store target yaw-rate."
 Assert-Contains "project/code/app_types.h" "actual_turn_dps" "chassis_cmd_struct must store ramped yaw-rate."
@@ -72,7 +72,7 @@ Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_KI" "control
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_KP" "control_chassis must use turn Kp."
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_PITCH_LIMIT_DEG" "control_chassis must clamp pitch offset."
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_RPM_LIMIT" "control_chassis must clamp turn output."
-Assert-NotContains "project/code/control_chassis.c" "APP_CHASSIS_CMD_TIMEOUT_MS" "control_chassis must not timeout C commands."
+Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_CMD_TIMEOUT_MS" "control_chassis must timeout stale C commands."
 Assert-NotContains "project/code/control_chassis.c" "actuator_motor_set_" "control_chassis must not command motor output."
 Assert-NotContains "project/code/control_chassis.c" "bldc_foc_uart" "control_chassis must not call BLDC UART."
 Assert-NotContains "project/code/control_chassis.c" "debug_read" "control_chassis must not parse host commands."
@@ -102,15 +102,11 @@ Assert-Contains "project/code/host_command.c" "control_chassis_set_drive_gain" "
 Assert-Contains "project/code/control_chassis.c" "if\(turn_kp != control_chassis_cmd.turn_kp\)" "BD must clear turn integral only when turn_kp changes."
 Assert-Contains "project/code/host_command.c" "drive_turn_kp" "BD parser must not name turn_kp as kd."
 
-Assert-Contains "project/code/telemetry.c" 'float vofa_data\[65\]' "Telemetry must emit 65-channel fast diagnostics frame."
-Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 65' "Collector must parse 65-channel telemetry."
-Assert-Contains "tools/collect_balance_data.ps1" "turn_integral" "Collector must write turn integral."
-Assert-Contains "tools/collect_balance_data.ps1" "wheel_age_ms" "Collector must write wheel feedback age."
-Assert-Contains "tools/collect_balance_data.ps1" "forward_target_rpm" "Collector must write forward target."
-Assert-Contains "tools/collect_balance_data.ps1" "speed_pitch_offset_deg" "Collector must write speed pitch offset."
-Assert-Contains "tools/collect_balance_data.ps1" "turn_target_dps" "Collector must write turn target."
-Assert-Contains "tools/collect_balance_data.ps1" "gyro_z_dps" "Collector must write gyro_z."
-Assert-Contains "tools/collect_balance_data.ps1" "turn_rpm" "Collector must write turn output."
+Assert-Contains "project/code/telemetry.c" 'float vofa_data\[55\]' "Telemetry must emit 55-channel timing diagnostics frame."
+Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 55' "Collector must parse 55-channel telemetry."
+Assert-Contains "tools/collect_balance_data.ps1" "telemetry_drop_count" "Collector must write telemetry drop count."
+Assert-Contains "tools/collect_balance_data.ps1" "scheduler_missed_tick_count" "Collector must write scheduler missed ticks."
+Assert-Contains "tools/collect_balance_data.ps1" "imu_invalid_count" "Collector must write invalid IMU samples."
 
 # --- Task 1: fast blend config and diagnostics types ---
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FAST_FORWARD_RPM_LIMIT" "Missing fast forward RPM limit."
@@ -159,10 +155,10 @@ Assert-Contains "project/code/host_command.c" "BALANCE_MODE_BALANCE_FAST" "B,3 m
 Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_TRUE\)" "B,3 must enable chassis fast mode."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_FALSE\)" "Stop/low-speed paths must disable fast mode."
 
-# --- Task 5: 38-float telemetry ---
-Assert-Contains "tools/collect_balance_data.ps1" "fast_blend" "Collector must write fast blend."
-Assert-Contains "tools/collect_balance_data.ps1" "speed_ff_rpm" "Collector must write speed feedforward."
-Assert-Contains "tools/collect_balance_data.ps1" "pitch_term_rpm" "Collector must write pitch term."
-Assert-Contains "tools/collect_balance_data.ps1" "ff_term_rpm" "Collector must write feedforward term."
+# --- Task 5: bounded-bandwidth timing telemetry ---
+Assert-Contains "tools/collect_balance_data.ps1" "firmware_frame_sequence" "Collector must write firmware frame sequence."
+Assert-Contains "tools/collect_balance_data.ps1" "servo_tick_count" "Collector must write servo ISR tick count."
+Assert-Contains "tools/collect_balance_data.ps1" "imu_age_ms" "Collector must write IMU sample age."
+Assert-Contains "tools/collect_balance_data.ps1" "gyro_y_raw_dps" "Collector must retain raw pitch-rate input."
 
 Write-Host "balance drive v2 static checks passed"

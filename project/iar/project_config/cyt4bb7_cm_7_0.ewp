@@ -1157,6 +1157,12 @@
                 <name>$PROJ_DIR$\..\..\code\sensor_imu.h</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\imu_rate_filter.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\imu_rate_filter.h</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
             </file>
             <file>

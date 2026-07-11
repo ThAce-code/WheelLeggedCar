@@ -27,6 +27,7 @@
 #define LSM6DSV_INT1_CTRL       0x0D
 #define LSM6DSV_FIFO_STATUS1    0x1B
 #define LSM6DSV_FIFO_STATUS2    0x1C
+#define LSM6DSV_FIFO_OVR_IA     (0x40U)
 #define LSM6DSV_OUT_TEMP_L      0x20
 #define LSM6DSV_OUTX_L_G        0x22
 #define LSM6DSV_OUTX_L_A        0x28
@@ -72,7 +73,8 @@ void    lsm6dsv16x_angle_update (float dt_s);
 void    lsm6dsv16x_vofa_send    (void);
 uint8   lsm6dsv16x_sflp_init    (void);
 uint8   lsm6dsv16x_sflp_update  (void);
-void    lsm6dsv16x_gyro_offset_init(void);
+uint32  lsm6dsv16x_get_invalid_sample_count(void);
+uint8   lsm6dsv16x_gyro_offset_init(void);
 void    lsm6dsv16x_gyro_update(void);
 lsm6dsv16x_angle_data_struct *lsm6dsv16x_get_angle_data(void);
 

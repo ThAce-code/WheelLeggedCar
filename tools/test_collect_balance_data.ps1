@@ -33,10 +33,10 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
-# 4 metadata + 46 telemetry + note = 51 fields
-Assert-True (($Fields.Split(",").Count -eq 51)) "CSV header must contain metadata, 46 telemetry fields, and note"
+# 4 metadata + 55 telemetry + note = 60 fields
+Assert-True (($Fields.Split(",").Count -eq 60)) "CSV header must contain metadata, 55 telemetry fields, and note"
 
-# 46-float test frame: indices 0-39 core/servo/state, 40-45 safety and trajectory mode
+# 55-float test frame: indices 0-45 control data, 46-54 timing diagnostics
 $values = [single[]](
     1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0,
     3.0, 100.0, 95.0, 0.3, 1.0, 1.0,
@@ -46,7 +46,8 @@ $values = [single[]](
     0.5, 0.0, 0.5,
     95.0, 95.0,
     96.5, 4.0, 0.42, 2.0, 1.0,
-    35.0, 1.0, 1.0, 0.0, 2.0, 250.0
+    35.0, 1.0, 1.0, 0.0, 2.0, 250.0,
+    42.0, 3.0, 7.0, 4.0, 12345.0, 987.0, 2.0, 6.0, -1.75
 )
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
@@ -104,6 +105,16 @@ Assert-Near $frames[0].servo_fast_mode 1.0 0.001 "servo_fast_mode"
 Assert-Near $frames[0].servo_direct_bypass 0.0 0.001 "servo_direct_bypass"
 Assert-Near $frames[0].servo_trajectory_mode 2.0 0.001 "servo_trajectory_mode"
 Assert-Near $frames[0].servo_s7_remaining_ms 250.0 0.001 "servo_s7_remaining_ms"
+# 46-54: timing and sample-integrity diagnostics
+Assert-Near $frames[0].firmware_frame_sequence 42.0 0.001 "firmware_frame_sequence"
+Assert-Near $frames[0].telemetry_drop_count 3.0 0.001 "telemetry_drop_count"
+Assert-Near $frames[0].scheduler_missed_tick_count 7.0 0.001 "scheduler_missed_tick_count"
+Assert-Near $frames[0].scheduler_max_gap_ms 4.0 0.001 "scheduler_max_gap_ms"
+Assert-Near $frames[0].servo_tick_count 12345.0 0.001 "servo_tick_count"
+Assert-Near $frames[0].imu_int_count 987.0 0.001 "imu_int_count"
+Assert-Near $frames[0].imu_invalid_count 2.0 0.001 "imu_invalid_count"
+Assert-Near $frames[0].imu_age_ms 6.0 0.001 "imu_age_ms"
+Assert-Near $frames[0].gyro_y_raw_dps -1.75 0.001 "gyro_y_raw_dps"
 
 Assert-True ($Fields -match "servo0_target_deg") "CSV header must include servo target"
 Assert-True ($Fields -match "servo0_filtered_deg") "CSV header must include servo filtered"

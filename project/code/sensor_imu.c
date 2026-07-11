@@ -6,6 +6,8 @@
 #include "sensor_imu.h"
 #include "lsm6dsv16x_driver.h"
 #include "app_config.h"
+#include "app_scheduler.h"
+#include "imu_rate_filter.h"
 
 #if (APP_IMU_USE_INT1 == 1U)
 #include "zf_common_interrupt.h"
@@ -16,9 +18,11 @@
 #define SENSOR_IMU_WHO_AM_I_DELAY_MS   (100U)
 
 static imu_state_struct sensor_imu_state;
+static imu_rate_filter_state_struct sensor_imu_pitch_rate_filter;
 static volatile uint8 sensor_imu_data_ready_flag;
 static volatile uint32 sensor_imu_int_count;
 static volatile uint32 sensor_imu_stale_count;
+static volatile uint32 sensor_imu_data_ready_ms;
 volatile uint8 sensor_imu_debug_sflp_available = APP_FALSE;
 
 static void sensor_imu_copy_angle(uint32 now_ms)
@@ -33,7 +37,10 @@ static void sensor_imu_copy_angle(uint32 now_ms)
     sensor_imu_state.gyro_x_dps = angle->gyro_x;
     sensor_imu_state.gyro_y_dps = angle->gyro_y;
     sensor_imu_state.gyro_z_dps = angle->gyro_z;
-    sensor_imu_state.pitch_rate_dps = angle->gyro_y;
+    sensor_imu_state.pitch_rate_dps =
+        imu_rate_filter_step(&sensor_imu_pitch_rate_filter,
+                             angle->gyro_y,
+                             APP_IMU_PITCH_RATE_LPF_ALPHA);
     sensor_imu_state.quat_w = angle->quat_w;
     sensor_imu_state.quat_x = angle->quat_x;
     sensor_imu_state.quat_y = angle->quat_y;
@@ -45,6 +52,7 @@ uint8 sensor_imu_init(void)
 {
     uint16 retry;
 
+    imu_rate_filter_init(&sensor_imu_pitch_rate_filter);
     sensor_imu_state.healthy = APP_FALSE;
     sensor_imu_state.timestamp_ms = 0U;
     sensor_imu_state.roll = 0.0f;
@@ -75,7 +83,10 @@ uint8 sensor_imu_init(void)
         return SENSOR_IMU_ERR_INIT;
     }
 
-    lsm6dsv16x_gyro_offset_init();
+    if(0U != lsm6dsv16x_gyro_offset_init())
+    {
+        return SENSOR_IMU_ERR_INIT;
+    }
 
     if(0U == lsm6dsv16x_sflp_init())
     {
@@ -84,7 +95,8 @@ uint8 sensor_imu_init(void)
     else
     {
         sensor_imu_debug_sflp_available = APP_FALSE;
-        lsm6dsv16x_angle_init();
+        sensor_imu_state.healthy = APP_FALSE;
+        return SENSOR_IMU_ERR_SFLP;
     }
 
     sensor_imu_state.healthy = APP_TRUE;
@@ -125,17 +137,22 @@ const imu_state_struct *sensor_imu_get_state(void)
 
 void sensor_imu_int1_isr(void)
 {
+    sensor_imu_data_ready_ms = app_scheduler_get_ms();
     sensor_imu_data_ready_flag = APP_TRUE;
     sensor_imu_int_count++;
 }
 
-uint8 sensor_imu_take_data_ready(void)
+uint8 sensor_imu_take_data_ready(uint32 *source_ms)
 {
     uint8 ready;
     uint32 primask;
 
     primask = interrupt_global_disable();
     ready = sensor_imu_data_ready_flag;
+    if((APP_TRUE == ready) && (NULL != source_ms))
+    {
+        *source_ms = sensor_imu_data_ready_ms;
+    }
     sensor_imu_data_ready_flag = APP_FALSE;
     interrupt_global_enable(primask);
 
@@ -155,6 +172,11 @@ uint32 sensor_imu_get_int_count(void)
 uint32 sensor_imu_get_stale_count(void)
 {
     return sensor_imu_stale_count;
+}
+
+uint32 sensor_imu_get_invalid_sample_count(void)
+{
+    return lsm6dsv16x_get_invalid_sample_count();
 }
 
 void sensor_imu_mark_stale(void)

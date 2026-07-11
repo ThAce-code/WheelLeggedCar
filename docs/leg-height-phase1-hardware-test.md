@@ -69,8 +69,11 @@ confirm the physical move completes before judging the result.
 Before any balance or wheel-drive test, complete this sequence:
 
 1. Support the vehicle and keep wheel output stopped.
-2. Confirm approximately 3.333 ms frame period and 1.5 ms pulse at the
-   all-90-degree pose with an oscilloscope.
+2. Capture all four PWM channels for at least 90 seconds. Confirm approximately
+   3.333 ms frame period and 1.5 ms pulse at the all-90-degree pose. Every pulse
+   must remain within 0.5-2.5 ms; at the normal 90 deg/s limit, adjacent pulse
+   widths must change by no more than approximately 3.33 us. Reject any isolated
+   long pulse or one-channel discontinuity.
 3. Hold all four servos at 90 degrees for 30 seconds; abort on sustained
    chatter, loss of holding force, supply sag, or abnormal temperature rise.
 4. Run `LIKREF` before any `LXY` command.
@@ -81,7 +84,9 @@ Before any balance or wheel-drive test, complete this sequence:
    continue to terrain or balance testing.
 
 Pass criteria: zero leg faults, valid IK, monotonic target/filter/output
-traces, actuator settled before `STABLE`, and no unexpected heating or chatter.
+traces, actuator settled before `STABLE`, no unexpected heating or chatter,
+no increase in `telemetry_drop_count` or `scheduler_missed_tick_count` during
+the motion, and a continuous `servo_tick_count` consistent with 300 Hz.
 
 ## Superseded PWM input-rate record
 

@@ -20,5 +20,6 @@ void actuator_servo_publish_cmd(const servo_cmd_struct *cmd,
 void actuator_servo_tick_300hz(void);
 void actuator_servo_get_diag(actuator_servo_diag_struct *diag);
 uint8 actuator_servo_is_settled(void);
+uint32 actuator_servo_get_tick_count(void);
 
 #endif

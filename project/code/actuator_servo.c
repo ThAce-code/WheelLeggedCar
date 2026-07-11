@@ -18,6 +18,7 @@ static actuator_servo_frame_struct actuator_servo_frame[2];
 static volatile uint8 actuator_servo_active_frame = 0U;
 static servo_motion_state_struct actuator_servo_motion[APP_SERVO_COUNT];
 static actuator_servo_diag_struct actuator_servo_diag;
+static volatile uint32 actuator_servo_tick_count = 0U;
 
 static const pwm_channel_enum actuator_servo_pwm_ch[APP_SERVO_COUNT] =
 {
@@ -25,6 +26,14 @@ static const pwm_channel_enum actuator_servo_pwm_ch[APP_SERVO_COUNT] =
     APP_SERVO1_PWM_CH,
     APP_SERVO2_PWM_CH,
     APP_SERVO3_PWM_CH
+};
+
+static volatile stc_TCPWM_GRP_CNT_t * const actuator_servo_pwm_cnt[APP_SERVO_COUNT] =
+{
+    TCPWM0_GRP0_CNT13,
+    TCPWM0_GRP0_CNT12,
+    TCPWM0_GRP0_CNT11,
+    TCPWM0_GRP0_CNT9
 };
 
 static float actuator_servo_limit(float value)
@@ -50,18 +59,36 @@ static uint8 actuator_servo_is_active(uint8 index)
     return (0U != (APP_SERVO_ACTIVE_MASK & (1U << index))) ? APP_TRUE : APP_FALSE;
 }
 
-static void actuator_servo_write(uint8 index, float angle_deg)
+static void actuator_servo_write_duty(uint8 index, uint32 duty)
 {
+    uint32 period;
+    uint32 compare;
+
     if(APP_FALSE == actuator_servo_is_active(index))
     {
         return;
     }
-    pwm_set_duty(actuator_servo_pwm_ch[index], actuator_servo_angle_to_duty(angle_deg));
+
+    if(PWM_DUTY_MAX < duty)
+    {
+        duty = PWM_DUTY_MAX;
+    }
+
+    period = actuator_servo_pwm_cnt[index]->unPERIOD.u32Register;
+    compare = period * duty / PWM_DUTY_MAX;
+    Cy_Tcpwm_Pwm_SetCompare0_Buff(actuator_servo_pwm_cnt[index], compare);
+}
+
+static void actuator_servo_write(uint8 index, float angle_deg)
+{
+    actuator_servo_write_duty(index, actuator_servo_angle_to_duty(angle_deg));
 }
 
 void actuator_servo_init(void)
 {
     uint8 i;
+
+    actuator_servo_tick_count = 0U;
 
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
@@ -159,6 +186,8 @@ void actuator_servo_tick_300hz(void)
     float max_error_deg;
     uint8 all_settled;
 
+    actuator_servo_tick_count++;
+
     active = actuator_servo_active_frame;
     frame = &actuator_servo_frame[active];
 
@@ -170,7 +199,7 @@ void actuator_servo_tick_300hz(void)
         {
             if(APP_TRUE == actuator_servo_is_active(i))
             {
-                pwm_set_duty(actuator_servo_pwm_ch[i], 0);
+                actuator_servo_write_duty(i, 0U);
             }
             /* Align filtered state to saved output so a later enable
                resumes from the last held position without a stale jump. */
@@ -247,6 +276,11 @@ uint8 actuator_servo_is_settled(void)
     return settled;
 }
 
+uint32 actuator_servo_get_tick_count(void)
+{
+    return actuator_servo_tick_count;
+}
+
 void actuator_servo_enable(void)
 {
     uint8 i;
@@ -278,7 +312,7 @@ void actuator_servo_disable(void)
         actuator_servo_frame[inactive].cmd.enable[i] = APP_FALSE;
         if(APP_TRUE == actuator_servo_is_active(i))
         {
-            pwm_set_duty(actuator_servo_pwm_ch[i], 0);
+            actuator_servo_write_duty(i, 0U);
         }
     }
     actuator_servo_active_frame = inactive;

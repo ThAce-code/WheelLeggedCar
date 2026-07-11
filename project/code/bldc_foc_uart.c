@@ -45,6 +45,7 @@ static void bldc_foc_clear_feedback(void)
     bldc_foc_feedback.last_tx_right = 0;
     bldc_foc_feedback.last_rx_ms = 0;
     bldc_foc_feedback.checksum_error_count = 0;
+    bldc_foc_feedback.feedback_range_error_count = 0;
     bldc_foc_feedback.unknown_frame_count = 0;
     bldc_foc_feedback.tx_frame_count = 0;
     bldc_foc_feedback.last_tx_func = 0;
@@ -300,9 +301,19 @@ static void bldc_foc_process_packet(void)
     switch(bldc_foc_packet[1])
     {
         case BLDC_FOC_FUNC_UPLOAD_SPEED:
-            bldc_foc_feedback.left_motor_rpm = left_value;
-            bldc_foc_feedback.right_motor_rpm = right_value;
-            bldc_foc_mark_rx();
+            if(((int16)APP_BLDC_FEEDBACK_RPM_ABS_MAX < left_value) ||
+               ((int16)-APP_BLDC_FEEDBACK_RPM_ABS_MAX > left_value) ||
+               ((int16)APP_BLDC_FEEDBACK_RPM_ABS_MAX < right_value) ||
+               ((int16)-APP_BLDC_FEEDBACK_RPM_ABS_MAX > right_value))
+            {
+                bldc_foc_feedback.feedback_range_error_count++;
+            }
+            else
+            {
+                bldc_foc_feedback.left_motor_rpm = left_value;
+                bldc_foc_feedback.right_motor_rpm = right_value;
+                bldc_foc_mark_rx();
+            }
             break;
 
         case BLDC_FOC_FUNC_UPLOAD_ANGLE:

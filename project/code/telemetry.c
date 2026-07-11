@@ -1,29 +1,35 @@
 /*********************************************************************************************************************
 * File: telemetry.c
-* Description: VOFA+ telemetry — nonblocking 46-float frame for leg-servo validation.
-*              At 460800 baud / 8N1, 188 bytes (46×4 + 4B tail) ≈ 4.08 ms per 10 ms frame.
+* Description: VOFA+ telemetry — nonblocking 55-float frame for leg-servo validation.
+*              At 460800 baud / 8N1, 224 bytes (55x4 + 4B tail) is about 4.86 ms per 10 ms frame.
 *********************************************************************************************************************/
 
 #include "telemetry.h"
 #include "app_config.h"
 #include "actuator_motor.h"
+#include "actuator_servo.h"
+#include "app_scheduler.h"
 #include "control_balance.h"
 #include "control_leg.h"
 #include "sensor_imu.h"
 
 static const uint8 telemetry_tail[4] = {0x00, 0x00, 0x80, 0x7F};
 #if APP_TELEMETRY_BALANCE_ENABLE
-static float vofa_data[46];
+static float vofa_data[55];
 #else
 static float vofa_data[8];
 #endif
 static uint32 telemetry_tx_offset;
 static uint8 telemetry_tx_busy;
+static uint32 telemetry_frame_sequence;
+static uint32 telemetry_drop_count;
 
 void telemetry_init(void)
 {
     telemetry_tx_offset = 0U;
     telemetry_tx_busy = APP_FALSE;
+    telemetry_frame_sequence = 0U;
+    telemetry_drop_count = 0U;
 }
 
 void telemetry_update(uint32 now_ms)
@@ -39,6 +45,7 @@ void telemetry_update(uint32 now_ms)
 
     if(APP_TRUE == telemetry_tx_busy)
     {
+        telemetry_drop_count++;
         return;
     }
 
@@ -113,6 +120,18 @@ void telemetry_update(uint32 now_ms)
     vofa_data[43] = (float)leg->servo_direct_bypass;
     vofa_data[44] = (float)leg->servo_trajectory_mode;
     vofa_data[45] = (float)leg->servo_s7_remaining_ms;
+
+    /* 46-54: timing and sample-integrity diagnostics */
+    vofa_data[46] = (float)telemetry_frame_sequence;
+    vofa_data[47] = (float)telemetry_drop_count;
+    vofa_data[48] = (float)app_scheduler_get_missed_tick_count();
+    vofa_data[49] = (float)app_scheduler_get_max_gap_ms();
+    vofa_data[50] = (float)actuator_servo_get_tick_count();
+    vofa_data[51] = (float)sensor_imu_get_int_count();
+    vofa_data[52] = (float)sensor_imu_get_invalid_sample_count();
+    vofa_data[53] = (float)(now_ms - imu->timestamp_ms);
+    vofa_data[54] = imu->gyro_y_dps;
+    telemetry_frame_sequence++;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

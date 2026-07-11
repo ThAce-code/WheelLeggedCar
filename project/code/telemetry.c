@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: telemetry.c
-* Description: VOFA+ telemetry — 40-float frame for leg-servo validation.
-*              At 460800 baud / 8N1, 164 bytes (40×4 + 4B tail) ≈ 3.56 ms.
+* Description: VOFA+ telemetry — nonblocking 46-float frame for leg-servo validation.
+*              At 460800 baud / 8N1, 188 bytes (46×4 + 4B tail) ≈ 4.08 ms per 10 ms frame.
 *********************************************************************************************************************/
 
 #include "telemetry.h"
@@ -11,24 +11,36 @@
 #include "control_leg.h"
 #include "sensor_imu.h"
 
+static const uint8 telemetry_tail[4] = {0x00, 0x00, 0x80, 0x7F};
+#if APP_TELEMETRY_BALANCE_ENABLE
+static float vofa_data[46];
+#else
+static float vofa_data[8];
+#endif
+static uint32 telemetry_tx_offset;
+static uint8 telemetry_tx_busy;
+
 void telemetry_init(void)
 {
+    telemetry_tx_offset = 0U;
+    telemetry_tx_busy = APP_FALSE;
 }
 
 void telemetry_update(uint32 now_ms)
 {
 #if APP_TELEMETRY_ENABLE
-    static const uint8 tail[4] = {0x00, 0x00, 0x80, 0x7F};
     const wheel_feedback_struct *wheel;
     const motor_rpm_loop_diag_struct *rpm_diag;
 #if APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
-    float vofa_data[40];
-#else
-    float vofa_data[8];
 #endif
+
+    if(APP_TRUE == telemetry_tx_busy)
+    {
+        return;
+    }
 
     wheel = actuator_motor_get_feedback();
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
@@ -83,7 +95,7 @@ void telemetry_update(uint32 now_ms)
     vofa_data[31] = (float)leg->servo_settled;
     vofa_data[32] = leg->servo_s7_progress;
 
-    /* 33-35: IK target Y (height) for LXY validation */
+    /* 33-34: IK target Y (height) for LXY validation */
     vofa_data[33] = leg->left_y_mm;
     vofa_data[34] = leg->right_y_mm;
 
@@ -93,6 +105,14 @@ void telemetry_update(uint32 now_ms)
     vofa_data[37] = leg->ik_margin;
     vofa_data[38] = (float)leg->motion_state;
     vofa_data[39] = (float)leg->fault_reason;
+
+    /* 40-45: safety permission + actuator trajectory state */
+    vofa_data[40] = leg->drive_forward_limit_rpm;
+    vofa_data[41] = (float)leg->drive_allowed;
+    vofa_data[42] = (float)leg->servo_fast_mode;
+    vofa_data[43] = (float)leg->servo_direct_bypass;
+    vofa_data[44] = (float)leg->servo_trajectory_mode;
+    vofa_data[45] = (float)leg->servo_s7_remaining_ms;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;
@@ -104,9 +124,51 @@ void telemetry_update(uint32 now_ms)
     vofa_data[7] = (float)(wheel->online && wheel->left_online && wheel->right_online);
 #endif
 
-    debug_send_buffer((const uint8 *)vofa_data, sizeof(vofa_data));
-    debug_send_buffer(tail, sizeof(tail));
+    telemetry_tx_offset = 0U;
+    telemetry_tx_busy = APP_TRUE;
 #else
     (void)now_ms;
+#endif
+}
+
+void telemetry_service(void)
+{
+#if APP_TELEMETRY_ENABLE
+    uint32 payload_size;
+    uint32 tail_offset;
+    uint32 written;
+
+    if(APP_TRUE != telemetry_tx_busy)
+    {
+        return;
+    }
+
+    payload_size = (uint32)sizeof(vofa_data);
+    if(telemetry_tx_offset < payload_size)
+    {
+        written = Cy_SCB_WriteArray(get_scb_module(DEBUG_UART_INDEX),
+                                    (void *)(((uint8 *)vofa_data) + telemetry_tx_offset),
+                                    payload_size - telemetry_tx_offset);
+        telemetry_tx_offset += written;
+        if(telemetry_tx_offset < payload_size)
+        {
+            return;
+        }
+    }
+
+    tail_offset = telemetry_tx_offset - payload_size;
+    if(tail_offset < (uint32)sizeof(telemetry_tail))
+    {
+        written = Cy_SCB_WriteArray(get_scb_module(DEBUG_UART_INDEX),
+                                    (void *)(telemetry_tail + tail_offset),
+                                    (uint32)sizeof(telemetry_tail) - tail_offset);
+        telemetry_tx_offset += written;
+        tail_offset += written;
+    }
+
+    if(tail_offset >= (uint32)sizeof(telemetry_tail))
+    {
+        telemetry_tx_busy = APP_FALSE;
+    }
 #endif
 }

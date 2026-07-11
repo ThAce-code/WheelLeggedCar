@@ -33,10 +33,10 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
-# 4 metadata + 40 telemetry + note = 45 fields
-Assert-True (($Fields.Split(",").Count -eq 45)) "CSV header must contain metadata, 40 telemetry fields, and note"
+# 4 metadata + 46 telemetry + note = 51 fields
+Assert-True (($Fields.Split(",").Count -eq 51)) "CSV header must contain metadata, 46 telemetry fields, and note"
 
-# 40-float test frame: indices 0-11 motor/IMU, 12-17 leg, 18-21 servo output, 22-25 target, 26-29 filtered, 30-32 settle, 33-34 y, 35-39 state
+# 46-float test frame: indices 0-39 core/servo/state, 40-45 safety and trajectory mode
 $values = [single[]](
     1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0,
     3.0, 100.0, 95.0, 0.3, 1.0, 1.0,
@@ -45,7 +45,8 @@ $values = [single[]](
     90.5, 89.5, 89.5, 90.5,
     0.5, 0.0, 0.5,
     95.0, 95.0,
-    96.5, 4.0, 0.42, 2.0, 1.0
+    96.5, 4.0, 0.42, 2.0, 1.0,
+    35.0, 1.0, 1.0, 0.0, 2.0, 250.0
 )
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
@@ -96,12 +97,21 @@ Assert-Near $frames[0].leg_height_rate_mm_s 4.0 0.001 "leg_height_rate_mm_s"
 Assert-Near $frames[0].leg_ik_margin 0.42 0.001 "leg_ik_margin"
 Assert-Near $frames[0].leg_motion_state 2.0 0.001 "leg_motion_state"
 Assert-Near $frames[0].leg_fault_reason 1.0 0.001 "leg_fault_reason"
+# 40-45: safety and trajectory mode
+Assert-Near $frames[0].leg_drive_forward_limit_rpm 35.0 0.001 "leg_drive_forward_limit_rpm"
+Assert-Near $frames[0].leg_drive_allowed 1.0 0.001 "leg_drive_allowed"
+Assert-Near $frames[0].servo_fast_mode 1.0 0.001 "servo_fast_mode"
+Assert-Near $frames[0].servo_direct_bypass 0.0 0.001 "servo_direct_bypass"
+Assert-Near $frames[0].servo_trajectory_mode 2.0 0.001 "servo_trajectory_mode"
+Assert-Near $frames[0].servo_s7_remaining_ms 250.0 0.001 "servo_s7_remaining_ms"
 
 Assert-True ($Fields -match "servo0_target_deg") "CSV header must include servo target"
 Assert-True ($Fields -match "servo0_filtered_deg") "CSV header must include servo filtered"
 Assert-True ($Fields -match "servo_max_error_deg") "CSV header must include max error"
 Assert-True ($Fields -match "servo_settled") "CSV header must include settled"
 Assert-True ($Fields -match "servo_s7_progress") "CSV header must include S7 progress"
+Assert-True ($Fields -match "leg_drive_allowed") "CSV header must include drive permission"
+Assert-True ($Fields -match "servo_trajectory_mode") "CSV header must include trajectory mode"
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 

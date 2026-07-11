@@ -10,5 +10,6 @@
 
 void telemetry_init(void);
 void telemetry_update(uint32 now_ms);
+void telemetry_service(void);
 
 #endif

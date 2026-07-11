@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 40
+$FloatCount = 46
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_y_mm,leg_right_y_mm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_y_mm,leg_right_y_mm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -160,6 +160,12 @@ function Pop-BalanceFrames {
                 leg_ik_margin = $values[37]
                 leg_motion_state = $values[38]
                 leg_fault_reason = $values[39]
+                leg_drive_forward_limit_rpm = $values[40]
+                leg_drive_allowed = $values[41]
+                servo_fast_mode = $values[42]
+                servo_direct_bypass = $values[43]
+                servo_trajectory_mode = $values[44]
+                servo_s7_remaining_ms = $values[45]
             })
         }
 
@@ -297,6 +303,12 @@ try {
                     ("{0:F6}" -f $frame.leg_ik_margin),
                     ("{0:F3}" -f $frame.leg_motion_state),
                     ("{0:F3}" -f $frame.leg_fault_reason),
+                    ("{0:F3}" -f $frame.leg_drive_forward_limit_rpm),
+                    ("{0:F3}" -f $frame.leg_drive_allowed),
+                    ("{0:F3}" -f $frame.servo_fast_mode),
+                    ("{0:F3}" -f $frame.servo_direct_bypass),
+                    ("{0:F3}" -f $frame.servo_trajectory_mode),
+                    ("{0:F3}" -f $frame.servo_s7_remaining_ms),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

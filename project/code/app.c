@@ -51,6 +51,7 @@ uint8 app_init(void)
 void app_run_once(void)
 {
     app_scheduler_run_pending();
+    telemetry_service();
 }
 
 uint32 app_get_ms(void)

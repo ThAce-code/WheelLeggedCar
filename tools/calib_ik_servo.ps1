@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 # ── VOFA frame constants (must match firmware telemetry) ──
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 40
+$FloatCount = 46
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
 
@@ -65,6 +65,8 @@ function Pop-Frame {
         ik_margin            = $values[37]
         motion_state         = $values[38]
         fault_reason         = $values[39]
+        drive_forward_limit_rpm = $values[40]
+        drive_allowed        = $values[41]
     }
 }
 
@@ -122,6 +124,7 @@ function Test-FrameMatchesCommand {
     if($null -eq $Frame) {
         return $false
     }
+    if(([double]$Frame.servo_settled) -lt 0.5) { return $false }
     if([Math]::Abs(([double]$Frame.servo0_output_deg) - $A0) -gt $tolerance) { return $false }
     if([Math]::Abs(([double]$Frame.servo1_output_deg) - $A1) -gt $tolerance) { return $false }
     if([Math]::Abs(([double]$Frame.servo2_output_deg) - $A2) -gt $tolerance) { return $false }

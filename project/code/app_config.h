@@ -20,7 +20,7 @@
 #define APP_IMU_STALE_TIMEOUT_MS        (30U)
 #define APP_BALANCE_IMU_MAX_AGE_MS      (15U)
 
-#define APP_TELEMETRY_PERIOD_MS         (5U)
+#define APP_TELEMETRY_PERIOD_MS         (10U)
 #define APP_TELEMETRY_ENABLE            (1U)
 #define APP_TELEMETRY_BALANCE_ENABLE    (1U)
 

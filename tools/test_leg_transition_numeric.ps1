@@ -115,6 +115,33 @@ function Assert-JerkLimitedHeightTrajectory {
     throw ("Jerk-limited height trajectory did not settle: target {0}, reference {1}, rate {2}, accel {3}." -f $targetMm, $referenceMm, $rateMmS, $accelMmS2)
 }
 
+function Get-S7Blend([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u4 = $u2 * $u2
+    return $u4 * (35.0 - 84.0 * $u + 70.0 * $u2 - 20.0 * $u2 * $u)
+}
+
+function Get-S7Derivative1([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u3 = $u2 * $u
+    return (140.0 * $u3) - (420.0 * $u3 * $u) + (420.0 * $u3 * $u2) - (140.0 * $u3 * $u2 * $u)
+}
+
+function Get-S7Derivative2([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u3 = $u2 * $u
+    return (420.0 * $u2) - (1680.0 * $u3) + (2100.0 * $u3 * $u) - (840.0 * $u3 * $u2)
+}
+
+function Get-S7Derivative3([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    return (840.0 * $u) - (5040.0 * $u2) + (8400.0 * $u2 * $u) - (4200.0 * $u2 * $u2)
+}
+
 function Get-FastHeightReference {
     param(
         [double]$StartMm,
@@ -124,9 +151,7 @@ function Get-FastHeightReference {
     )
 
     $u = [math]::Max(0.0, [math]::Min($ElapsedMs / $DurationMs, 1.0))
-    $blend = (10.0 * $u * $u * $u) -
-             (15.0 * $u * $u * $u * $u) +
-             (6.0 * $u * $u * $u * $u * $u)
+    $blend = Get-S7Blend $u
     return $StartMm + (($TargetMm - $StartMm) * $blend)
 }
 
@@ -223,6 +248,59 @@ function Assert-MotionPolicy {
     Assert-Equal -Actual $fault.ForwardLimitRpm -Expected 0.0 -Message "Fault forward limit"
     if($fault.EffectiveFast) {
         throw "Fault must disable effective fast blend."
+    }
+}
+
+function Assert-S7Properties {
+    Assert-Near -Actual (Get-S7Blend 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 p(0)=0"
+    Assert-Near -Actual (Get-S7Blend 1.0) -Expected 1.0 -Tolerance 0.000001 -Message "S7 p(1)=1"
+
+    # Monotonicity check
+    $prev = 0.0
+    for($u = 0.001; $u -le 1.001; $u += 0.001) {
+        $val = Get-S7Blend ([math]::Min($u, 1.0))
+        if($val -lt ($prev - 0.000001)) {
+            throw ("S7 blend not monotonic at u={0}: prev={1}, val={2}" -f $u, $prev, $val)
+        }
+        $prev = $val
+    }
+
+    # Derivatives zero at both endpoints
+    Assert-Near -Actual (Get-S7Derivative1 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 velocity zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative1 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 velocity zero at u=1"
+    Assert-Near -Actual (Get-S7Derivative2 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 acceleration zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative2 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 acceleration zero at u=1"
+    Assert-Near -Actual (Get-S7Derivative3 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 jerk zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative3 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 jerk zero at u=1"
+}
+
+function Assert-SharedPoseTrajectory {
+    $startDeg = @(90.0, 90.0, 90.0, 90.0)
+    $targetDeg = @(114.0, 66.0, 108.0, 72.0)
+    $maxDelta = 0.0
+    for($i = 0; $i -lt 4; $i++) {
+        $delta = [math]::Abs($targetDeg[$i] - $startDeg[$i])
+        if($delta -gt $maxDelta) { $maxDelta = $delta }
+    }
+    $durationS = [math]::Max(0.10, 2.1875 * $maxDelta / 90.0)
+    $durationMs = $durationS * 1000.0
+    $samplesPerMs = 6
+
+    for($t = 0.0; $t -lt $durationMs; $t += $samplesPerMs) {
+        $u = [math]::Min($t / $durationMs, 1.0)
+        $blend = Get-S7Blend $u
+        for($i = 0; $i -lt 4; $i++) {
+            $expectedAngle = $startDeg[$i] + ($targetDeg[$i] - $startDeg[$i]) * $blend
+            if(($expectedAngle -lt 0.0) -or ($expectedAngle -gt 180.0)) {
+                throw ("Shared-pose channel {0} exceeded angle bounds at t={1} ms: {2}" -f $i, $t, $expectedAngle)
+            }
+        }
+    }
+
+    # All channels reach target on same sample
+    for($i = 0; $i -lt 4; $i++) {
+        $finalAngle = $startDeg[$i] + ($targetDeg[$i] - $startDeg[$i]) * (Get-S7Blend 1.0)
+        Assert-Near -Actual $finalAngle -Expected $targetDeg[$i] -Tolerance 0.000001 -Message ("Shared-pose channel {0} reaches target" -f $i)
     }
 }
 
@@ -426,6 +504,8 @@ Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["low_hei
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy
+Assert-S7Properties
+Assert-SharedPoseTrajectory
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-kinematics-" + [Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tempPath | Out-Null

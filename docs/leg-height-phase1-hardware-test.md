@@ -64,14 +64,15 @@ Abort immediately on linkage interference, sustained servo chatter, supply
 sag, or any wheel movement. The CSV only reports PWM commands, so visually
 confirm the physical move completes before judging the result.
 
-## PWM input-rate compatibility result
+## Superseded PWM input-rate record
 
-The production build uses `APP_SERVO_PWM_FREQ_HZ = 50U`; the pulse period is
-derived automatically as 20,000 µs. The 100 Hz A/B bench trace kept smooth
-software references, PWM output commands, enabled output, and zero leg faults,
-but produced severe physical servo shaking. Therefore 100 Hz is rejected for
-this BDS300 installation and must not be used for terrain tests. Do not test
-200 Hz or higher without a documented BDS300 input-frame specification.
+The earlier 100 Hz shaking result was produced with an incorrect servo-control
+algorithm. It is not valid evidence for accepting or rejecting any PWM frame
+rate and must be ignored in later design or hardware decisions.
+
+The current target is a fresh 300 Hz validation using the S7 trajectory and
+first-order LPF actuator algorithm. Judge that configuration only from its own
+oscilloscope, supported-vehicle, command-trace, chatter, and temperature checks.
 
 ## Direct-step bench comparison only
 

@@ -19,7 +19,10 @@ compensation, or balance gains.
    output.
 4. Build `cyt4bb7_cm_7_0` in `project/iar/cyt4bb7.eww`, flash it, and wait
    for the IMU to become healthy.
-5. Keep the validated 50 Hz servo PWM production setting. Do not enable the
+5. Use the PWM frequency selected by the current servo-control build. Ignore
+   the superseded 100 Hz shaking record because it came from an incorrect
+   control algorithm. For the new 300 Hz build, verify the frame period and
+   pulse width on an oscilloscope before moving the linkage. Do not enable the
    direct-step bench switch for this procedure.
 
 Stop immediately if a linkage approaches an end stop, a servo chatters or

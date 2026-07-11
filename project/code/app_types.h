@@ -237,6 +237,17 @@ typedef struct
     uint8 enable[4];
 }servo_cmd_struct;
 
+typedef struct
+{
+    float target_deg[4];
+    float filtered_deg[4];
+    float output_deg[4];
+    float max_error_deg;
+    uint8 settled;
+    uint8 fast_mode;
+    uint8 direct_bypass;
+}actuator_servo_diag_struct;
+
 typedef enum
 {
     LEG_MOTION_LOCKED = 0,

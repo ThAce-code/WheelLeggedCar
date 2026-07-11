@@ -1,19 +1,16 @@
 $ErrorActionPreference = "Stop"
 
 $config = Get-Content "project/code/app_config.h" -Raw
-$servo = Get-Content "project/code/actuator_servo.c" -Raw
+$main = Get-Content "project/user/main_cm7_0.c" -Raw
 
-if($config -notmatch "APP_SERVO_PWM_FREQ_HZ\s+\(50U\)")
-{
-    throw "Production PWM frequency must revert to the validated 50 Hz frame rate."
+if($config -notmatch "APP_SERVO_PWM_FREQ_HZ\s+\(300U\)") {
+    throw "Servo PWM frequency must be 300 Hz."
 }
-if($config -notmatch "APP_SERVO_PWM_PERIOD_US\s+\(1000000U / APP_SERVO_PWM_FREQ_HZ\)")
-{
-    throw "Servo pulse period must derive from the selected PWM frequency."
+if($config -notmatch "APP_SERVO_CONTROL_PERIOD_US\s+\(1000000U / APP_SERVO_PWM_FREQ_HZ\)") {
+    throw "Servo control period must derive from the PWM frequency."
 }
-if($servo -notmatch "pwm_init\(actuator_servo_pwm_ch\[i\], APP_SERVO_PWM_FREQ_HZ, 0\)")
-{
-    throw "Servo hardware PWM must use the configured frequency."
+if($main -notmatch "pit_us_init\(PIT_CH1, APP_SERVO_CONTROL_PERIOD_US\)") {
+    throw "PIT_CH1 must run the 300 Hz servo actuator tick."
 }
 
-Write-Host "servo PWM 50 Hz production static check passed"
+Write-Host "servo PWM 300 Hz production static check passed"

@@ -9,7 +9,6 @@
 #include "app_safety.h"
 #include "sensor_imu.h"
 #include "control_leg.h"
-#include "actuator_servo.h"
 #include "actuator_motor.h"
 #include "control_chassis.h"
 #include "control_balance.h"
@@ -51,7 +50,6 @@ void app_scheduler_run_pending(void)
     static uint32 telemetry_last_ms = 0;
     static uint32 host_command_last_ms = 0;
     static uint32 leg_last_ms = 0;
-    static uint32 servo_last_ms = 0;
     static uint32 chassis_last_ms = 0;
     static uint32 balance_last_ms = 0;
     uint32 now_ms;
@@ -126,11 +124,6 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {
         telemetry_update(now_ms);
-    }
-
-    if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))
-    {
-        actuator_servo_update(now_ms);
     }
 }
 

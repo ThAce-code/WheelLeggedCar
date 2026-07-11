@@ -75,6 +75,7 @@ int main(void)
     }
 
     pit_ms_init(PIT_CH0, APP_TICK_PERIOD_MS);
+    pit_us_init(PIT_CH1, APP_SERVO_CONTROL_PERIOD_US);
 
     for(;;)
     {

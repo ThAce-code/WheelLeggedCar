@@ -31,8 +31,8 @@
 /* --- Servo actuator configuration --- */
 #define APP_SERVO_COUNT                 (4U)
 #define APP_SERVO_ACTIVE_MASK           (0x0FU)
-#define APP_SERVO_PWM_FREQ_HZ           (50U)
-#define APP_SERVO_PWM_PERIOD_US         (1000000U / APP_SERVO_PWM_FREQ_HZ)
+#define APP_SERVO_PWM_FREQ_HZ           (300U)
+#define APP_SERVO_CONTROL_PERIOD_US     (1000000U / APP_SERVO_PWM_FREQ_HZ)
 #define APP_SERVO_MIN_PULSE_US          (500U)
 #define APP_SERVO_MID_PULSE_US          (1500U)
 #define APP_SERVO_MAX_PULSE_US          (2500U)
@@ -41,8 +41,10 @@
 #define APP_SERVO_MAX_DEG               (180.0f)
 #define APP_SERVO_MAX_SPEED_DPS         (90.0f)
 #define APP_LEG_FAST_SERVO_MAX_SPEED_DPS (180.0f)
-#define APP_SERVO_MAX_UPDATE_GAP_MS     (20U)
-#define APP_SERVO_PERIOD_MS             (10U)
+#define APP_SERVO_LPF_ALPHA             (0.05f)
+#define APP_SERVO_SETTLE_ERROR_DEG      (0.2f)
+#define APP_SERVO_SETTLE_MS             (100U)
+#define APP_SERVO_SETTLE_TICKS          ((APP_SERVO_SETTLE_MS * APP_SERVO_PWM_FREQ_HZ + 999U) / 1000U)
 #define APP_SERVO_TEST_ENABLE           (0U)
 
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3

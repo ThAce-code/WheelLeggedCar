@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 # ── VOFA frame constants (must match firmware telemetry) ──
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 32
+$FloatCount = 40
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
 
@@ -48,23 +48,23 @@ function Pop-Frame {
     }
     $Buffer.RemoveRange(0, $tailIdx + $Tail.Length)
     return @{
-        leg_mode             = $values[38]
-        leg_target_height_mm = $values[39]
-        leg_height_cmd_est_mm = $values[40]
-        leg_height_norm      = $values[41]
-        leg_ik_valid         = $values[46]
-        leg_output_enable    = $values[47]
-        servo0_output_deg    = $values[48]
-        servo1_output_deg    = $values[49]
-        servo2_output_deg    = $values[50]
-        servo3_output_deg    = $values[51]
-        leg_height_ref_mm    = $values[58]
-        leg_height_rate_mm_s = $values[59]
-        ik_margin            = $values[60]
-        drive_forward_limit_rpm = $values[61]
-        motion_state         = $values[62]
-        fault_reason         = $values[63]
-        drive_allowed        = $values[64]
+        leg_mode             = $values[12]
+        leg_target_height_mm = $values[13]
+        leg_height_cmd_est_mm = $values[14]
+        leg_height_norm      = $values[15]
+        leg_ik_valid         = $values[16]
+        leg_output_enable    = $values[17]
+        servo0_output_deg    = $values[18]
+        servo1_output_deg    = $values[19]
+        servo2_output_deg    = $values[20]
+        servo3_output_deg    = $values[21]
+        servo0_target_deg    = $values[22]
+        servo_settled        = $values[31]
+        leg_height_ref_mm    = $values[35]
+        leg_height_rate_mm_s = $values[36]
+        ik_margin            = $values[37]
+        motion_state         = $values[38]
+        fault_reason         = $values[39]
     }
 }
 

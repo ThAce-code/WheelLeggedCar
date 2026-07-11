@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 32
+$FloatCount = 40
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_left_x_mm,leg_left_y_mm,leg_right_x_mm,leg_right_y_mm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_allowed,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_y_mm,leg_right_y_mm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -136,22 +136,30 @@ function Pop-BalanceFrames {
                 leg_target_height_mm = $values[13]
                 leg_height_cmd_est_mm = $values[14]
                 leg_height_norm = $values[15]
-                leg_left_x_mm = $values[16]
-                leg_left_y_mm = $values[17]
-                leg_right_x_mm = $values[18]
-                leg_right_y_mm = $values[19]
-                leg_ik_valid = $values[20]
-                leg_output_enable = $values[21]
-                servo0_output_deg = $values[22]
-                servo1_output_deg = $values[23]
-                servo2_output_deg = $values[24]
-                servo3_output_deg = $values[25]
-                leg_height_ref_mm = $values[26]
-                leg_height_rate_mm_s = $values[27]
-                leg_ik_margin = $values[28]
-                leg_motion_state = $values[29]
-                leg_fault_reason = $values[30]
-                leg_drive_allowed = $values[31]
+                leg_ik_valid = $values[16]
+                leg_output_enable = $values[17]
+                servo0_output_deg = $values[18]
+                servo1_output_deg = $values[19]
+                servo2_output_deg = $values[20]
+                servo3_output_deg = $values[21]
+                servo0_target_deg = $values[22]
+                servo1_target_deg = $values[23]
+                servo2_target_deg = $values[24]
+                servo3_target_deg = $values[25]
+                servo0_filtered_deg = $values[26]
+                servo1_filtered_deg = $values[27]
+                servo2_filtered_deg = $values[28]
+                servo3_filtered_deg = $values[29]
+                servo_max_error_deg = $values[30]
+                servo_settled = $values[31]
+                servo_s7_progress = $values[32]
+                leg_left_y_mm = $values[33]
+                leg_right_y_mm = $values[34]
+                leg_height_ref_mm = $values[35]
+                leg_height_rate_mm_s = $values[36]
+                leg_ik_margin = $values[37]
+                leg_motion_state = $values[38]
+                leg_fault_reason = $values[39]
             })
         }
 
@@ -265,22 +273,30 @@ try {
                     ("{0:F3}" -f $frame.leg_target_height_mm),
                     ("{0:F3}" -f $frame.leg_height_cmd_est_mm),
                     ("{0:F6}" -f $frame.leg_height_norm),
-                    ("{0:F3}" -f $frame.leg_left_x_mm),
-                    ("{0:F3}" -f $frame.leg_left_y_mm),
-                    ("{0:F3}" -f $frame.leg_right_x_mm),
-                    ("{0:F3}" -f $frame.leg_right_y_mm),
                     ("{0:F3}" -f $frame.leg_ik_valid),
                     ("{0:F3}" -f $frame.leg_output_enable),
                     ("{0:F6}" -f $frame.servo0_output_deg),
                     ("{0:F6}" -f $frame.servo1_output_deg),
                     ("{0:F6}" -f $frame.servo2_output_deg),
                     ("{0:F6}" -f $frame.servo3_output_deg),
+                    ("{0:F6}" -f $frame.servo0_target_deg),
+                    ("{0:F6}" -f $frame.servo1_target_deg),
+                    ("{0:F6}" -f $frame.servo2_target_deg),
+                    ("{0:F6}" -f $frame.servo3_target_deg),
+                    ("{0:F6}" -f $frame.servo0_filtered_deg),
+                    ("{0:F6}" -f $frame.servo1_filtered_deg),
+                    ("{0:F6}" -f $frame.servo2_filtered_deg),
+                    ("{0:F6}" -f $frame.servo3_filtered_deg),
+                    ("{0:F6}" -f $frame.servo_max_error_deg),
+                    ("{0:F3}" -f $frame.servo_settled),
+                    ("{0:F6}" -f $frame.servo_s7_progress),
+                    ("{0:F3}" -f $frame.leg_left_y_mm),
+                    ("{0:F3}" -f $frame.leg_right_y_mm),
                     ("{0:F3}" -f $frame.leg_height_ref_mm),
                     ("{0:F6}" -f $frame.leg_height_rate_mm_s),
                     ("{0:F6}" -f $frame.leg_ik_margin),
                     ("{0:F3}" -f $frame.leg_motion_state),
                     ("{0:F3}" -f $frame.leg_fault_reason),
-                    ("{0:F3}" -f $frame.leg_drive_allowed),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

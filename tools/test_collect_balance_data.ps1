@@ -33,10 +33,20 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
-Assert-True (($Fields.Split(",").Count -eq 37)) "CSV header must contain metadata, 32 telemetry fields, and note"
+# 4 metadata + 40 telemetry + note = 45 fields
+Assert-True (($Fields.Split(",").Count -eq 45)) "CSV header must contain metadata, 40 telemetry fields, and note"
 
-# 32-float test frame matching the compact telemetry layout
-$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 3.0, 100.0, 95.0, 0.3, 0.0, 95.0, 0.0, 95.0, 1.0, 1.0, 88.0, 92.0, 89.0, 91.0, 96.5, 4.0, 0.42, 2.0, 1.0, 1.0)
+# 40-float test frame: indices 0-11 motor/IMU, 12-17 leg, 18-21 servo output, 22-25 target, 26-29 filtered, 30-32 settle, 33-34 y, 35-39 state
+$values = [single[]](
+    1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0,
+    3.0, 100.0, 95.0, 0.3, 1.0, 1.0,
+    88.0, 92.0, 89.0, 91.0,
+    91.0, 89.0, 89.0, 91.0,
+    90.5, 89.5, 89.5, 90.5,
+    0.5, 0.0, 0.5,
+    95.0, 95.0,
+    96.5, 4.0, 0.42, 2.0, 1.0
+)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -63,25 +73,35 @@ Assert-Near $frames[0].left_motor_rpm 48.0 0.001 "left_motor_rpm"
 Assert-Near $frames[0].right_motor_rpm 47.0 0.001 "right_motor_rpm"
 Assert-Near $frames[0].left_duty -120.0 0.001 "left_duty"
 Assert-Near $frames[0].right_duty -118.0 0.001 "right_duty"
-# 12-21: leg height/IK
+# 12-17: leg height/IK
 Assert-Near $frames[0].leg_mode 3.0 0.001 "leg_mode"
 Assert-Near $frames[0].leg_target_height_mm 100.0 0.001 "leg_target_height_mm"
 Assert-Near $frames[0].leg_height_cmd_est_mm 95.0 0.001 "leg_height_cmd_est_mm"
 Assert-Near $frames[0].leg_height_norm 0.3 0.001 "leg_height_norm"
 Assert-Near $frames[0].leg_ik_valid 1.0 0.001 "leg_ik_valid"
 Assert-Near $frames[0].leg_output_enable 1.0 0.001 "leg_output_enable"
-# 22-25: servo output commands
+# 18-21: servo output
 Assert-Near $frames[0].servo0_output_deg 88.0 0.001 "servo0_output_deg"
-# 26-31: leg motion state
+# 22-25: servo targets
+Assert-Near $frames[0].servo0_target_deg 91.0 0.001 "servo0_target_deg"
+# 26-29: servo filtered
+Assert-Near $frames[0].servo0_filtered_deg 90.5 0.001 "servo0_filtered_deg"
+# 30-32: settle diagnostics
+Assert-Near $frames[0].servo_max_error_deg 0.5 0.001 "servo_max_error_deg"
+Assert-Near $frames[0].servo_settled 0.0 0.001 "servo_settled"
+Assert-Near $frames[0].servo_s7_progress 0.5 0.001 "servo_s7_progress"
+# 35-39: leg motion state
 Assert-Near $frames[0].leg_height_ref_mm 96.5 0.001 "leg_height_ref_mm"
 Assert-Near $frames[0].leg_height_rate_mm_s 4.0 0.001 "leg_height_rate_mm_s"
 Assert-Near $frames[0].leg_ik_margin 0.42 0.001 "leg_ik_margin"
 Assert-Near $frames[0].leg_motion_state 2.0 0.001 "leg_motion_state"
 Assert-Near $frames[0].leg_fault_reason 1.0 0.001 "leg_fault_reason"
-Assert-Near $frames[0].leg_drive_allowed 1.0 0.001 "leg_drive_allowed"
 
-Assert-True ($Fields -match "leg_height_ref_mm") "CSV header must include leg_height_ref_mm"
-Assert-True ($Fields -match "servo0_output_deg") "CSV header must include servo output labels"
+Assert-True ($Fields -match "servo0_target_deg") "CSV header must include servo target"
+Assert-True ($Fields -match "servo0_filtered_deg") "CSV header must include servo filtered"
+Assert-True ($Fields -match "servo_max_error_deg") "CSV header must include max error"
+Assert-True ($Fields -match "servo_settled") "CSV header must include settled"
+Assert-True ($Fields -match "servo_s7_progress") "CSV header must include S7 progress"
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 

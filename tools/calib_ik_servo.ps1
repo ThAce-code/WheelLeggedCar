@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 
 # ── VOFA frame constants (must match firmware telemetry) ──
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 65
+$FloatCount = 80
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
 

@@ -304,6 +304,37 @@ function Assert-SharedPoseTrajectory {
     }
 }
 
+function Assert-StableGateModel {
+    # Planner complete but actuator not settled -> keep TRANSITION
+    $plannerComplete = $true
+    $actuatorSettled = $false
+    $actuatorError = 0.21
+    $settleThreshold = 0.2
+
+    $motionState = if($plannerComplete -and $actuatorSettled -and ($actuatorError -le $settleThreshold)) {
+        "STABLE"
+    } else {
+        "TRANSITION"
+    }
+
+    if($motionState -ne "TRANSITION") {
+        throw "Motion state must remain TRANSITION when planner is complete but actuator error exceeds settle threshold."
+    }
+
+    # Actuator settled after 30 ticks -> STABLE
+    $actuatorSettled = $true
+    $actuatorError = 0.01
+    $motionState = if($plannerComplete -and $actuatorSettled -and ($actuatorError -le $settleThreshold)) {
+        "STABLE"
+    } else {
+        "TRANSITION"
+    }
+
+    if($motionState -ne "STABLE") {
+        throw "Motion state must become STABLE only after planner completes and actuator settles."
+    }
+}
+
 function Assert-HeightCommandRange {
     param([hashtable]$Config)
 
@@ -506,6 +537,7 @@ Assert-InsufficientIkMarginFault
 Assert-MotionPolicy
 Assert-S7Properties
 Assert-SharedPoseTrajectory
+Assert-StableGateModel
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-kinematics-" + [Guid]::NewGuid().ToString())
 New-Item -ItemType Directory -Path $tempPath | Out-Null

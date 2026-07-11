@@ -24,7 +24,7 @@ void telemetry_update(uint32 now_ms)
     const balance_diag_struct *balance;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
-    float vofa_data[65];
+    float vofa_data[80];
 #else
     float vofa_data[8];
 #endif
@@ -101,6 +101,21 @@ void telemetry_update(uint32 now_ms)
     vofa_data[62] = (float)leg->motion_state;
     vofa_data[63] = (float)leg->fault_reason;
     vofa_data[64] = (float)leg->drive_allowed;
+    vofa_data[65] = leg->servo_target_deg[0];
+    vofa_data[66] = leg->servo_target_deg[1];
+    vofa_data[67] = leg->servo_target_deg[2];
+    vofa_data[68] = leg->servo_target_deg[3];
+    vofa_data[69] = leg->servo_filtered_deg[0];
+    vofa_data[70] = leg->servo_filtered_deg[1];
+    vofa_data[71] = leg->servo_filtered_deg[2];
+    vofa_data[72] = leg->servo_filtered_deg[3];
+    vofa_data[73] = leg->servo_max_error_deg;
+    vofa_data[74] = (float)leg->servo_settled;
+    vofa_data[75] = leg->servo_s7_progress;
+    vofa_data[76] = (float)leg->servo_direct_bypass;
+    vofa_data[77] = (float)leg->servo_fast_mode;
+    vofa_data[78] = (float)leg->servo_trajectory_mode;
+    vofa_data[79] = (float)leg->servo_s7_remaining_ms;
 #else
     vofa_data[0] = (float)now_ms;
     vofa_data[1] = (float)rpm_diag->mode;

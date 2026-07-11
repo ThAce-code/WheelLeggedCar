@@ -143,6 +143,7 @@ static uint32 control_leg_pose_duration_ms;
 static float control_leg_s7_progress;
 static uint32 control_leg_s7_remaining_ms;
 static leg_trajectory_mode_enum control_leg_trajectory_mode;
+static actuator_servo_diag_struct control_leg_actuator_diag;
 
 static float control_leg_s7_blend(float progress)
 {
@@ -245,6 +246,27 @@ static void control_leg_pose_update(uint32 now_ms)
     }
 }
 
+static uint8 control_leg_motion_can_stabilize(uint8 planner_complete)
+{
+    uint8 i;
+
+    if((APP_TRUE != planner_complete) ||
+       (APP_TRUE != control_leg_actuator_diag.settled))
+    {
+        return APP_FALSE;
+    }
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        if(APP_SERVO_SETTLE_ERROR_DEG <
+           control_leg_absf(control_leg_servo_cmd.angle_deg[i] -
+                            control_leg_actuator_diag.output_deg[i]))
+        {
+            return APP_FALSE;
+        }
+    }
+    return APP_TRUE;
+}
+
 static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 {
     uint8 i;
@@ -303,8 +325,16 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     for(i = 0; i < APP_SERVO_COUNT; i++)
     {
         control_leg_diag.servo_target_deg[i] = control_leg_servo_cmd.angle_deg[i];
-        control_leg_diag.servo_actual_deg[i] = actuator_servo_get_current_angle(i);
+        control_leg_diag.servo_actual_deg[i] = control_leg_actuator_diag.output_deg[i];
+        control_leg_diag.servo_filtered_deg[i] = control_leg_actuator_diag.filtered_deg[i];
     }
+    control_leg_diag.servo_max_error_deg = control_leg_actuator_diag.max_error_deg;
+    control_leg_diag.servo_settled = control_leg_actuator_diag.settled;
+    control_leg_diag.servo_fast_mode = control_leg_actuator_diag.fast_mode;
+    control_leg_diag.servo_direct_bypass = control_leg_actuator_diag.direct_bypass;
+    control_leg_diag.servo_s7_progress = control_leg_s7_progress;
+    control_leg_diag.servo_s7_remaining_ms = control_leg_s7_remaining_ms;
+    control_leg_diag.servo_trajectory_mode = (uint8)control_leg_trajectory_mode;
 }
 
 static uint8 control_leg_apply_empirical_height(float height_mm,
@@ -464,6 +494,8 @@ void control_leg_update(uint32 now_ms)
 
     config = leg_config_get();
 
+    actuator_servo_get_diag(&control_leg_actuator_diag);
+
 #if (APP_LEG_CALIB_ENABLE == 1U)
     control_leg_mode = LEG_MODE_MANUAL;
 #endif
@@ -511,7 +543,14 @@ void control_leg_update(uint32 now_ms)
                 }
                 control_leg_pose_start_if_changed(desired_deg, APP_SERVO_MAX_SPEED_DPS, now_ms);
                 control_leg_pose_update(now_ms);
-                control_leg_motion_state = LEG_MOTION_TRANSITION;
+                if(APP_TRUE == control_leg_motion_can_stabilize(1.0f <= control_leg_s7_progress ? APP_TRUE : APP_FALSE))
+                {
+                    control_leg_motion_state = LEG_MOTION_STABLE;
+                }
+                else
+                {
+                    control_leg_motion_state = LEG_MOTION_TRANSITION;
+                }
                 control_leg_fault_reason = LEG_FAULT_NONE;
                 control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
                 break;
@@ -602,24 +641,32 @@ void control_leg_update(uint32 now_ms)
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_FR] = servo_fr_deg;
                     control_leg_servo_cmd.angle_deg[LEG_SERVO_RR] = servo_rr_deg;
                     control_leg_diag.ik_margin = CONTROL_LEG_EMPIRICAL_IK_MARGIN;
-                    if((profile->height_settle_error_mm >=
-                        control_leg_absf(control_leg_target_height_mm - control_leg_height_ref_mm)) &&
-                       (0.0f == control_leg_height_rate_mm_s))
                     {
-                        if(LEG_MOTION_TRANSITION != control_leg_motion_state)
+                        uint8 planner_complete;
+                        planner_complete = APP_FALSE;
+                        if((profile->height_settle_error_mm >=
+                            control_leg_absf(control_leg_target_height_mm - control_leg_height_ref_mm)) &&
+                           (0.0f == control_leg_height_rate_mm_s))
+                        {
+                            if(LEG_MOTION_TRANSITION != control_leg_motion_state)
+                            {
+                                control_leg_settle_start_ms = now_ms;
+                                control_leg_motion_state = LEG_MOTION_TRANSITION;
+                            }
+                            if((now_ms - control_leg_settle_start_ms) >= profile->height_settle_ms)
+                            {
+                                planner_complete = APP_TRUE;
+                            }
+                        }
+                        else
                         {
                             control_leg_settle_start_ms = now_ms;
                             control_leg_motion_state = LEG_MOTION_TRANSITION;
                         }
-                        if((now_ms - control_leg_settle_start_ms) >= profile->height_settle_ms)
+                        if(APP_TRUE == control_leg_motion_can_stabilize(planner_complete))
                         {
                             control_leg_motion_state = LEG_MOTION_STABLE;
                         }
-                    }
-                    else
-                    {
-                        control_leg_settle_start_ms = now_ms;
-                        control_leg_motion_state = LEG_MOTION_TRANSITION;
                     }
                     output_enable = control_leg_run_enabled();
                     control_leg_publish_diag(APP_TRUE, output_enable);
@@ -642,7 +689,14 @@ void control_leg_update(uint32 now_ms)
                 }
                 control_leg_pose_start_if_changed(desired_deg, APP_SERVO_MAX_SPEED_DPS, now_ms);
                 control_leg_pose_update(now_ms);
-                control_leg_motion_state = LEG_MOTION_TRANSITION;
+                if(APP_TRUE == control_leg_motion_can_stabilize(1.0f <= control_leg_s7_progress ? APP_TRUE : APP_FALSE))
+                {
+                    control_leg_motion_state = LEG_MOTION_STABLE;
+                }
+                else
+                {
+                    control_leg_motion_state = LEG_MOTION_TRANSITION;
+                }
                 control_leg_fault_reason = LEG_FAULT_NONE;
                 control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
                 break;
@@ -709,7 +763,14 @@ void control_leg_update(uint32 now_ms)
                     {
                         control_leg_height_ref_mm = control_leg_target_height_mm;
                         control_leg_height_rate_mm_s = 0.0f;
-                        control_leg_motion_state = LEG_MOTION_STABLE;
+                        if(APP_TRUE == control_leg_motion_can_stabilize(APP_TRUE))
+                        {
+                            control_leg_motion_state = LEG_MOTION_STABLE;
+                        }
+                        else
+                        {
+                            control_leg_motion_state = LEG_MOTION_TRANSITION;
+                        }
                     }
                     else
                     {
@@ -796,7 +857,14 @@ void control_leg_update(uint32 now_ms)
                                                control_leg_ik_reference_right.singularity_margin) ?
                                               control_leg_ik_reference_left.singularity_margin :
                                               control_leg_ik_reference_right.singularity_margin;
-                control_leg_motion_state = LEG_MOTION_TRANSITION;
+                if(APP_TRUE == control_leg_motion_can_stabilize(1.0f <= control_leg_s7_progress ? APP_TRUE : APP_FALSE))
+                {
+                    control_leg_motion_state = LEG_MOTION_STABLE;
+                }
+                else
+                {
+                    control_leg_motion_state = LEG_MOTION_TRANSITION;
+                }
                 control_leg_fault_reason = LEG_FAULT_NONE;
                 output_enable = control_leg_run_enabled();
                 control_leg_publish_diag(APP_TRUE, output_enable);
@@ -851,7 +919,14 @@ void control_leg_update(uint32 now_ms)
                 control_leg_diag.right_y_mm = control_leg_ik_target_y_mm;
                 control_leg_diag.ik_margin = (left_target.singularity_margin < right_target.singularity_margin) ?
                                               left_target.singularity_margin : right_target.singularity_margin;
-                control_leg_motion_state = LEG_MOTION_TRANSITION;
+                if(APP_TRUE == control_leg_motion_can_stabilize(1.0f <= control_leg_s7_progress ? APP_TRUE : APP_FALSE))
+                {
+                    control_leg_motion_state = LEG_MOTION_STABLE;
+                }
+                else
+                {
+                    control_leg_motion_state = LEG_MOTION_TRANSITION;
+                }
                 control_leg_fault_reason = LEG_FAULT_NONE;
                 output_enable = control_leg_run_enabled();
                 control_leg_publish_diag(APP_TRUE, output_enable);

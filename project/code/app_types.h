@@ -278,6 +278,14 @@ typedef struct
     float right_y_mm;
     float servo_target_deg[4];
     float servo_actual_deg[4];
+    float servo_filtered_deg[4];
+    float servo_max_error_deg;
+    float servo_s7_progress;
+    uint32 servo_s7_remaining_ms;
+    uint8 servo_settled;
+    uint8 servo_fast_mode;
+    uint8 servo_direct_bypass;
+    uint8 servo_trajectory_mode;
     float drive_forward_limit_rpm;
     uint8 mode;
     uint8 ik_valid;

@@ -33,7 +33,12 @@ it is sent to the PWM actuator.
 - `LIKREF`: command all four channels to the stored `mid_deg` values.  It is
   the safe physical reference-pose check and contains no IK calculation.
 - `LXY,x_mm,y_mm`: an IK validation command.  Initial limits are
-  `x_mm = [-10, 10]` and `y_mm = [50, 60]`.
+  `x_mm = [-10, 10]` and `y_mm = [50, 60]`. After those axis-direction checks
+  pass on supported hardware, the validation guard expands to a wide-cross
+  envelope: horizontal `x=[-35,35], y=[45,75]`, or vertical
+  `x=[-15,15], y=[35,140]`. These are temporary model coordinates, not
+  calibrated physical millimetres; IK margin, servo limits, and fault-safe
+  return remain mandatory.
 - Existing `LIK`, `LH`, and `LHF` keep their current behavior.  In particular,
   `LH` and `LHF` continue to use the calibrated empirical height mapping in
   the first phase.

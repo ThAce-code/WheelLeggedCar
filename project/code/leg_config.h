@@ -53,6 +53,10 @@ typedef struct
     float validate_x_max_mm;
     float validate_y_min_mm;
     float validate_y_max_mm;
+    float validate_horizontal_y_min_mm;
+    float validate_horizontal_y_max_mm;
+    float validate_vertical_x_min_mm;
+    float validate_vertical_x_max_mm;
     float reference_x_mm;
     float reference_y_mm;
     leg_ik_branch_enum left_alpha_branch;

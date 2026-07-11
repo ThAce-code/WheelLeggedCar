@@ -59,6 +59,13 @@ int main(void)
     leg_ik_result_struct right_target = {0};
     float reference_cmd[LEG_SERVO_COUNT];
     float target_cmd[LEG_SERVO_COUNT];
+    static const float wide_cross_points[][2] = {
+        {-35.0f, 55.0f},
+        { 35.0f, 55.0f},
+        {  0.0f, 35.0f},
+        {  0.0f, 140.0f}
+    };
+    unsigned int i;
 
     if((APP_TRUE != leg_kinematics_solve(APP_FALSE, 0.0f, 55.0f, NULL, &left_ref)) ||
        (APP_TRUE != leg_kinematics_solve(APP_TRUE, 0.0f, 55.0f, NULL, &right_ref)) ||
@@ -79,13 +86,37 @@ int main(void)
     {
         return 3;
     }
+    for(i = 0U; i < (sizeof(wide_cross_points) / sizeof(wide_cross_points[0])); i++)
+    {
+        if((APP_TRUE != leg_kinematics_solve(APP_FALSE, wide_cross_points[i][0], wide_cross_points[i][1], &left_ref, &left_target)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_TRUE, wide_cross_points[i][0], wide_cross_points[i][1], &right_ref, &right_target)) ||
+           (APP_TRUE != leg_kinematics_map_target_pose(&left_ref, &right_ref, &left_target, &right_target, target_cmd)))
+        {
+            return (int)(10U + i);
+        }
+    }
     return 0;
 }
 '@ | Set-Content (Join-Path $Path "test_leg_ik_zero_calibration.c") -NoNewline
 }
 
+function Test-WideCrossPoint {
+    param([double]$X, [double]$Y)
+
+    if(($X -lt -35.0) -or ($X -gt 35.0) -or ($Y -lt 35.0) -or ($Y -gt 140.0)) {
+        return $false
+    }
+    $horizontalBand = ($Y -ge 45.0) -and ($Y -le 75.0)
+    $verticalBand = ($X -ge -15.0) -and ($X -le 15.0)
+    return $horizontalBand -or $verticalBand
+}
+
 Assert-Contains "project/code/leg_config.h" "ik_offset_deg" "Missing per-servo IK offset configuration."
 Assert-Contains "project/code/leg_config.h" "validate_x_min_mm" "Missing restricted IK validation workspace configuration."
+Assert-Contains "project/code/leg_config.h" "validate_horizontal_y_min_mm" "Missing horizontal validation-band configuration."
+Assert-Contains "project/code/leg_config.h" "validate_vertical_x_min_mm" "Missing vertical validation-band configuration."
+Assert-Contains "project/code/control_leg.c" "validate_horizontal_y_min_mm" "LXY validation must enforce the horizontal band."
+Assert-Contains "project/code/control_leg.c" "validate_vertical_x_min_mm" "LXY validation must enforce the vertical band."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_reference_pose" "Missing reference-pose mapping API."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_target_pose" "Missing target-pose mapping API."
 Assert-Contains "project/code/control_leg.h" "control_leg_set_ik_reference" "Missing reference-pose controller API."
@@ -103,6 +134,16 @@ Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,5,55" "Hard
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-5,55" "Hardware procedure must include negative X check."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,52" "Hardware procedure must include lower Y check."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,58" "Hardware procedure must include higher Y check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,35,55" "Hardware procedure must include the wide positive-X endpoint."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,140" "Hardware procedure must include the wide Y endpoint."
+
+if(-not (Test-WideCrossPoint -X 35 -Y 55)) { throw "Wide cross must accept +X endpoint." }
+if(-not (Test-WideCrossPoint -X -35 -Y 55)) { throw "Wide cross must accept -X endpoint." }
+if(-not (Test-WideCrossPoint -X 0 -Y 35)) { throw "Wide cross must accept upper Y endpoint." }
+if(-not (Test-WideCrossPoint -X 0 -Y 140)) { throw "Wide cross must accept lower Y endpoint." }
+if(Test-WideCrossPoint -X 35 -Y 140) { throw "Wide cross must reject the far corner." }
+if(Test-WideCrossPoint -X 16 -Y 140) { throw "Wide cross must reject points outside the vertical band." }
+if(Test-WideCrossPoint -X 35 -Y 76) { throw "Wide cross must reject points outside the horizontal band." }
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-ik-zero-" + [Guid]::NewGuid().ToString())
 $originalPath = $null

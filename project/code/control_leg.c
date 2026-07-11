@@ -110,6 +110,9 @@ static uint8 control_leg_ik_validation_point_valid(const leg_kinematics_config_s
                                                     float x_mm,
                                                     float y_mm)
 {
+    uint8 horizontal_band_valid;
+    uint8 vertical_band_valid;
+
     if((NULL == cfg) ||
        (APP_FALSE == control_leg_is_finite(x_mm)) ||
        (APP_FALSE == control_leg_is_finite(y_mm)))
@@ -118,6 +121,14 @@ static uint8 control_leg_ik_validation_point_valid(const leg_kinematics_config_s
     }
     if((cfg->validate_x_min_mm > x_mm) || (cfg->validate_x_max_mm < x_mm) ||
        (cfg->validate_y_min_mm > y_mm) || (cfg->validate_y_max_mm < y_mm))
+    {
+        return APP_FALSE;
+    }
+    horizontal_band_valid = ((cfg->validate_horizontal_y_min_mm <= y_mm) &&
+                             (cfg->validate_horizontal_y_max_mm >= y_mm)) ? APP_TRUE : APP_FALSE;
+    vertical_band_valid = ((cfg->validate_vertical_x_min_mm <= x_mm) &&
+                           (cfg->validate_vertical_x_max_mm >= x_mm)) ? APP_TRUE : APP_FALSE;
+    if((APP_TRUE != horizontal_band_valid) && (APP_TRUE != vertical_band_valid))
     {
         return APP_FALSE;
     }

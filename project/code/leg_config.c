@@ -14,27 +14,31 @@ static const leg_config_struct leg_config_default =
         {3,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f, -1.0f, -1.0f}
     },
     {
-        90.0f,   /* L1 — driven link (temp for calib) */
-        60.0f,   /* L2 — passive link (temp for calib) */
-        60.0f,   /* L3 — passive link (temp for calib) */
-        90.0f,   /* L4 — driven link (temp for calib) */
-        38.0f,   /* L5 — base spacing (measured) */
-        -35.0f,
-        35.0f,
-        35.0f,
-        150.0f,
-        0.0f,
-        0.0f,
-        -10.0f,
-        10.0f,
-        50.0f,
-        60.0f,
-        0.0f,
-        55.0f,
-        LEG_IK_BRANCH_PLUS,   /* left alpha */
-        LEG_IK_BRANCH_MINUS,  /* left beta  */
-        LEG_IK_BRANCH_PLUS,   /* right alpha */
-        LEG_IK_BRANCH_MINUS   /* right beta  */
+        .l1_mm = 90.0f,   /* driven link (temp for calib) */
+        .l2_mm = 60.0f,   /* passive link (temp for calib) */
+        .l3_mm = 60.0f,   /* passive link (temp for calib) */
+        .l4_mm = 90.0f,   /* driven link (temp for calib) */
+        .l5_mm = 38.0f,   /* base spacing (measured) */
+        .x_min_mm = -35.0f,
+        .x_max_mm = 35.0f,
+        .y_min_mm = 35.0f,
+        .y_max_mm = 150.0f,
+        .x_offset_mm = 0.0f,
+        .y_offset_mm = 0.0f,
+        .validate_x_min_mm = -35.0f,
+        .validate_x_max_mm = 35.0f,
+        .validate_y_min_mm = 35.0f,
+        .validate_y_max_mm = 140.0f,
+        .validate_horizontal_y_min_mm = 45.0f,
+        .validate_horizontal_y_max_mm = 75.0f,
+        .validate_vertical_x_min_mm = -15.0f,
+        .validate_vertical_x_max_mm = 15.0f,
+        .reference_x_mm = 0.0f,
+        .reference_y_mm = 55.0f,
+        .left_alpha_branch = LEG_IK_BRANCH_PLUS,
+        .left_beta_branch = LEG_IK_BRANCH_MINUS,
+        .right_alpha_branch = LEG_IK_BRANCH_PLUS,
+        .right_beta_branch = LEG_IK_BRANCH_MINUS
     },
     {
         .low_height_mm = 30.0f,

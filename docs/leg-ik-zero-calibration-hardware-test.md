@@ -87,11 +87,19 @@ servo targets remain stable, `leg_fault_reason=0`, and no wheel or linkage
 motion is unexpected. The telemetry fields `ik_valid`, `ik_margin`, and
 `servo_target_deg[0..3]` are the evidence to retain.
 
-## 3. Restricted open-loop IK validation
+## 3. Wide-cross open-loop IK validation
 
-Each `LXY,x_mm,y_mm` command accepts only `x=[-10,10] mm` and `y=[50,60] mm`.
-It turns balance and wheel drive off before the leg command. Send `LIKREF`
-once after boot or after `STOP` before issuing any `LXY` command.
+The `LXY,x,y` values are temporary model coordinates, not calibrated physical
+millimetres. To permit useful motion testing with one firmware build while
+keeping the unvalidated far corners closed, commands use a wide-cross envelope:
+
+- horizontal band: `x=[-35,35]`, `y=[45,75]`;
+- vertical band: `x=[-15,15]`, `y=[35,140]`.
+
+The IK margin check, per-servo angle limits, and fault-safe return remain active.
+Passing the command guard does not prove that a pose is mechanically safe. The
+command turns balance and wheel drive off first. Send `LIKREF` once after boot
+or after `STOP` before issuing any `LXY` command.
 
 Run one point at a time, with visual confirmation before proceeding:
 
@@ -106,6 +114,33 @@ LXY,0,58
 STOP
 ```
 
+After the original small-range checks pass, expand only one axis at a time:
+
+```text
+STOP
+LIKREF
+LXY,20,55
+LXY,30,55
+LXY,35,55
+STOP
+LIKREF
+LXY,-20,55
+LXY,-30,55
+LXY,-35,55
+STOP
+LIKREF
+LXY,0,45
+LXY,0,75
+LXY,0,100
+LXY,0,120
+LXY,0,140
+STOP
+```
+
+Do not chain these as an unattended script during first validation. Stop and
+visually inspect after every command. A rejected corner such as `LXY,35,140`
+is expected and confirms that the cross envelope is active.
+
 Suggested individual traces are:
 
 ```powershell
@@ -116,8 +151,9 @@ powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
   -Note ik_zero_xy_0_55
 ```
 
-Repeat this command with exactly one of `LXY,5,55`, `LXY,-5,55`, `LXY,0,52`,
-or `LXY,0,58` at second 2 and use a distinct output filename.
+Repeat this command with exactly one test point at second 2 and use a distinct
+output filename. Complete the original `LXY,5,55`, `LXY,-5,55`, `LXY,0,52`,
+and `LXY,0,58` checks before using the wide-cross points above.
 
 Required observations:
 

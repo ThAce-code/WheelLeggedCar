@@ -1181,6 +1181,12 @@
                 <name>$PROJ_DIR$\..\..\code\actuator_servo.h</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\servo_motion.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\servo_motion.h</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\actuator_motor.h</name>
             </file>
             <file>

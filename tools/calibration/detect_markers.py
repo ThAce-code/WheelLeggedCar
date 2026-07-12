@@ -441,14 +441,18 @@ def _draw_cross_circle(display, tracker, measurement, cv_module=cv2) -> None:
 
 def _run_cross_circle_loop(
     source, tracker, out_csv: Optional[Path], *, cv_module=cv2, printer=print,
+    cleanup: bool = True,
 ) -> List[dict]:
     measurements: List[dict] = []
     printer("SPACE=capture  r=reset  s=save  q=quit")
     try:
         while True:
             frame = source.read(timeout_sec=0.01)
+            current_frame_valid = False
             if frame is not None:
                 measurement = tracker.process(frame)
+                current_frame_valid = (
+                    tracker.detector.current_roles.status == "VALID")
                 display = frame.copy()
                 _draw_cross_circle(display, tracker, measurement, cv_module)
                 cv_module.imshow("Cross-Circle Measurement", display)
@@ -464,6 +468,9 @@ def _run_cross_circle_loop(
                     printer(
                         f"need {15 - tracker.valid_frame_count} more valid frames")
                     continue
+                if not current_frame_valid:
+                    printer("capture requires a current VALID detector frame")
+                    continue
                 captured = tracker.capture()
                 if captured is not None:
                     row = _cross_circle_csv_row(
@@ -477,8 +484,9 @@ def _run_cross_circle_loop(
                 else:
                     printer("No captured measurements to save")
     finally:
-        source.close()
-        cv_module.destroyAllWindows()
+        if cleanup:
+            source.close()
+            cv_module.destroyAllWindows()
     return measurements
 
 
@@ -489,6 +497,14 @@ def _validate_cross_circle_calibrations(calib, plane, args) -> None:
             f"image size mismatch: camera calibration is {calib.image_size}, "
             f"capture requested {requested_size}")
     expected_backend = "ffmpeg-dshow" if args.ffmpeg else args.backend
+    if calib.backend.casefold() != expected_backend.casefold():
+        raise ValueError(
+            f"camera calibration backend mismatch: calibration requires "
+            f"{calib.backend}, requested {expected_backend}")
+    if plane.backend.casefold() != calib.backend.casefold():
+        raise ValueError(
+            f"plane backend mismatch: plane requires {plane.backend}, "
+            f"camera calibration requires {calib.backend}")
     validate_plane_calibration(
         plane, calib.camera_matrix, calib.dist_coeffs,
         calib.image_size, plane.front_direction,
@@ -503,14 +519,17 @@ def interactive_measure_cross_circle(args) -> None:
     source, actual_backend = open_capture_source(
         args.camera, args.backend, args.width, args.height, args.fps,
         args.ffmpeg, args.ffmpeg_name)
-    if actual_backend.casefold() != plane.backend.casefold():
+    try:
+        if actual_backend.casefold() != plane.backend.casefold():
+            raise ValueError(
+                f"capture backend mismatch: opened {actual_backend}, "
+                f"plane calibration requires {plane.backend}")
+        tracker = CrossCircleMeasurementTracker(
+            CrossCircleDetector(), plane, calib.camera_matrix, calib.dist_coeffs)
+        _run_cross_circle_loop(source, tracker, args.output, cleanup=False)
+    finally:
         source.close()
-        raise ValueError(
-            f"capture backend mismatch: opened {actual_backend}, "
-            f"plane calibration requires {plane.backend}")
-    tracker = CrossCircleMeasurementTracker(
-        CrossCircleDetector(), plane, calib.camera_matrix, calib.dist_coeffs)
-    _run_cross_circle_loop(source, tracker, args.output)
+        cv2.destroyAllWindows()
 
 
 # =======================================================================

@@ -34,11 +34,19 @@ from camera_utils import (
     compute_homography,
     apply_homography,
 )
+from camera_source import add_capture_source_args, open_capture_source
+from cross_circle_detector import (
+    CrossCircleDetector,
+    CrossCircleMeasurement,
+    CrossCircleMeasurementTracker,
+)
+from plane_calibration import load_plane_calibration
 
 _CALIB_DIR = Path(__file__).resolve().parent
 _DEFAULT_CALIB = _CALIB_DIR / "camera_calib.npz"
 _DEFAULT_MARKER_CONFIG = _CALIB_DIR / "marker_config.json"
 _DEFAULT_OUT_CSV = Path("data/ik_calib_camera.csv")
+_DEFAULT_PLANE = _CALIB_DIR / "plane_homography.npz"
 
 
 # =======================================================================
@@ -47,7 +55,13 @@ _DEFAULT_OUT_CSV = Path("data/ik_calib_camera.csv")
 # =======================================================================
 
 try:
-    from detect_markers import CalibrationData, MarkerDetector, draw_detections
+    from detect_markers import (
+        CalibrationData,
+        MarkerDetector,
+        _draw_cross_circle,
+        _validate_cross_circle_calibrations,
+        draw_detections,
+    )
 except ImportError:
     # Inline fallback
     from dataclasses import dataclass as _dc, field as _f
@@ -193,6 +207,138 @@ DEFAULT_POSES = [
     (88, 92, 88, 92, "mid_left"),
     (92, 88, 92, 88, "mid_right"),
 ]
+
+
+class CrossCirclePoseState:
+    def __init__(self, poses):
+        self.poses = list(poses)
+        self.pose_index = 0
+
+    def capture(self, measurement) -> bool:
+        if measurement is None or self.pose_index >= len(self.poses):
+            return False
+        self.pose_index += 1
+        return True
+
+
+def _build_cross_circle_ik_row(sample_id: int, pose,
+                               measurement: CrossCircleMeasurement) -> dict:
+    a0, a1, a2, a3, label = pose
+    return {
+        "sample_id": sample_id, "label": label,
+        "cmd_a0_deg": a0, "cmd_a1_deg": a1,
+        "cmd_a2_deg": a2, "cmd_a3_deg": a3,
+        "measured_x_mm": f"{measurement.x_mm:.2f}",
+        "measured_y_mm": f"{measurement.y_mm:.2f}",
+        "marker_count": 2, "marker_ids": "origin,wheel",
+        "note": "camera_measured_cross_circle",
+        "origin_u_px": f"{measurement.origin_u_px:.3f}",
+        "origin_v_px": f"{measurement.origin_v_px:.3f}",
+        "wheel_u_px": f"{measurement.wheel_u_px:.3f}",
+        "wheel_v_px": f"{measurement.wheel_v_px:.3f}",
+        "confidence": f"{measurement.confidence:.4f}",
+        "valid_frames": measurement.valid_frames,
+    }
+
+
+_CROSS_CIRCLE_IK_FIELDS = [
+    "sample_id", "label",
+    "cmd_a0_deg", "cmd_a1_deg", "cmd_a2_deg", "cmd_a3_deg",
+    "measured_x_mm", "measured_y_mm", "marker_count", "marker_ids", "note",
+    "origin_u_px", "origin_v_px", "wheel_u_px", "wheel_v_px",
+    "confidence", "valid_frames",
+]
+
+
+def _run_cross_circle_ik_loop(source, tracker, state: CrossCirclePoseState,
+                              snapshot_dir: Path, cv_module=cv2,
+                              printer=print) -> List[dict]:
+    samples: List[dict] = []
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    printer("SPACE=capture  r=remove  l=clear role lock  q=quit")
+    while True:
+        frame = source.read(timeout_sec=0.01)
+        current_frame_valid = False
+        if frame is not None:
+            measurement = tracker.process(frame)
+            current_frame_valid = (
+                tracker.detector.current_roles.status == "VALID")
+            display = frame.copy()
+            _draw_cross_circle(display, tracker, measurement, cv_module)
+            if state.pose_index < len(state.poses):
+                a0, a1, a2, a3, label = state.poses[state.pose_index]
+                cv_module.rectangle(display, (0, 0),
+                                    (display.shape[1], 42), (0, 0, 0), -1)
+                cv_module.putText(
+                    display,
+                    f"POSE {state.pose_index + 1}/{len(state.poses)} "
+                    f"[{label}] ({a0},{a1},{a2},{a3}) deg",
+                    (10, 28), cv_module.FONT_HERSHEY_SIMPLEX,
+                    0.65, (0, 255, 255), 2)
+            cv_module.imshow("IK Calibration - Cross Circle", display)
+
+        key = cv_module.waitKey(1) & 0xFF
+        if key in (27, ord("q")):
+            break
+        if key == ord("l"):
+            tracker.reset()
+            printer("Marker role lock cleared")
+        elif key == ord("r") and samples:
+            samples.pop()
+            state.pose_index = max(0, state.pose_index - 1)
+            printer("Removed most recent sample")
+        elif key == ord(" ") and state.pose_index < len(state.poses):
+            if tracker.valid_frame_count < 15:
+                printer(f"need {15 - tracker.valid_frame_count} more valid frames")
+                continue
+            if frame is None or not current_frame_valid:
+                printer("capture requires a current VALID detector frame")
+                continue
+            captured = tracker.capture()
+            pose_index = state.pose_index
+            pose = state.poses[pose_index]
+            if not state.capture(captured):
+                continue
+            row = _build_cross_circle_ik_row(len(samples), pose, captured)
+            samples.append(row)
+            stamp = time.strftime("%Y%m%d_%H%M%S")
+            cv_module.imwrite(
+                str(snapshot_dir /
+                    f"pose_{pose_index:03d}_{pose[4]}_{stamp}.png"), frame)
+            printer(
+                f"[{pose[4]}] X={row['measured_x_mm']} "
+                f"Y={row['measured_y_mm']} mm")
+    return samples
+
+
+def manual_measure_cross_circle(args) -> None:
+    calib = CalibrationData.load(args.calib)
+    plane = load_plane_calibration(args.plane_homography)
+    _validate_cross_circle_calibrations(calib, plane, args)
+    source, actual_backend = open_capture_source(
+        args.camera, args.backend, args.width, args.height, args.fps,
+        args.ffmpeg, args.ffmpeg_name)
+    try:
+        if actual_backend.casefold() != plane.backend.casefold():
+            raise ValueError(
+                f"capture backend mismatch: opened {actual_backend}, "
+                f"plane calibration requires {plane.backend}")
+        tracker = CrossCircleMeasurementTracker(
+            CrossCircleDetector(), plane, calib.camera_matrix, calib.dist_coeffs)
+        samples = _run_cross_circle_ik_loop(
+            source, tracker, CrossCirclePoseState(DEFAULT_POSES),
+            _CALIB_DIR / "snapshots")
+    finally:
+        source.close()
+        cv2.destroyAllWindows()
+
+    if samples:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        with args.output.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=_CROSS_CIRCLE_IK_FIELDS)
+            writer.writeheader()
+            writer.writerows(samples)
+        print(f"\nSaved {len(samples)} samples -> {args.output}")
 
 
 # =======================================================================
@@ -366,21 +512,29 @@ def batch_from_images(
 # Main
 # =======================================================================
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="IK calibration with camera measurement",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     add_camera_args(parser)
+    add_capture_source_args(parser)
     parser.add_argument("--calib", type=Path, default=_DEFAULT_CALIB)
+    parser.add_argument("--plane-homography", type=Path, default=_DEFAULT_PLANE)
+    parser.add_argument("--marker-type", choices=["aruco", "cross-circle"],
+                        default="aruco")
     parser.add_argument("--marker-size", type=float, default=30.0)
     parser.add_argument("--marker-config", type=Path, default=_DEFAULT_MARKER_CONFIG)
     parser.add_argument("--output", type=Path, default=_DEFAULT_OUT_CSV)
     parser.add_argument("--manual", action="store_true", default=True)
     parser.add_argument("--images", type=Path, default=None)
     parser.add_argument("--generate-config", action="store_true")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
 
     if args.generate_config:
         cfg = {
@@ -401,7 +555,9 @@ def main() -> int:
         print(f"[ERROR] Calibration not found: {args.calib}")
         return 1
 
-    if args.images:
+    if args.marker_type == "cross-circle":
+        manual_measure_cross_circle(args)
+    elif args.images:
         batch_from_images(args.images, args.calib, args.marker_size, args.output)
     else:
         manual_measure(args.camera, args.backend, args.width, args.height,

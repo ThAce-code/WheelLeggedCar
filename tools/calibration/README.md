@@ -34,6 +34,72 @@ python tools/calibration/calibrate_with_camera.py --manual
 | `detect_markers.py` | Detect ArUco markers on robot, estimate pose | Calibration measurement step |
 | `calibrate_with_camera.py` | Integrated workflow: pose → measure → CSV | Full IK calibration run |
 
+## Cross-Circle Wheel-Center Workflow
+
+ArUco remains available and is still the default marker type. Use the
+cross-circle mode when measuring the wheel center in the calibrated side plane.
+
+### Physical setup
+
+Print `cross_circle_markers_A4_10_12_14mm.pdf` at **Actual size / 100%** (never
+Fit to page). Mount the 14 mm marker as the fixed origin and the 10 mm marker at
+the wheel center. The 12 mm marker is unused in this workflow. The two printed
+marker faces must be coplanar; install a rigid spacer to remove the original
+approximately 30 mm face-depth difference.
+
+Align the 9x6-inner-corner, 25 mm-square chessboard so its horizontal grid is
+parallel to vehicle front/rear and its vertical grid is parallel to vehicle
+up/down. With the vehicle front appearing on image-left, create the plane map:
+
+```powershell
+python tools/calibration/plane_calibrate.py `
+  --ffmpeg `
+  --ffmpeg-name "USB Camera" `
+  --width 1920 `
+  --height 1080 `
+  --square-size-mm 25 `
+  --front-direction left
+```
+
+After this step, do not move the camera, focus ring, resolution, or marker
+plane. Any change invalidates `plane_homography.npz` and requires plane
+recalibration.
+
+### Live verification and IK collection
+
+```powershell
+python tools/calibration/detect_markers.py `
+  --marker-type cross-circle `
+  --ffmpeg `
+  --ffmpeg-name "USB Camera" `
+  --width 1920 `
+  --height 1080
+
+python tools/calibration/calibrate_with_camera.py `
+  --marker-type cross-circle `
+  --ffmpeg `
+  --ffmpeg-name "USB Camera" `
+  --width 1920 `
+  --height 1080
+```
+
+In cross-circle IK collection, `SPACE` captures only when the current frame is
+VALID and the tracker has accumulated 15 valid frames. `r` removes the latest
+sample and returns to its pose without changing the marker-role lock. `l`
+clears the role lock and filtered history. `q` or `ESC` exits. The CSV preserves
+the existing IK columns and adds origin/wheel pixel centers, confidence, and
+valid-frame count.
+
+### Measurement acceptance gate
+
+Before fitting IK parameters, validate known points spanning at least
+`X=-50,0,+50 mm` and `Y=50,100,150 mm`, with at least five repeats at every
+selected position. Run the accepted `validate_measurement.py` CLI for the
+captured CSV. Continue only when repeatability standard deviation is at most
+1.0 mm, overall RMSE is at most 2.0 mm, maximum error never exceeds 3.0 mm,
+and no position-dependent systematic error is visible. Do not run
+`fit_leg_ik_calibration.py` until all four conditions pass.
+
 ## Detailed Usage
 
 ### 1. Camera Inspection (`camera_info.py`)

@@ -14,7 +14,13 @@ CALIBRATION_DIR = Path(__file__).resolve().parents[1]
 if str(CALIBRATION_DIR) not in sys.path:
     sys.path.insert(0, str(CALIBRATION_DIR))
 
-from cross_circle_detector import CrossCircleMeasurement  # noqa: E402
+from cross_circle_detector import (  # noqa: E402
+    CrossCircleCandidate,
+    CrossCircleMeasurement,
+    CrossCircleMeasurementTracker,
+    CrossCircleRoles,
+)
+from plane_calibration import PlaneCalibration  # noqa: E402
 from detect_markers import (  # noqa: E402
     _cross_circle_csv_row,
     _run_cross_circle_loop,
@@ -53,6 +59,7 @@ class FakeTracker:
         self.process_count = 0
         self.reset_count = 0
         self.capture_count = 0
+        self.current_sample_accepted = True
         self.statuses = deque(statuses or [])
         self.detector = SimpleNamespace(
             current_roles=SimpleNamespace(
@@ -63,6 +70,8 @@ class FakeTracker:
         self.process_count += 1
         if self.statuses:
             self.detector.current_roles.status = self.statuses.popleft()
+        self.current_sample_accepted = (
+            self.detector.current_roles.status == "VALID")
         return sample_measurement(self.valid_frame_count) if self.valid_frame_count else None
 
     def capture(self):
@@ -155,6 +164,25 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "image size mismatch"):
             _validate_cross_circle_calibrations(Calibration(), Plane(), args)
 
+    def test_live_integration_rejects_non_design_axis_metadata_before_open(self):
+        calib = SimpleNamespace(
+            camera_matrix=np.eye(3), dist_coeffs=np.zeros(4),
+            image_size=(1920, 1080), backend="MSMF")
+        for front, down in (("right", "down"), ("left", "up")):
+            plane = SimpleNamespace(
+                backend="MSMF", front_direction=front,
+                down_direction=down)
+            args = build_parser().parse_args([
+                "--marker-type", "cross-circle", "--backend", "MSMF"])
+            with (mock.patch("detect_markers.CalibrationData.load",
+                             return_value=calib),
+                  mock.patch("detect_markers.load_plane_calibration",
+                             return_value=plane),
+                  mock.patch("detect_markers.open_capture_source") as opener):
+                with self.assertRaisesRegex(ValueError, "direction mismatch"):
+                    interactive_measure_cross_circle(args)
+            opener.assert_not_called()
+
     def test_no_frame_still_pumps_events_and_uses_short_timeout(self):
         source, tracker, cv = FakeSource([None]), FakeTracker(), FakeCv([ord("q")])
         _run_cross_circle_loop(source, tracker, None, cv_module=cv)
@@ -196,6 +224,50 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
             cv_module=FakeCv([ord(" "), ord("q")]))
         self.assertEqual(measurements, [])
         self.assertEqual(tracker.capture_count, 0)
+
+    def test_real_tracker_jump_reject_cannot_capture_stale_history(self):
+        def candidate(center, diameter):
+            return CrossCircleCandidate(
+                center=center, diameter_px=diameter, ellipse=None,
+                circularity=0.9, ring_score=0.9, horizontal_score=0.9,
+                vertical_score=0.9, center_error_px=0.0, confidence=0.9)
+
+        stable = CrossCircleRoles(
+            "VALID", candidate((0, 0), 70), candidate((-10, 10), 50))
+        jump = CrossCircleRoles(
+            "VALID", candidate((0, 0), 70), candidate((-100, 100), 50))
+
+        class Detector:
+            def __init__(self):
+                self.roles = deque([stable] * 15 + [jump])
+                self.current_roles = CrossCircleRoles("SEARCHING")
+
+            def update(self, frame):
+                del frame
+                self.current_roles = self.roles.popleft()
+                return self.current_roles
+
+            def reset(self):
+                pass
+
+        plane = PlaneCalibration(
+            H=np.diag([-1.0, 1.0, 1.0]), camera_matrix=np.eye(3),
+            dist_coeffs=np.zeros(4), image_size=(1920, 1080),
+            calib_path="camera_calib.npz", backend="test",
+            front_direction="left", down_direction="down", board_cols=9,
+            board_rows=6, square_size_mm=25.0, rmse_mm=0.0,
+            src_points_undistorted_px=np.zeros((4, 2)),
+            dst_points_mm=np.zeros((4, 2)))
+        tracker = CrossCircleMeasurementTracker(
+            Detector(), plane, np.eye(3), np.zeros(4))
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        keys = [0] * 15 + [ord(" "), ord("q")]
+        measurements = _run_cross_circle_loop(
+            FakeSource([frame] * 16 + [None]), tracker, None,
+            cv_module=FakeCv(keys))
+        self.assertEqual(tracker.valid_frame_count, 15)
+        self.assertFalse(tracker.current_sample_accepted)
+        self.assertEqual(measurements, [])
 
     def test_reset_key_resets_tracker(self):
         tracker = FakeTracker(valid_frames=10)

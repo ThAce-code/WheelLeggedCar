@@ -452,7 +452,8 @@ def _run_cross_circle_loop(
             if frame is not None:
                 measurement = tracker.process(frame)
                 current_frame_valid = (
-                    tracker.detector.current_roles.status == "VALID")
+                    tracker.detector.current_roles.status == "VALID" and
+                    tracker.current_sample_accepted)
                 display = frame.copy()
                 _draw_cross_circle(display, tracker, measurement, cv_module)
                 cv_module.imshow("Cross-Circle Measurement", display)
@@ -505,10 +506,18 @@ def _validate_cross_circle_calibrations(calib, plane, args) -> None:
         raise ValueError(
             f"plane backend mismatch: plane requires {plane.backend}, "
             f"camera calibration requires {calib.backend}")
+    if plane.front_direction != "left":
+        raise ValueError(
+            f"front direction mismatch: design requires left, "
+            f"plane stores {plane.front_direction}")
+    if plane.down_direction != "down":
+        raise ValueError(
+            f"down direction mismatch: design requires down, "
+            f"plane stores {plane.down_direction}")
     validate_plane_calibration(
         plane, calib.camera_matrix, calib.dist_coeffs,
-        calib.image_size, plane.front_direction,
-        plane.down_direction, expected_backend, str(args.calib))
+        calib.image_size, "left", "down",
+        expected_backend, str(args.calib))
 
 
 def interactive_measure_cross_circle(args) -> None:

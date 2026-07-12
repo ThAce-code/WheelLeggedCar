@@ -211,6 +211,24 @@ class TestCalibrateWithCrossCircle(unittest.TestCase):
                 manual_measure_cross_circle(args)
         self.assertTrue(source.closed)
 
+    def test_ik_integration_rejects_non_design_axis_metadata_before_open(self):
+        source = FakeSource([])
+        args = build_parser().parse_args([
+            "--marker-type", "cross-circle", "--backend", "MSMF"])
+        calib = SimpleNamespace(
+            camera_matrix=np.eye(3), dist_coeffs=np.zeros(4),
+            image_size=(1920, 1080), backend="MSMF")
+        plane = SimpleNamespace(
+            backend="MSMF", front_direction="right", down_direction="down")
+        with (mock.patch("calibrate_with_camera.CalibrationData.load",
+                         return_value=calib),
+              mock.patch("calibrate_with_camera.load_plane_calibration",
+                         return_value=plane),
+              mock.patch("calibrate_with_camera.open_capture_source") as opener):
+            with self.assertRaisesRegex(ValueError, "direction mismatch"):
+                manual_measure_cross_circle(args)
+        opener.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

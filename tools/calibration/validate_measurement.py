@@ -52,7 +52,6 @@ class PairResult:
     bias_mm: float = 0.0
     std_mm: float = 0.0
     max_error_mm: float = 0.0
-    repeatability_std_override_mm: Optional[float] = None
 
     def compute(self):
         self.n = len(self.measurements)
@@ -61,10 +60,7 @@ class PairResult:
         arr = np.array(self.measurements)
         self.mean_mm = float(np.mean(arr))
         self.bias_mm = self.mean_mm - self.true_mm
-        self.std_mm = (
-            float(self.repeatability_std_override_mm)
-            if self.repeatability_std_override_mm is not None else
-            float(np.std(arr, ddof=1)) if self.n >= 2 else 0.0)
+        self.std_mm = float(np.std(arr, ddof=1)) if self.n >= 2 else 0.0
         self.max_error_mm = float(np.max(np.abs(arr - self.true_mm)))
 
 
@@ -98,6 +94,73 @@ class ValidationReport:
         # Only includes pairs with >= 2 measurements
         if all_vars:
             self.repeatability_std_mm = float(np.sqrt(np.mean(all_vars)))
+
+
+@dataclass
+class PositionResult:
+    label: str
+    true_x_mm: float
+    true_y_mm: float
+    measured_points: List[Tuple[float, float]]
+    n: int = 0
+    mean_x_mm: float = 0.0
+    mean_y_mm: float = 0.0
+    mean_dx_mm: float = 0.0
+    mean_dy_mm: float = 0.0
+    repeatability_std_mm: float = 0.0
+    max_error_mm: float = 0.0
+    errors_mm: Optional[List[float]] = None
+
+    def compute(self) -> None:
+        points = np.asarray(self.measured_points, dtype=np.float64)
+        self.n = len(points)
+        self.mean_x_mm = float(np.mean(points[:, 0]))
+        self.mean_y_mm = float(np.mean(points[:, 1]))
+        self.mean_dx_mm = self.mean_x_mm - self.true_x_mm
+        self.mean_dy_mm = self.mean_y_mm - self.true_y_mm
+        deltas = points - np.array([self.true_x_mm, self.true_y_mm])
+        errors = np.linalg.norm(deltas, axis=1)
+        self.errors_mm = [float(value) for value in errors]
+        self.max_error_mm = float(np.max(errors))
+        self.repeatability_std_mm = float(np.sqrt(np.sum(
+            np.var(points, axis=0, ddof=1)))) if self.n >= 2 else 0.0
+
+
+@dataclass
+class PositionValidationReport:
+    positions: List[PositionResult]
+    total_measurements: int = 0
+    rmse_mm: float = 0.0
+    max_error_mm: float = 0.0
+    repeatability_std_mm: float = 0.0
+    x_bias_span_mm: float = 0.0
+    y_bias_span_mm: float = 0.0
+    no_systematic_error: bool = False
+    passed: bool = False
+
+    def compute(self) -> None:
+        for position in self.positions:
+            position.compute()
+        errors = np.asarray([
+            error for position in self.positions
+            for error in (position.errors_mm or [])], dtype=np.float64)
+        self.total_measurements = int(errors.size)
+        self.rmse_mm = float(np.sqrt(np.mean(errors ** 2)))
+        self.max_error_mm = float(np.max(errors))
+        self.repeatability_std_mm = float(np.sqrt(np.mean([
+            position.repeatability_std_mm ** 2
+            for position in self.positions])))
+        x_biases = [position.mean_dx_mm for position in self.positions]
+        y_biases = [position.mean_dy_mm for position in self.positions]
+        self.x_bias_span_mm = float(max(x_biases) - min(x_biases))
+        self.y_bias_span_mm = float(max(y_biases) - min(y_biases))
+        self.no_systematic_error = (
+            self.x_bias_span_mm <= 2.0 and self.y_bias_span_mm <= 2.0)
+        self.passed = (
+            self.repeatability_std_mm <= 1.0 and
+            self.rmse_mm <= 2.0 and
+            self.max_error_mm <= 3.0 and
+            self.no_systematic_error)
 
 
 def load_from_json(path: Path) -> List[PairResult]:
@@ -184,7 +247,7 @@ def load_from_csv_and_truth(
 
 
 def load_cross_circle_ik_csv(csv_path: Path,
-                             truth_path: Path) -> List[PairResult]:
+                             truth_path: Path) -> List[PositionResult]:
     """Load cross-circle IK rows and calculate 2-D position errors by label.
 
     Truth JSON format::
@@ -197,7 +260,6 @@ def load_cross_circle_ik_csv(csv_path: Path,
 
     truth_data = json.loads(truth_path.read_text(encoding="utf-8"))
     positions = truth_data.get("positions", {})
-    errors: Dict[str, List[float]] = defaultdict(list)
     measured_points: Dict[str, List[Tuple[float, float]]] = defaultdict(list)
     with csv_path.open("r", newline="", encoding="utf-8") as stream:
         reader = csv.DictReader(stream)
@@ -208,7 +270,7 @@ def load_cross_circle_ik_csv(csv_path: Path,
         for row in reader:
             label = row["label"]
             if label not in positions:
-                print(f"  [WARN] No position truth for label {label}, skipping")
+                measured_points[label].append((float("nan"), float("nan")))
                 continue
             expected = positions[label]
             try:
@@ -218,19 +280,65 @@ def load_cross_circle_ik_csv(csv_path: Path,
                 dy = measured_y - float(expected["y_mm"])
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"invalid position data for label {label}") from exc
-            errors[label].append(math.hypot(dx, dy))
             measured_points[label].append((measured_x, measured_y))
-    results = []
-    for label, values in sorted(errors.items()):
-        points = np.asarray(measured_points[label], dtype=np.float64)
-        repeatability = 0.0
-        if len(points) >= 2:
-            repeatability = float(np.sqrt(np.sum(
-                np.var(points, axis=0, ddof=1))))
-        results.append(PairResult(
-            pair_id=label, true_mm=0.0, measurements=values,
-            repeatability_std_override_mm=repeatability))
-    return results
+    truth_labels = set(positions)
+    csv_labels = set(measured_points)
+    unknown = sorted(csv_labels - truth_labels)
+    if unknown:
+        raise ValueError(f"unknown CSV labels: {', '.join(unknown)}")
+    missing = sorted(truth_labels - csv_labels)
+    if missing:
+        raise ValueError(f"missing truth positions in CSV: {', '.join(missing)}")
+    too_few = sorted(label for label, points in measured_points.items()
+                     if len(points) < 5)
+    if too_few:
+        raise ValueError(
+            f"at least 5 repeats required for: {', '.join(too_few)}")
+    return [PositionResult(
+        label=label,
+        true_x_mm=float(positions[label]["x_mm"]),
+        true_y_mm=float(positions[label]["y_mm"]),
+        measured_points=measured_points[label])
+        for label in sorted(truth_labels)]
+
+
+def _position_report_payload(report: PositionValidationReport) -> dict:
+    return {
+        "passed": report.passed,
+        "rmse_mm": report.rmse_mm,
+        "max_error_mm": report.max_error_mm,
+        "repeatability_std_mm": report.repeatability_std_mm,
+        "x_bias_span_mm": report.x_bias_span_mm,
+        "y_bias_span_mm": report.y_bias_span_mm,
+        "gates": {
+            "repeatability_le_1_mm": report.repeatability_std_mm <= 1.0,
+            "rmse_le_2_mm": report.rmse_mm <= 2.0,
+            "max_error_le_3_mm": report.max_error_mm <= 3.0,
+            "no_systematic_error": report.no_systematic_error,
+        },
+        "positions": [{
+            "label": item.label, "true_x_mm": item.true_x_mm,
+            "true_y_mm": item.true_y_mm, "mean_x_mm": item.mean_x_mm,
+            "mean_y_mm": item.mean_y_mm, "mean_dx_mm": item.mean_dx_mm,
+            "mean_dy_mm": item.mean_dy_mm,
+            "repeatability_std_mm": item.repeatability_std_mm,
+            "max_error_mm": item.max_error_mm, "n": item.n,
+        } for item in report.positions],
+    }
+
+
+def print_position_report(report: PositionValidationReport) -> None:
+    print("\nCROSS-CIRCLE POSITION VALIDATION")
+    print("label                 mean_dx  mean_dy  repeat_std  max_error  n")
+    for item in report.positions:
+        print(f"{item.label:<20} {item.mean_dx_mm:>8.3f} "
+              f"{item.mean_dy_mm:>8.3f} {item.repeatability_std_mm:>11.3f} "
+              f"{item.max_error_mm:>10.3f} {item.n:>2}")
+    print(f"RMSE={report.rmse_mm:.3f} mm  max={report.max_error_mm:.3f} mm  "
+          f"repeatability={report.repeatability_std_mm:.3f} mm")
+    print(f"bias spans: X={report.x_bias_span_mm:.3f} mm  "
+          f"Y={report.y_bias_span_mm:.3f} mm (limit 2.000 mm)")
+    print("PASS" if report.passed else "FAIL")
 
 
 def load_from_pairs_arg(pairs_str: str, measurements_json: Optional[Path] = None
@@ -338,7 +446,20 @@ def main() -> int:
         if not args.ik_csv or not args.position_truth:
             print("[ERROR] --ik-csv and --position-truth are required together")
             return 1
-        pairs = load_cross_circle_ik_csv(args.ik_csv, args.position_truth)
+        try:
+            position_report = PositionValidationReport(
+                load_cross_circle_ik_csv(args.ik_csv, args.position_truth))
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            print(f"[ERROR] {exc}")
+            return 1
+        position_report.compute()
+        print_position_report(position_report)
+        if args.output:
+            args.output.write_text(
+                json.dumps(_position_report_payload(position_report), indent=2),
+                encoding="utf-8")
+            print(f"\nReport saved: {args.output}")
+        return 0 if position_report.passed else 2
     elif args.input:
         pairs = load_from_json(args.input)
     elif args.csv and args.truth:

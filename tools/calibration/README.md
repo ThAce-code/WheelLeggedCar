@@ -126,6 +126,18 @@ python tools/calibration/validate_measurement.py `
   --output data/cross_circle_position_validation_report.json
 ```
 
+The command is strict: every truth label must appear in the CSV, every CSV
+label must exist in truth, and every label must have at least five rows.
+Schema or coverage failures exit `1`; a completed measurement that fails a
+quality gate exits `2`; only a complete passing report exits `0`.
+
+The JSON report contains `mean_dx_mm` and `mean_dy_mm` for every position so
+axis-direction bias is visible. `x_bias_span_mm` and `y_bias_span_mm` are the
+maximum-minus-minimum signed biases across positions; either span above
+2.0 mm fails `no_systematic_error`. The other enforced gates are pooled 2-D
+repeatability <=1.0 mm, radial position RMSE <=2.0 mm, and radial maximum error
+<=3.0 mm. The top-level `passed` is true only when all four gates pass.
+
 Continue only when repeatability standard deviation is at most 1.0 mm,
 overall RMSE is at most 2.0 mm, maximum error never exceeds 3.0 mm, and the
 per-position results show no systematic trend across X/Y. Do not run

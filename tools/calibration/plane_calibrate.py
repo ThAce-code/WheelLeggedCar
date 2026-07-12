@@ -24,6 +24,28 @@ def _detected_corner_count(corners: np.ndarray | None) -> int:
     return 0 if corners is None else len(corners)
 
 
+def _validate_capture_request(
+    calibration_size: tuple[int, int],
+    calibration_backend: str,
+    requested_size: tuple[int, int],
+    use_ffmpeg: bool,
+    requested_backend: str,
+) -> None:
+    if requested_size != calibration_size:
+        raise ValueError(
+            f"image size mismatch: camera calibration is {calibration_size}, "
+            f"capture requested {requested_size}")
+    calibration_is_ffmpeg = calibration_backend.casefold() == "ffmpeg-dshow"
+    if calibration_is_ffmpeg != use_ffmpeg:
+        raise ValueError(
+            f"capture backend mismatch: calibration requires {calibration_backend}")
+    if (not calibration_is_ffmpeg and
+            calibration_backend.casefold() != requested_backend.casefold()):
+        raise ValueError(
+            f"capture backend mismatch: calibration requires "
+            f"{calibration_backend}, requested {requested_backend}")
+
+
 def _load_camera_calibration(path: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int], str]:
     with np.load(path) as data:
         matrix = data["camera_matrix"].copy()
@@ -50,13 +72,16 @@ def main() -> int:
 
     K, D, calib_size, calib_backend = _load_camera_calibration(args.calib)
     requested_size = (args.width, args.height)
-    if requested_size != calib_size:
-        raise ValueError(
-            f"image size mismatch: camera calibration is {calib_size}, "
-            f"capture requested {requested_size}")
+    _validate_capture_request(
+        calib_size, calib_backend, requested_size, args.ffmpeg, args.backend)
     source, backend = open_capture_source(
         args.camera, args.backend, args.width, args.height, args.fps,
         args.ffmpeg, args.ffmpeg_name)
+    if backend.casefold() != calib_backend.casefold():
+        source.close()
+        raise ValueError(
+            f"capture backend mismatch: opened {backend}, "
+            f"calibration requires {calib_backend}")
     latest_corners = None
     window = "Plane Calibration"
     print("Align the chessboard flat in the measurement plane; c=calibrate, q=quit")

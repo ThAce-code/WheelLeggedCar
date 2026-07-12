@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -153,10 +154,50 @@ def load_plane_calibration(path: Path | str) -> PlaneCalibration:
             point_domain=provenance.get("point_domain", ""),
             inlier_count=int(provenance.get("inlier_count", 0)),
         )
+    _validate_integrity(calibration)
+    return calibration
+
+
+def _validate_integrity(calibration: PlaneCalibration) -> None:
+    H = np.asarray(calibration.H)
+    if H.shape != (3, 3) or not np.all(np.isfinite(H)):
+        raise ValueError("finite homography required with shape (3, 3)")
+    if np.linalg.matrix_rank(H) < 3:
+        raise ValueError("singular homography is invalid")
+    source = np.asarray(calibration.src_points_undistorted_px)
+    destination = np.asarray(calibration.dst_points_mm)
+    if source.ndim != 2 or source.shape[1:] != (2,) or len(source) < 4:
+        raise ValueError("source points must have shape (N, 2), N >= 4")
+    if not np.all(np.isfinite(source)):
+        raise ValueError("finite source points are required")
+    if (destination.ndim != 2 or destination.shape[1:] != (2,) or
+            len(destination) < 4 or len(destination) != len(source)):
+        raise ValueError(
+            "destination points must have shape (N, 2) matching source points")
+    if not np.all(np.isfinite(destination)):
+        raise ValueError("finite destination points are required")
+    if calibration.board_cols <= 0:
+        raise ValueError("board columns must be positive")
+    if calibration.board_rows <= 0:
+        raise ValueError("board rows must be positive")
+    if not np.isfinite(calibration.square_size_mm) or calibration.square_size_mm <= 0:
+        raise ValueError("square size must be positive")
+    if not np.isfinite(calibration.rmse_mm) or calibration.rmse_mm > 0.5:
+        raise ValueError("stored RMSE exceeds 0.5 mm or is non-finite")
+    required_inliers = 0.8 * calibration.board_cols * calibration.board_rows
+    if calibration.inlier_count < required_inliers:
+        raise ValueError("stored RANSAC inliers are below 80% of board points")
+    if calibration.inlier_count > calibration.board_cols * calibration.board_rows:
+        raise ValueError("stored RANSAC inliers exceed board points")
     if calibration.point_domain != "undistorted_px":
         raise ValueError(
             f"point domain mismatch: expected undistorted_px, got {calibration.point_domain!r}")
-    return calibration
+
+
+def _same_calibration_path(stored: str, expected: str) -> bool:
+    stored_path = os.path.normcase(str(Path(stored).resolve()))
+    expected_path = os.path.normcase(str(Path(expected).resolve()))
+    return stored_path == expected_path
 
 
 def validate_plane_calibration(
@@ -166,9 +207,10 @@ def validate_plane_calibration(
     image_size: tuple[int, int],
     front_direction: str,
     down_direction: str,
+    backend: str,
+    calib_path: str,
 ) -> None:
-    if calibration.point_domain != "undistorted_px":
-        raise ValueError("point domain mismatch")
+    _validate_integrity(calibration)
     if tuple(calibration.image_size) != tuple(image_size):
         raise ValueError("image size mismatch")
     if not np.allclose(calibration.camera_matrix, camera_matrix, rtol=0.0, atol=1e-9):
@@ -180,3 +222,7 @@ def validate_plane_calibration(
         raise ValueError("front direction mismatch")
     if calibration.down_direction != down_direction:
         raise ValueError("down direction mismatch")
+    if calibration.backend.casefold() != backend.casefold():
+        raise ValueError("backend mismatch")
+    if not _same_calibration_path(calibration.calib_path, calib_path):
+        raise ValueError("calibration path mismatch")

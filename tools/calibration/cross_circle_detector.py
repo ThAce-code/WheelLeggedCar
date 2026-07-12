@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, replace
 from typing import Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
+
+from camera_utils import undistort_points
 
 
 @dataclass(frozen=True)
@@ -44,6 +47,95 @@ class CrossCircleRoles:
     origin: Optional[CrossCircleCandidate] = None
     wheel: Optional[CrossCircleCandidate] = None
     candidates: Tuple[CrossCircleCandidate, ...] = ()
+
+
+@dataclass(frozen=True)
+class CrossCircleMeasurement:
+    x_mm: float
+    y_mm: float
+    origin_u_px: float
+    origin_v_px: float
+    wheel_u_px: float
+    wheel_v_px: float
+    confidence: float
+    valid_frames: int
+    status: str
+
+
+class CrossCircleMeasurementTracker:
+    def __init__(self, detector, plane_calibration, camera_matrix,
+                 dist_coeffs, jump_threshold_mm=20.0):
+        self.detector = detector
+        self.plane_calibration = plane_calibration
+        self.camera_matrix = np.asarray(camera_matrix, dtype=np.float64)
+        self.dist_coeffs = np.asarray(dist_coeffs, dtype=np.float64)
+        self.jump_threshold_mm = float(jump_threshold_mm)
+        self._history = deque(maxlen=15)
+
+    @property
+    def valid_frame_count(self) -> int:
+        return len(self._history)
+
+    @staticmethod
+    def _median_measurement(history, valid_frames):
+        values = np.asarray([
+            (item.x_mm, item.y_mm, item.origin_u_px, item.origin_v_px,
+             item.wheel_u_px, item.wheel_v_px, item.confidence)
+            for item in history], dtype=np.float64)
+        medians = np.median(values, axis=0)
+        return CrossCircleMeasurement(
+            x_mm=float(medians[0]), y_mm=float(medians[1]),
+            origin_u_px=float(medians[2]), origin_v_px=float(medians[3]),
+            wheel_u_px=float(medians[4]), wheel_v_px=float(medians[5]),
+            confidence=float(medians[6]), valid_frames=valid_frames,
+            status="VALID")
+
+    def process(self, frame):
+        roles = self.detector.update(frame)
+        if roles.status != "VALID" or roles.origin is None or roles.wheel is None:
+            return self.live_measurement()
+
+        centers = np.asarray(
+            [roles.origin.center, roles.wheel.center], dtype=np.float64)
+        undistorted = undistort_points(
+            centers, self.camera_matrix, self.dist_coeffs)
+        plane_points = self.plane_calibration.map_undistorted_points(
+            undistorted)
+        relative = plane_points[1] - plane_points[0]
+
+        if self._history:
+            recent = list(self._history)[-5:]
+            median_x = float(np.median([item.x_mm for item in recent]))
+            median_y = float(np.median([item.y_mm for item in recent]))
+            if (abs(float(relative[0]) - median_x) > self.jump_threshold_mm or
+                    abs(float(relative[1]) - median_y) > self.jump_threshold_mm):
+                return self.live_measurement()
+
+        self._history.append(CrossCircleMeasurement(
+            x_mm=float(relative[0]), y_mm=float(relative[1]),
+            origin_u_px=float(centers[0, 0]),
+            origin_v_px=float(centers[0, 1]),
+            wheel_u_px=float(centers[1, 0]),
+            wheel_v_px=float(centers[1, 1]),
+            confidence=float(min(
+                roles.origin.confidence, roles.wheel.confidence)),
+            valid_frames=1, status="VALID"))
+        return self.live_measurement()
+
+    def live_measurement(self):
+        if not self._history:
+            return None
+        recent = list(self._history)[-5:]
+        return self._median_measurement(recent, len(self._history))
+
+    def capture(self):
+        if len(self._history) < self._history.maxlen:
+            return None
+        return self._median_measurement(self._history, len(self._history))
+
+    def reset(self):
+        self._history.clear()
+        self.detector.reset()
 
 
 class CrossCircleDetector:
@@ -241,4 +333,5 @@ class CrossCircleDetector:
 
 __all__: Sequence[str] = (
     "CrossCircleConfig", "CrossCircleCandidate", "CrossCircleRoles",
-    "CrossCircleDetector")
+    "CrossCircleDetector", "CrossCircleMeasurement",
+    "CrossCircleMeasurementTracker")

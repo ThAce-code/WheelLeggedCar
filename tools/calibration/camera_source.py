@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import queue
+import threading
 from typing import Callable, Optional, Protocol, Tuple
 
 import numpy as np
@@ -16,14 +18,42 @@ class CaptureSource(Protocol):
 class OpenCVCaptureSource:
     def __init__(self, cap):
         self.cap = cap
+        self._queue = queue.Queue(maxsize=1)
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._reader_loop, daemon=True,
+            name="opencv-camera-reader")
+        self._thread.start()
+
+    def _reader_loop(self) -> None:
+        while not self._stop.is_set():
+            ok, frame = self.cap.read()
+            if not ok:
+                self._stop.wait(0.01)
+                continue
+            try:
+                self._queue.put_nowait(frame)
+            except queue.Full:
+                try:
+                    self._queue.get_nowait()
+                except queue.Empty:
+                    pass
+                try:
+                    self._queue.put_nowait(frame)
+                except queue.Full:
+                    pass
+            self._stop.wait(0.001)
 
     def read(self, timeout_sec: float = 0.01) -> Optional[np.ndarray]:
-        del timeout_sec
-        ok, frame = self.cap.read()
-        return frame if ok else None
+        try:
+            return self._queue.get(timeout=timeout_sec)
+        except queue.Empty:
+            return None
 
     def close(self) -> None:
+        self._stop.set()
         self.cap.release()
+        self._thread.join(timeout=2.0)
 
 
 class FfmpegCaptureSource:

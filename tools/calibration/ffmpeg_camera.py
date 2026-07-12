@@ -105,17 +105,34 @@ class FfmpegCamera:
         self._queue: queue.Queue = queue.Queue(maxsize=max_queue)
         self._reader_thread: Optional[threading.Thread] = None
         self._reader_error: Optional[str] = None
+        self._stop = threading.Event()
 
     # ------------------------------------------------------------------
     # Background reader thread
     # ------------------------------------------------------------------
+
+    def _put_latest(self, item: object) -> None:
+        """Insert without blocking, dropping the oldest queued item if full."""
+        try:
+            self._queue.put_nowait(item)
+            return
+        except queue.Full:
+            pass
+        try:
+            self._queue.get_nowait()
+        except queue.Empty:
+            pass
+        try:
+            self._queue.put_nowait(item)
+        except queue.Full:
+            pass
 
     def _reader_loop(self) -> None:
         """Run in background thread: read raw bytes, assemble frames, enqueue."""
         try:
             stdout = self._proc.stdout  # type: ignore[union-attr]
             buf = bytearray()
-            while True:
+            while not self._stop.is_set():
                 # Read whatever chunk is available (blocking — but in a
                 # dedicated thread this is fine).
                 chunk = stdout.read(max(65536, self.frame_bytes - len(buf)))
@@ -130,12 +147,12 @@ class FfmpegCamera:
 
                     frame = np.frombuffer(frame_bytes, dtype=np.uint8)
                     frame = frame.reshape(self.height, self.width, 3)
-                    # Put a copy on the queue (block if queue is full)
-                    self._queue.put(frame.copy())
+                    # Keep only recent frames without blocking the reader.
+                    self._put_latest(frame.copy())
         except Exception as exc:
             self._reader_error = str(exc)
         finally:
-            self._queue.put(self._SENTINEL)
+            self._put_latest(self._SENTINEL)
 
     # ------------------------------------------------------------------
     # Public API
@@ -143,6 +160,7 @@ class FfmpegCamera:
 
     def open(self) -> None:
         """Start the ffmpeg subprocess and background reader thread."""
+        self._stop.clear()
         cmd = [
             "ffmpeg",
             "-hide_banner", "-loglevel", "error",
@@ -224,6 +242,7 @@ class FfmpegCamera:
 
     def close(self) -> None:
         """Terminate the ffmpeg subprocess and join the reader thread."""
+        self._stop.set()
         if self._proc is not None:
             try:
                 self._proc.stdout.close()

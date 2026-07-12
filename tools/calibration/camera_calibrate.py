@@ -19,8 +19,9 @@ import argparse
 import json
 import sys
 import time
+from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -529,6 +530,73 @@ def detect_chessboard(frame: np.ndarray, cols: int, rows: int
     return corners if ret else None
 
 
+class AsyncChessboardDetector:
+    """Run at most one chessboard detection without blocking the GUI thread."""
+
+    def __init__(
+        self,
+        cols: int,
+        rows: int,
+        detect_fn: Callable[[np.ndarray, int, int], Optional[np.ndarray]] = detect_chessboard,
+    ) -> None:
+        self._cols = cols
+        self._rows = rows
+        self._detect_fn = detect_fn
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="chessboard-detector")
+        self._future: Optional[Future] = None
+        self._frame: Optional[np.ndarray] = None
+
+    def submit(self, frame: np.ndarray) -> bool:
+        """Start detection, or return False immediately when already busy."""
+        if self._future is not None:
+            return False
+        self._frame = frame
+        self._future = self._executor.submit(
+            self._detect_fn, frame, self._cols, self._rows)
+        return True
+
+    def poll(self) -> Optional[Tuple[np.ndarray, Optional[np.ndarray]]]:
+        """Return the completed frame/corners pair without waiting."""
+        if self._future is None or not self._future.done():
+            return None
+        return self._take_result()
+
+    def wait_for_result(
+        self, timeout_sec: float,
+    ) -> Optional[Tuple[np.ndarray, Optional[np.ndarray]]]:
+        """Wait up to timeout_sec; primarily useful for deterministic callers."""
+        if self._future is None:
+            return None
+        try:
+            self._future.result(timeout=timeout_sec)
+        except TimeoutError:
+            return None
+        return self._take_result()
+
+    def _take_result(self) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        future = self._future
+        frame = self._frame
+        self._future = None
+        self._frame = None
+        assert future is not None and frame is not None
+        return frame, future.result()
+
+    def close(self) -> None:
+        self._executor.shutdown(wait=True, cancel_futures=True)
+
+
+def poll_ffmpeg_gui(
+    cam,
+    wait_key_fn: Callable[[int], int] = cv2.waitKey,
+    timeout_sec: float = 0.01,
+) -> Tuple[Optional[np.ndarray], int]:
+    """Poll a frame briefly and always service the OpenCV window queue."""
+    frame = cam.read(timeout_sec=timeout_sec)
+    key = wait_key_fn(1) & 0xFF
+    return frame, key
+
+
 def calibrate_from_frames(
     objpoints_all: List[np.ndarray],
     imgpoints_all: List[np.ndarray],
@@ -552,7 +620,12 @@ def calibrate_from_frames(
     per_view: List[float] = []
     for i, (op, ip) in enumerate(zip(objpoints_all, imgpoints_all)):
         projected, _ = cv2.projectPoints(op, rvecs[i], tvecs[i], mtx, dist)
-        err = cv2.norm(ip, projected, cv2.NORM_L2) / len(projected)
+        # OpenCV 5 findChessboardCornersSB returns (N, 2) / CV_*C1,
+        # while projectPoints returns (N, 1, 2) / CV_*C2.  Normalize both
+        # layout and dtype before cv2.norm's strict type check.
+        observed_xy = np.asarray(ip, dtype=np.float64).reshape(-1, 2)
+        projected_xy = np.asarray(projected, dtype=np.float64).reshape(-1, 2)
+        err = cv2.norm(observed_xy, projected_xy, cv2.NORM_L2) / len(projected_xy)
         per_view.append(float(err))
 
     return mtx, dist, rmse, per_view
@@ -744,6 +817,140 @@ def interactive_capture(
         print(f"\n[INFO] {len(objpoints)} frames -- need >=3 for calibration.")
 
 
+def interactive_capture_ffmpeg(
+    device_name: str,
+    width: int,
+    height: int,
+    fps: int,
+    cols: int,
+    rows: int,
+    square_mm: float,
+    output_path: Path,
+) -> None:
+    """Calibrate using a camera accessed via ffmpeg subprocess.
+
+    Same UI as interactive_capture() but replaces OpenCV VideoCapture with
+    FfmpegCamera for devices that DirectShow/MSMF backends cannot open.
+    """
+    from ffmpeg_camera import FfmpegCamera
+
+    cam = FfmpegCamera(device_name, width, height, fps)
+    print(f"Opening '{device_name}' {width}x{height} @ {fps} FPS via ffmpeg...")
+    cam.open()
+    actual_backend = "ffmpeg-dshow"
+
+    objp = np.zeros((cols * rows, 3), np.float32)
+    objp[:, :2] = np.mgrid[0:cols, 0:rows].T.reshape(-1, 2)
+    objp *= square_mm
+
+    objpoints: List[np.ndarray] = []
+    imgpoints: List[np.ndarray] = []
+    mtx: Optional[np.ndarray] = None
+    dist: Optional[np.ndarray] = None
+    undistort_preview = False
+    display_rmse: float = 0.0
+    detector = AsyncChessboardDetector(cols, rows)
+    detected_frame: Optional[np.ndarray] = None
+    corners: Optional[np.ndarray] = None
+    board_ready = False
+    window_name = "Camera Calibration (ffmpeg)"
+
+    print(f"\n{'='*60}")
+    print(f"  CAMERA CALIBRATION (ffmpeg)")
+    print(f"  Device:    {device_name}")
+    print(f"  Pattern:   {cols}x{rows} corners, {square_mm}mm squares")
+    print(f"  Board:     {_BOARD_PATTERN_W_MM}x{_BOARD_PATTERN_H_MM} mm "
+          f"(page: {_PAGE_W_MM}x{_PAGE_H_MM} mm)")
+    print(f"  Resolution: {width}x{height}")
+    print(f"{'='*60}")
+    print("  SPACE=capture  d=delete  c=calibrate  u=undistort  q=quit")
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+
+    try:
+        while True:
+            # Keep camera polling short and service the Windows message queue
+            # on every iteration, even when ffmpeg temporarily has no frame.
+            frame, key = poll_ffmpeg_gui(cam)
+            if frame is not None:
+                detector.submit(frame)
+
+            result = detector.poll()
+            if result is not None:
+                detected_frame, corners = result
+                board_ready = corners is not None
+                display = detected_frame.copy()
+                h, w = display.shape[:2]
+
+                if corners is not None:
+                    cv2.drawChessboardCorners(
+                        display, (cols, rows), corners, True)
+
+                cv2.rectangle(display, (0, 0), (w, 50), (0, 0, 0), -1)
+                color = (0, 255, 0) if board_ready else (0, 0, 255)
+                rmse_str = (
+                    f"RMSE: {display_rmse:.4f}" if mtx is not None else "")
+                cv2.putText(
+                    display,
+                    f"{'BOARD' if board_ready else 'NO BOARD'}  "
+                    f"Frames: {len(objpoints)}  {rmse_str}  ffmpeg",
+                    (10, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+                if undistort_preview and mtx is not None and dist is not None:
+                    new_mtx, _ = cv2.getOptimalNewCameraMatrix(
+                        mtx, dist, (w, h), 1, (w, h))
+                    display = cv2.undistort(
+                        display, mtx, dist, None, new_mtx)
+
+                cv2.imshow(window_name, display)
+
+            if key in (27, ord("q")):
+                break
+            elif (key == ord(" ") and board_ready and
+                  detected_frame is not None and corners is not None):
+                objpoints.append(objp.copy())
+                imgpoints.append(corners.copy())
+                print(f"  Frame #{len(objpoints)} captured")
+            elif key == ord("d") and objpoints:
+                objpoints.pop()
+                imgpoints.pop()
+                print(f"  Deleted -> {len(objpoints)} frames")
+            elif key == ord("c") and len(objpoints) >= 3:
+                mtx, dist, rmse, per_view = calibrate_from_frames(
+                    objpoints, imgpoints, (width, height))
+                display_rmse = rmse
+                if mtx is not None and dist is not None:
+                    print(f"\n  RMSE: {rmse:.4f} px")
+                    print(f"  fx={mtx[0,0]:.1f} fy={mtx[1,1]:.1f} "
+                          f"cx={mtx[0,2]:.1f} cy={mtx[1,2]:.1f}")
+                    save_calibration(
+                        output_path, -1, actual_backend,
+                        width, height, mtx, dist, rmse, per_view,
+                        cols, rows, square_mm)
+            elif key == ord("u"):
+                undistort_preview = not undistort_preview
+
+    finally:
+        detector.close()
+        cam.close()
+        cv2.destroyAllWindows()
+
+    # Final calibration if enough frames
+    if len(objpoints) >= 3:
+        mtx, dist, rmse, per_view = calibrate_from_frames(
+            objpoints, imgpoints, (width, height))
+        if mtx is not None and dist is not None:
+            save_calibration(
+                output_path, -1, actual_backend,
+                width, height, mtx, dist, rmse, per_view,
+                cols, rows, square_mm)
+            print("\nPer-view errors:")
+            for i, err in enumerate(per_view):
+                bar = "#" * min(int(err / 0.1), 40)
+                print(f"  frame {i:3d}: {err:6.4f} px  {bar}")
+    else:
+        print(f"\n[INFO] {len(objpoints)} frames -- need >=3 for calibration.")
+
+
 def calibrate_from_images(
     image_paths: List[Path],
     cols: int,
@@ -847,6 +1054,13 @@ def main() -> int:
     parser.add_argument("--test-markers-png", type=Path, default=None,
                         help="Run ArUco detection test on an existing PNG file "
                              "and exit")
+    parser.add_argument("--ffmpeg", action="store_true",
+                        help="Use ffmpeg subprocess to capture from a "
+                             "DirectShow camera (for cameras that OpenCV "
+                             "backends cannot open)")
+    parser.add_argument("--ffmpeg-name", type=str, default="USB Camera",
+                        help="DirectShow device name for --ffmpeg "
+                             "(use --list via ffmpeg_camera.py to find names)")
     args = parser.parse_args()
 
     if args.generate:
@@ -888,17 +1102,29 @@ def main() -> int:
         calibrate_from_images(paths, args.cols, args.rows, square_mm, args.output)
         return 0
 
-    interactive_capture(
-        camera_index=args.camera,
-        backend_label=args.backend,
-        width=args.width,
-        height=args.height,
-        fps=args.fps,
-        cols=args.cols,
-        rows=args.rows,
-        square_mm=square_mm,
-        output_path=args.output,
-    )
+    if args.ffmpeg:
+        interactive_capture_ffmpeg(
+            device_name=args.ffmpeg_name,
+            width=args.width,
+            height=args.height,
+            fps=int(args.fps) if args.fps > 0 else 30,
+            cols=args.cols,
+            rows=args.rows,
+            square_mm=square_mm,
+            output_path=args.output,
+        )
+    else:
+        interactive_capture(
+            camera_index=args.camera,
+            backend_label=args.backend,
+            width=args.width,
+            height=args.height,
+            fps=args.fps,
+            cols=args.cols,
+            rows=args.rows,
+            square_mm=square_mm,
+            output_path=args.output,
+        )
     return 0
 
 

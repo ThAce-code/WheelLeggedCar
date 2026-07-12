@@ -13,6 +13,10 @@ import numpy as np
 from camera_utils import undistort_points
 
 
+def _normalize_calibration_path(path: str | Path) -> str:
+    return os.path.normcase(str(Path(path).resolve()))
+
+
 @dataclass
 class PlaneCalibration:
     H: np.ndarray
@@ -94,7 +98,7 @@ def compute_plane_calibration(
         H=H, camera_matrix=np.asarray(camera_matrix, dtype=np.float64),
         dist_coeffs=np.asarray(dist_coeffs, dtype=np.float64),
         image_size=(int(image_size[0]), int(image_size[1])),
-        calib_path=str(calib_path), backend=str(backend),
+        calib_path=_normalize_calibration_path(calib_path), backend=str(backend),
         front_direction=front_direction, down_direction=down_direction,
         board_cols=board_cols, board_rows=board_rows,
         square_size_mm=float(square_size_mm), rmse_mm=rmse,
@@ -195,9 +199,8 @@ def _validate_integrity(calibration: PlaneCalibration) -> None:
 
 
 def _same_calibration_path(stored: str, expected: str) -> bool:
-    stored_path = os.path.normcase(str(Path(stored).resolve()))
-    expected_path = os.path.normcase(str(Path(expected).resolve()))
-    return stored_path == expected_path
+    return (_normalize_calibration_path(stored) ==
+            _normalize_calibration_path(expected))
 
 
 def validate_plane_calibration(

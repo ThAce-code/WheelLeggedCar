@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import os
 from pathlib import Path
 from unittest import mock
 
@@ -129,6 +130,36 @@ class TestPlaneCalibration(unittest.TestCase):
         self.assertEqual(loaded.backend, "ffmpeg-dshow")
         self.assertEqual(loaded.inlier_count, calibration.inlier_count)
         np.testing.assert_allclose(loaded.H, calibration.H)
+
+    def test_relative_calibration_identity_survives_working_directory_change(self):
+        original_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            camera_dir = root / "camera"
+            consumer_dir = root / "consumer"
+            camera_dir.mkdir()
+            consumer_dir.mkdir()
+            camera_file = camera_dir / "camera_calib.npz"
+            camera_file.touch()
+            try:
+                os.chdir(root)
+                calibration = compute_plane_calibration(
+                    synthetic_distorted_corners(), K, D, (1920, 1080),
+                    str(Path("camera") / "camera_calib.npz"),
+                    "ffmpeg-dshow", "left", "down", 9, 6, 25.0)
+                base = root / "plane_homography"
+                save_plane_calibration(base, calibration)
+                loaded = load_plane_calibration(base)
+
+                os.chdir(consumer_dir)
+                validate_plane_calibration(
+                    loaded, K, D, (1920, 1080), "left", "down",
+                    "ffmpeg-dshow", str(Path("..") / "camera" / "camera_calib.npz"))
+            finally:
+                os.chdir(original_cwd)
+        self.assertEqual(
+            os.path.normcase(calibration.calib_path),
+            os.path.normcase(str(camera_file.resolve())))
 
     def test_rejects_camera_matrix_mismatch(self):
         calibration = make_synthetic_plane_calibration()

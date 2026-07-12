@@ -38,10 +38,18 @@ from camera_utils import (
     apply_homography,
 )
 from camera_calibrate import generate_aruco_a4_svg, _test_existing_markers_png
+from camera_source import add_capture_source_args, open_capture_source
+from cross_circle_detector import (
+    CrossCircleDetector,
+    CrossCircleMeasurement,
+    CrossCircleMeasurementTracker,
+)
 from geometry_utils import solve_pnp_checked, HomographyData, validate_homography_match
+from plane_calibration import load_plane_calibration, validate_plane_calibration
 
 _CALIB_DIR = Path(__file__).resolve().parent
 _DEFAULT_CALIB = _CALIB_DIR / "camera_calib.npz"
+_DEFAULT_PLANE = _CALIB_DIR / "plane_homography.npz"
 
 
 # =======================================================================
@@ -377,18 +385,150 @@ def _save_csv(measurements: List[dict], out_csv: Optional[Path]) -> None:
     print(f"Saved {len(measurements)} measurements -> {out_csv}")
 
 
+_CROSS_CIRCLE_FIELDS = [
+    "label", "x_mm", "y_mm", "origin_u_px", "origin_v_px",
+    "wheel_u_px", "wheel_v_px", "confidence", "valid_frames", "status",
+]
+
+
+def _cross_circle_csv_row(
+    measurement: CrossCircleMeasurement, label: str,
+) -> dict:
+    return {
+        "label": label,
+        "x_mm": f"{measurement.x_mm:.2f}",
+        "y_mm": f"{measurement.y_mm:.2f}",
+        "origin_u_px": f"{measurement.origin_u_px:.2f}",
+        "origin_v_px": f"{measurement.origin_v_px:.2f}",
+        "wheel_u_px": f"{measurement.wheel_u_px:.2f}",
+        "wheel_v_px": f"{measurement.wheel_v_px:.2f}",
+        "confidence": f"{measurement.confidence:.3f}",
+        "valid_frames": measurement.valid_frames,
+        "status": measurement.status,
+    }
+
+
+def _save_cross_circle_csv(measurements: List[dict], out_csv: Optional[Path]) -> None:
+    if out_csv is None:
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        out_csv = _CALIB_DIR / f"cross_circle_measurements_{stamp}.csv"
+    with open(out_csv, "w", newline="", encoding="utf-8") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=_CROSS_CIRCLE_FIELDS)
+        writer.writeheader()
+        writer.writerows(measurements)
+    print(f"Saved {len(measurements)} measurements -> {out_csv}")
+
+
+def _draw_cross_circle(display, tracker, measurement, cv_module=cv2) -> None:
+    roles = tracker.detector.current_roles
+    if roles.origin is not None:
+        cv_module.ellipse(display, roles.origin.ellipse, (255, 0, 0), 2)
+        cv_module.circle(display, tuple(map(int, roles.origin.center)), 4,
+                         (255, 0, 0), -1)
+    if roles.wheel is not None:
+        cv_module.ellipse(display, roles.wheel.ellipse, (0, 255, 0), 2)
+        cv_module.circle(display, tuple(map(int, roles.wheel.center)), 4,
+                         (0, 255, 0), -1)
+    status = roles.status
+    confidence = 0.0 if measurement is None else measurement.confidence
+    xy = "X=-- Y=--" if measurement is None else (
+        f"X={measurement.x_mm:.2f}mm Y={measurement.y_mm:.2f}mm")
+    text = (f"{status} conf={confidence:.3f} {xy} "
+            f"history={tracker.valid_frame_count}/15")
+    cv_module.putText(display, text, (20, 40), cv_module.FONT_HERSHEY_SIMPLEX,
+                      0.65, (255, 255, 255), 2)
+
+
+def _run_cross_circle_loop(
+    source, tracker, out_csv: Optional[Path], *, cv_module=cv2, printer=print,
+) -> List[dict]:
+    measurements: List[dict] = []
+    printer("SPACE=capture  r=reset  s=save  q=quit")
+    try:
+        while True:
+            frame = source.read(timeout_sec=0.01)
+            if frame is not None:
+                measurement = tracker.process(frame)
+                display = frame.copy()
+                _draw_cross_circle(display, tracker, measurement, cv_module)
+                cv_module.imshow("Cross-Circle Measurement", display)
+
+            key = cv_module.waitKey(1) & 0xFF
+            if key in (27, ord("q")):
+                break
+            if key == ord("r"):
+                tracker.reset()
+                printer("Tracker reset")
+            elif key == ord(" "):
+                if tracker.valid_frame_count < 15:
+                    printer(
+                        f"need {15 - tracker.valid_frame_count} more valid frames")
+                    continue
+                captured = tracker.capture()
+                if captured is not None:
+                    row = _cross_circle_csv_row(
+                        captured, f"meas_{len(measurements):03d}")
+                    measurements.append(row)
+                    printer(
+                        f"{row['label']}: X={row['x_mm']} Y={row['y_mm']} mm")
+            elif key == ord("s"):
+                if measurements:
+                    _save_cross_circle_csv(measurements, out_csv)
+                else:
+                    printer("No captured measurements to save")
+    finally:
+        source.close()
+        cv_module.destroyAllWindows()
+    return measurements
+
+
+def _validate_cross_circle_calibrations(calib, plane, args) -> None:
+    requested_size = (args.width, args.height)
+    if requested_size != tuple(calib.image_size):
+        raise ValueError(
+            f"image size mismatch: camera calibration is {calib.image_size}, "
+            f"capture requested {requested_size}")
+    expected_backend = "ffmpeg-dshow" if args.ffmpeg else args.backend
+    validate_plane_calibration(
+        plane, calib.camera_matrix, calib.dist_coeffs,
+        calib.image_size, plane.front_direction,
+        plane.down_direction, expected_backend, str(args.calib))
+
+
+def interactive_measure_cross_circle(args) -> None:
+    calib = CalibrationData.load(args.calib)
+    plane = load_plane_calibration(args.plane_homography)
+    _validate_cross_circle_calibrations(calib, plane, args)
+
+    source, actual_backend = open_capture_source(
+        args.camera, args.backend, args.width, args.height, args.fps,
+        args.ffmpeg, args.ffmpeg_name)
+    if actual_backend.casefold() != plane.backend.casefold():
+        source.close()
+        raise ValueError(
+            f"capture backend mismatch: opened {actual_backend}, "
+            f"plane calibration requires {plane.backend}")
+    tracker = CrossCircleMeasurementTracker(
+        CrossCircleDetector(), plane, calib.camera_matrix, calib.dist_coeffs)
+    _run_cross_circle_loop(source, tracker, args.output)
+
+
 # =======================================================================
 # Main
 # =======================================================================
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="ArUco marker detection with audited coordinate pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
     add_camera_args(parser)
+    add_capture_source_args(parser)
     parser.add_argument("--calib", type=Path, default=_DEFAULT_CALIB)
+    parser.add_argument("--plane-homography", type=Path, default=_DEFAULT_PLANE)
+    parser.add_argument("--marker-type", choices=["aruco", "cross-circle"],
+                        default="aruco")
     parser.add_argument("--marker-size", type=float, default=30.0)
     parser.add_argument("--image", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
@@ -396,7 +536,11 @@ def main() -> int:
                         help="Generate A4 ArUco marker sheet and exit")
     parser.add_argument("--marker-ids", type=str, default="0,1,2,3,4,5,6,7")
     parser.add_argument("--dictionary", type=str, default="DICT_4X4_50")
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
 
     if args.generate:
         ids = [int(x.strip()) for x in args.marker_ids.split(",")]
@@ -415,6 +559,10 @@ def main() -> int:
 
     if args.image:
         detect_from_image(args.image, args.calib, args.marker_size, args.output)
+        return 0
+
+    if args.marker_type == "cross-circle":
+        interactive_measure_cross_circle(args)
         return 0
 
     interactive_measure(

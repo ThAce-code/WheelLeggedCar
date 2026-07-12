@@ -19,10 +19,12 @@ Input formats:
        ]
      }
   2. CSV from detect_markers.py + a ground-truth JSON mapping pair IDs to distances
+  3. Cross-circle IK CSV + position truth JSON keyed by sample label
 
 Usage:
     python tools/calibration/validate_measurement.py --input validation.json
     python tools/calibration/validate_measurement.py --csv measurements.csv --truth truth.json
+    python tools/calibration/validate_measurement.py --ik-csv data/validation.csv --position-truth truth.json
     python tools/calibration/validate_measurement.py --pairs "0-1=90,1-2=60,0-3=180"
 """
 
@@ -50,6 +52,7 @@ class PairResult:
     bias_mm: float = 0.0
     std_mm: float = 0.0
     max_error_mm: float = 0.0
+    repeatability_std_override_mm: Optional[float] = None
 
     def compute(self):
         self.n = len(self.measurements)
@@ -58,7 +61,10 @@ class PairResult:
         arr = np.array(self.measurements)
         self.mean_mm = float(np.mean(arr))
         self.bias_mm = self.mean_mm - self.true_mm
-        self.std_mm = float(np.std(arr, ddof=1)) if self.n >= 2 else 0.0
+        self.std_mm = (
+            float(self.repeatability_std_override_mm)
+            if self.repeatability_std_override_mm is not None else
+            float(np.std(arr, ddof=1)) if self.n >= 2 else 0.0)
         self.max_error_mm = float(np.max(np.abs(arr - self.true_mm)))
 
 
@@ -177,6 +183,56 @@ def load_from_csv_and_truth(
     return pairs
 
 
+def load_cross_circle_ik_csv(csv_path: Path,
+                             truth_path: Path) -> List[PairResult]:
+    """Load cross-circle IK rows and calculate 2-D position errors by label.
+
+    Truth JSON format::
+
+        {"positions": {"x0_y50": {"x_mm": 0, "y_mm": 50}}}
+
+    Repeated CSV rows with the same label form the repeatability group.
+    """
+    from collections import defaultdict
+
+    truth_data = json.loads(truth_path.read_text(encoding="utf-8"))
+    positions = truth_data.get("positions", {})
+    errors: Dict[str, List[float]] = defaultdict(list)
+    measured_points: Dict[str, List[Tuple[float, float]]] = defaultdict(list)
+    with csv_path.open("r", newline="", encoding="utf-8") as stream:
+        reader = csv.DictReader(stream)
+        required = {"label", "measured_x_mm", "measured_y_mm"}
+        if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+            raise ValueError(
+                "IK CSV requires label, measured_x_mm, measured_y_mm columns")
+        for row in reader:
+            label = row["label"]
+            if label not in positions:
+                print(f"  [WARN] No position truth for label {label}, skipping")
+                continue
+            expected = positions[label]
+            try:
+                measured_x = float(row["measured_x_mm"])
+                measured_y = float(row["measured_y_mm"])
+                dx = measured_x - float(expected["x_mm"])
+                dy = measured_y - float(expected["y_mm"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"invalid position data for label {label}") from exc
+            errors[label].append(math.hypot(dx, dy))
+            measured_points[label].append((measured_x, measured_y))
+    results = []
+    for label, values in sorted(errors.items()):
+        points = np.asarray(measured_points[label], dtype=np.float64)
+        repeatability = 0.0
+        if len(points) >= 2:
+            repeatability = float(np.sqrt(np.sum(
+                np.var(points, axis=0, ddof=1))))
+        results.append(PairResult(
+            pair_id=label, true_mm=0.0, measurements=values,
+            repeatability_std_override_mm=repeatability))
+    return results
+
+
 def load_from_pairs_arg(pairs_str: str, measurements_json: Optional[Path] = None
                         ) -> List[PairResult]:
     """Parse --pairs "0-1=90.0,1-2=60.0,..." with optional measurements file."""
@@ -263,6 +319,10 @@ def main() -> int:
     parser.add_argument("--truth", type=Path, default=None,
                         help="JSON mapping pair IDs to true distances: "
                              '{"0-1": 90.0, "1-2": 60.0}')
+    parser.add_argument("--ik-csv", type=Path, default=None,
+                        help="Cross-circle IK CSV with measured X/Y columns")
+    parser.add_argument("--position-truth", type=Path, default=None,
+                        help="JSON positions keyed by IK CSV label")
     parser.add_argument("--pairs", type=str, default=None,
                         help='Inline pairs: "0-1=90.0,1-2=60.0,0-3=180.0"')
     parser.add_argument("--measurements", type=Path, default=None,
@@ -274,7 +334,12 @@ def main() -> int:
     # Determine input source
     pairs: List[PairResult] = []
 
-    if args.input:
+    if args.ik_csv or args.position_truth:
+        if not args.ik_csv or not args.position_truth:
+            print("[ERROR] --ik-csv and --position-truth are required together")
+            return 1
+        pairs = load_cross_circle_ik_csv(args.ik_csv, args.position_truth)
+    elif args.input:
         pairs = load_from_json(args.input)
     elif args.csv and args.truth:
         if not args.truth.exists():

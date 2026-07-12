@@ -71,6 +71,7 @@ class CrossCircleMeasurementTracker:
         self.dist_coeffs = np.asarray(dist_coeffs, dtype=np.float64)
         self.jump_threshold_mm = float(jump_threshold_mm)
         self._history = deque(maxlen=15)
+        self.current_sample_accepted = False
 
     @property
     def valid_frame_count(self) -> int:
@@ -91,6 +92,7 @@ class CrossCircleMeasurementTracker:
             status="VALID")
 
     def process(self, frame):
+        self.current_sample_accepted = False
         roles = self.detector.update(frame)
         if roles.status != "VALID" or roles.origin is None or roles.wheel is None:
             return self.live_measurement()
@@ -120,6 +122,7 @@ class CrossCircleMeasurementTracker:
             confidence=float(min(
                 roles.origin.confidence, roles.wheel.confidence)),
             valid_frames=1, status="VALID"))
+        self.current_sample_accepted = True
         return self.live_measurement()
 
     def live_measurement(self):
@@ -134,8 +137,12 @@ class CrossCircleMeasurementTracker:
         return self._median_measurement(self._history, len(self._history))
 
     def reset(self):
-        self._history.clear()
+        self.clear_history()
         self.detector.reset()
+
+    def clear_history(self):
+        self._history.clear()
+        self.current_sample_accepted = False
 
 
 class CrossCircleDetector:

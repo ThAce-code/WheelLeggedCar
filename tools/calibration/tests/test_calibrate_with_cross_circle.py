@@ -48,11 +48,14 @@ class FakeSource:
 
 
 class FakeTracker:
-    def __init__(self, valid_frames=15, statuses=None):
+    def __init__(self, valid_frames=15, statuses=None, accepted=None):
         self.valid_frame_count = valid_frames
         self.statuses = deque(statuses or [])
+        self.accepted = deque(accepted or [])
+        self.current_sample_accepted = False
         self.capture_count = 0
         self.reset_count = 0
+        self.clear_history_count = 0
         self.detector = SimpleNamespace(
             current_roles=SimpleNamespace(status="VALID", origin=None, wheel=None))
 
@@ -60,6 +63,9 @@ class FakeTracker:
         del frame
         if self.statuses:
             self.detector.current_roles.status = self.statuses.popleft()
+        self.current_sample_accepted = (
+            self.accepted.popleft() if self.accepted else
+            self.detector.current_roles.status == "VALID")
         return sample_measurement(self.valid_frame_count)
 
     def capture(self):
@@ -68,6 +74,11 @@ class FakeTracker:
 
     def reset(self):
         self.reset_count += 1
+
+    def clear_history(self):
+        self.clear_history_count += 1
+        self.valid_frame_count = 0
+        self.current_sample_accepted = False
 
 
 class FakeCv:
@@ -141,6 +152,18 @@ class TestCalibrateWithCrossCircle(unittest.TestCase):
         self.assertEqual(rows, [])
         self.assertEqual(tracker.capture_count, 0)
 
+    def test_jump_rejected_valid_roles_cannot_capture_stale_history(self):
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        tracker = FakeTracker(
+            valid_frames=15, statuses=["VALID"], accepted=[False])
+        state = CrossCirclePoseState(DEFAULT_POSES)
+        rows = _run_cross_circle_ik_loop(
+            FakeSource([frame, None]), tracker, state, Path("snapshots"),
+            cv_module=FakeCv([ord(" "), ord("q")]))
+        self.assertEqual(rows, [])
+        self.assertEqual(state.pose_index, 0)
+        self.assertEqual(tracker.capture_count, 0)
+
     def test_space_captures_and_remove_moves_back_without_unlocking_roles(self):
         frame = np.zeros((4, 4, 3), dtype=np.uint8)
         tracker = FakeTracker()
@@ -151,6 +174,18 @@ class TestCalibrateWithCrossCircle(unittest.TestCase):
         self.assertEqual(rows, [])
         self.assertEqual(state.pose_index, 0)
         self.assertEqual(tracker.reset_count, 0)
+
+    def test_next_pose_requires_fifteen_new_valid_frames(self):
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        tracker = FakeTracker(valid_frames=15)
+        state = CrossCirclePoseState(DEFAULT_POSES)
+        rows = _run_cross_circle_ik_loop(
+            FakeSource([frame, frame, None]), tracker, state, Path("snapshots"),
+            cv_module=FakeCv([ord(" "), ord(" "), ord("q")]))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(state.pose_index, 1)
+        self.assertEqual(tracker.capture_count, 1)
+        self.assertEqual(tracker.clear_history_count, 1)
 
     def test_l_clears_tracker_lock(self):
         tracker = FakeTracker()

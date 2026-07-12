@@ -262,7 +262,8 @@ def _run_cross_circle_ik_loop(source, tracker, state: CrossCirclePoseState,
         if frame is not None:
             measurement = tracker.process(frame)
             current_frame_valid = (
-                tracker.detector.current_roles.status == "VALID")
+                tracker.detector.current_roles.status == "VALID" and
+                tracker.current_sample_accepted)
             display = frame.copy()
             _draw_cross_circle(display, tracker, measurement, cv_module)
             if state.pose_index < len(state.poses):
@@ -301,6 +302,7 @@ def _run_cross_circle_ik_loop(source, tracker, state: CrossCirclePoseState,
                 continue
             row = _build_cross_circle_ik_row(len(samples), pose, captured)
             samples.append(row)
+            tracker.clear_history()
             stamp = time.strftime("%Y%m%d_%H%M%S")
             cv_module.imwrite(
                 str(snapshot_dir /

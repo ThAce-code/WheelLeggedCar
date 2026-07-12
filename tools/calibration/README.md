@@ -94,10 +94,41 @@ valid-frame count.
 
 Before fitting IK parameters, validate known points spanning at least
 `X=-50,0,+50 mm` and `Y=50,100,150 mm`, with at least five repeats at every
-selected position. Run the accepted `validate_measurement.py` CLI for the
-captured CSV. Continue only when repeatability standard deviation is at most
-1.0 mm, overall RMSE is at most 2.0 mm, maximum error never exceeds 3.0 mm,
-and no position-dependent systematic error is visible. Do not run
+selected position. Build a validation CSV using the cross-circle IK column
+names; repeated rows use the same position label:
+
+```text
+label,measured_x_mm,measured_y_mm
+x0_y50,0.2,50.1
+x0_y50,-0.1,49.8
+```
+
+Create `data/cross_circle_position_truth.json` with the exact physical ground
+truth for every label:
+
+```json
+{
+  "positions": {
+    "xm50_y50": {"x_mm": -50.0, "y_mm": 50.0},
+    "x0_y50": {"x_mm": 0.0, "y_mm": 50.0},
+    "xp50_y50": {"x_mm": 50.0, "y_mm": 50.0}
+  }
+}
+```
+
+Run the IK-compatible position validator (the older `--csv --truth` mode is
+only for ArUco marker-pair distance CSVs and is not compatible with IK rows):
+
+```powershell
+python tools/calibration/validate_measurement.py `
+  --ik-csv data/cross_circle_position_validation.csv `
+  --position-truth data/cross_circle_position_truth.json `
+  --output data/cross_circle_position_validation_report.json
+```
+
+Continue only when repeatability standard deviation is at most 1.0 mm,
+overall RMSE is at most 2.0 mm, maximum error never exceeds 3.0 mm, and the
+per-position results show no systematic trend across X/Y. Do not run
 `fit_leg_ik_calibration.py` until all four conditions pass.
 
 ## Detailed Usage

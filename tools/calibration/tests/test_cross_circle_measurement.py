@@ -105,6 +105,17 @@ class TestCrossCircleMeasurement(unittest.TestCase):
             tracker.process(blank_frame())
         self.assertEqual(tracker.valid_frame_count, 1)
 
+    def test_process_exposes_jump_rejection_even_when_roles_are_valid(self):
+        tracker, _ = make_tracker(
+            frames=[roles(origin=(0, 0), wheel=(-10, 10))] * 15 +
+                   [roles(origin=(0, 0), wheel=(-100, 100))])
+        for _ in range(15):
+            tracker.process(blank_frame())
+        self.assertTrue(tracker.current_sample_accepted)
+        tracker.process(blank_frame())
+        self.assertFalse(tracker.current_sample_accepted)
+        self.assertEqual(tracker.valid_frame_count, 15)
+
     def test_jump_rejection_uses_each_component(self):
         frames = [roles(origin=(0, 0), wheel=(-10, 10))] * 5
         frames += [roles(origin=(0, 0), wheel=(-31, 10)),
@@ -150,6 +161,14 @@ class TestCrossCircleMeasurement(unittest.TestCase):
         self.assertIsNone(tracker.live_measurement())
         self.assertIsNone(tracker.capture())
         self.assertEqual(detector.reset_count, 1)
+
+    def test_clear_history_preserves_detector_role_lock(self):
+        tracker, detector = make_tracker(frames=[roles()])
+        tracker.process(blank_frame())
+        tracker.clear_history()
+        self.assertEqual(tracker.valid_frame_count, 0)
+        self.assertFalse(tracker.current_sample_accepted)
+        self.assertEqual(detector.reset_count, 0)
 
 
 if __name__ == "__main__":

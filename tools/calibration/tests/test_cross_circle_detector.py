@@ -11,7 +11,11 @@ CALIBRATION_DIR = Path(__file__).resolve().parents[1]
 if str(CALIBRATION_DIR) not in sys.path:
     sys.path.insert(0, str(CALIBRATION_DIR))
 
-from cross_circle_detector import CrossCircleDetector  # noqa: E402
+from cross_circle_detector import (  # noqa: E402
+    CrossCircleCandidate,
+    CrossCircleConfig,
+    CrossCircleDetector,
+)
 
 
 def draw_cross_circle(image, center, diameter):
@@ -111,19 +115,87 @@ class TestCrossCircleDetector(unittest.TestCase):
         image, _ = render_pair(origin_diameter=60, wheel_diameter=55)
         self.assertEqual(self.detector.update(image).status, "AMBIGUOUS")
 
-    def test_lock_does_not_silently_swap_roles(self):
+    def test_locked_wrong_ratio_is_ambiguous_and_preserves_lock(self):
         self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
+        locked_center = self.detector.locked_origin_center
+        image, _ = render_pair(origin_diameter=60, wheel_diameter=55)
+        self.assertEqual(self.detector.update(image).status, "AMBIGUOUS")
+        np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
+
+    def test_rejects_size_role_reversal_without_changing_lock(self):
+        self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
+        locked_center = self.detector.locked_origin_center
         moved, _ = render_pair(origin=(400, 280), wheel=(720, 600),
                                origin_diameter=50, wheel_diameter=70,
                                angle_deg=4.0)
         roles = self.detector.update(moved)
-        self.assertEqual(roles.status, "VALID")
-        self.assertLess(roles.origin.diameter_px, roles.wheel.diameter_px)
+        self.assertEqual(roles.status, "AMBIGUOUS")
+        np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
 
     def test_ambiguous_frame_does_not_clear_role_lock(self):
         self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
+        locked_center = self.detector.locked_origin_center
         self.assertEqual(self.detector.update(render_three()).status, "AMBIGUOUS")
         self.assertTrue(self.detector.locked)
+        np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
+
+    def test_missing_frame_retains_lock_center_and_near_pair_recovers(self):
+        self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
+        locked_center = self.detector.locked_origin_center
+        self.assertEqual(self.detector.update(render_one()).status, "MISSING")
+        np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
+        recovered = self.detector.update(render_pair(origin=(405, 282))[0])
+        self.assertEqual(recovered.status, "VALID")
+
+    def test_rejects_valid_far_pair_without_relocking(self):
+        self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
+        locked_center = self.detector.locked_origin_center
+        far = self.detector.update(render_pair(
+            origin=(450, 330), wheel=(770, 650))[0])
+        self.assertEqual(far.status, "AMBIGUOUS")
+        np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
+
+    def test_initial_and_reset_state_are_searching(self):
+        self.assertEqual(self.detector.current_roles.status, "SEARCHING")
+        self.detector.update(render_pair()[0])
+        self.detector.reset()
+        self.assertEqual(self.detector.current_roles.status, "SEARCHING")
+
+    def test_candidates_retain_geometric_audit_fields(self):
+        candidate = self.detector.detect(render_pair()[0])[0]
+        self.assertEqual(len(candidate.ellipse), 3)
+        self.assertGreater(candidate.circularity, 0.0)
+        self.assertGreater(candidate.ring_score, 0.0)
+        self.assertGreater(candidate.horizontal_score, 0.0)
+        self.assertGreater(candidate.vertical_score, 0.0)
+        self.assertGreaterEqual(candidate.center_error_px, 0.0)
+        self.assertIsNone(candidate.assigned_role)
+        roles = self.detector.update(render_pair()[0])
+        self.assertEqual(roles.origin.assigned_role, "origin")
+        self.assertEqual(roles.wheel.assigned_role, "wheel")
+
+    @staticmethod
+    def make_candidate(center, diameter, confidence):
+        return CrossCircleCandidate(
+            center=center, diameter_px=diameter,
+            ellipse=((center[0], center[1]), (diameter, diameter), 0.0),
+            circularity=0.9, ring_score=0.9, horizontal_score=0.9,
+            vertical_score=0.9, center_error_px=0.0,
+            confidence=confidence)
+
+    def test_nms_uses_strict_25_percent_boundary(self):
+        strong = self.make_candidate((100.0, 100.0), 40.0, 0.9)
+        inside = self.make_candidate((109.9, 100.0), 40.0, 0.8)
+        boundary = self.make_candidate((110.0, 100.0), 40.0, 0.7)
+        kept_inside = self.detector._non_maximum_suppress((strong, inside))
+        kept_boundary = self.detector._non_maximum_suppress((strong, boundary))
+        self.assertEqual(kept_inside, (strong,))
+        self.assertEqual(kept_boundary, (strong, boundary))
+
+    def test_confidence_threshold_rejects_real_candidates(self):
+        detector = CrossCircleDetector(CrossCircleConfig(min_confidence=1.01))
+        self.assertGreaterEqual(len(detector.detect(render_pair()[0])), 2)
+        self.assertEqual(detector.update(render_pair()[0]).status, "MISSING")
 
     def test_reset_clears_role_lock(self):
         self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")

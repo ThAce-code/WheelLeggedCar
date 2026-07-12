@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, Sequence, Tuple
 
 import cv2
@@ -28,9 +28,14 @@ class CrossCircleConfig:
 class CrossCircleCandidate:
     center: Tuple[float, float]
     diameter_px: float
-    confidence: float
+    ellipse: Tuple[Tuple[float, float], Tuple[float, float], float]
+    circularity: float
     ring_score: float
-    cross_score: float
+    horizontal_score: float
+    vertical_score: float
+    center_error_px: float
+    confidence: float
+    assigned_role: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -46,14 +51,26 @@ class CrossCircleDetector:
         self.config = config
         self.locked = False
         self._origin_center: Optional[np.ndarray] = None
+        self._current_roles = CrossCircleRoles("SEARCHING")
+
+    @property
+    def current_roles(self) -> CrossCircleRoles:
+        return self._current_roles
+
+    @property
+    def locked_origin_center(self) -> Optional[Tuple[float, float]]:
+        if self._origin_center is None:
+            return None
+        return (float(self._origin_center[0]), float(self._origin_center[1]))
 
     def reset(self) -> None:
         self.locked = False
         self._origin_center = None
+        self._current_roles = CrossCircleRoles("SEARCHING")
 
     @staticmethod
     def _sample_score(binary: np.ndarray, cx: float, cy: float,
-                      radius: float) -> Tuple[float, float]:
+                      radius: float) -> Tuple[float, float, float]:
         size = max(16, int(np.ceil(radius * 2.5)))
         patch = cv2.getRectSubPix(binary, (size, size), (cx, cy))
         yy, xx = np.indices(patch.shape, dtype=np.float32)
@@ -73,10 +90,14 @@ class CrossCircleDetector:
         off_axis = (rr <= radius * 0.62) & ~(
             (np.abs(px) <= half_width * 1.6) |
             (np.abs(py) <= half_width * 1.6))
-        ink_score = float(np.mean(ink[cross])) if np.any(cross) else 0.0
+        horizontal_score = (float(np.mean(ink[horizontal]))
+                            if np.any(horizontal) else 0.0)
+        vertical_score = (float(np.mean(ink[vertical]))
+                          if np.any(vertical) else 0.0)
         white_score = 1.0 - float(np.mean(ink[off_axis])) if np.any(off_axis) else 0.0
-        cross_score = 0.72 * ink_score + 0.28 * white_score
-        return ring_score, cross_score
+        horizontal_score = 0.72 * horizontal_score + 0.28 * white_score
+        vertical_score = 0.72 * vertical_score + 0.28 * white_score
+        return ring_score, horizontal_score, vertical_score
 
     @staticmethod
     def _projection_center(binary: np.ndarray, cx: float, cy: float,
@@ -133,7 +154,9 @@ class CrossCircleDetector:
             if aspect > self.config.max_aspect_ratio or circularity < self.config.min_circularity:
                 continue
             radius = diameter * 0.5
-            ring_score, cross_score = self._sample_score(binary, cx, cy, radius)
+            ring_score, horizontal_score, vertical_score = self._sample_score(
+                binary, cx, cy, radius)
+            cross_score = min(horizontal_score, vertical_score)
             if ring_score < self.config.min_ring_score or cross_score < self.config.min_cross_score:
                 continue
             projected = self._projection_center(binary, cx, cy, radius)
@@ -144,12 +167,28 @@ class CrossCircleDetector:
             center = ellipse_center * 0.95 + projected * 0.05
             shape_score = min(1.0, circularity) * min(1.0, 1.0 / aspect * 1.15)
             confidence = 0.30 * ring_score + 0.40 * cross_score + 0.30 * shape_score
+            fitted_ellipse = (
+                (float(ellipse[0][0]), float(ellipse[0][1])),
+                (float(ellipse[1][0]), float(ellipse[1][1])),
+                float(ellipse[2]))
             found.append(CrossCircleCandidate(
-                (float(center[0]), float(center[1])), diameter,
-                float(confidence), ring_score, cross_score))
+                center=(float(center[0]), float(center[1])),
+                diameter_px=diameter, ellipse=fitted_ellipse,
+                circularity=float(circularity), ring_score=ring_score,
+                horizontal_score=horizontal_score,
+                vertical_score=vertical_score,
+                center_error_px=center_error,
+                confidence=float(confidence)))
 
+        return self._non_maximum_suppress(found)
+
+    @staticmethod
+    def _non_maximum_suppress(
+            candidates: Sequence[CrossCircleCandidate],
+    ) -> Tuple[CrossCircleCandidate, ...]:
         kept = []
-        for candidate in sorted(found, key=lambda item: item.confidence, reverse=True):
+        for candidate in sorted(
+                candidates, key=lambda item: item.confidence, reverse=True):
             duplicate = any(
                 np.linalg.norm(np.subtract(candidate.center, other.center)) <
                 0.25 * min(candidate.diameter_px, other.diameter_px)
@@ -158,18 +197,25 @@ class CrossCircleDetector:
                 kept.append(candidate)
         return tuple(kept)
 
+    def _set_current(self, roles: CrossCircleRoles) -> CrossCircleRoles:
+        self._current_roles = roles
+        return roles
+
     def update(self, frame: np.ndarray) -> CrossCircleRoles:
         candidates = tuple(c for c in self.detect(frame)
                            if c.confidence >= self.config.min_confidence)
         if len(candidates) < 2:
-            return CrossCircleRoles("MISSING", candidates=candidates)
+            return self._set_current(CrossCircleRoles(
+                "MISSING", candidates=candidates))
         if len(candidates) > 2:
-            return CrossCircleRoles("AMBIGUOUS", candidates=candidates)
+            return self._set_current(CrossCircleRoles(
+                "AMBIGUOUS", candidates=candidates))
 
         small, large = sorted(candidates, key=lambda item: item.diameter_px)
         ratio = large.diameter_px / small.diameter_px
         if abs(ratio - self.config.expected_size_ratio) > self.config.size_ratio_tolerance:
-            return CrossCircleRoles("AMBIGUOUS", candidates=candidates)
+            return self._set_current(CrossCircleRoles(
+                "AMBIGUOUS", candidates=candidates))
 
         if not self.locked:
             origin, wheel = large, small
@@ -180,10 +226,17 @@ class CrossCircleDetector:
                 np.asarray(c.center) - self._origin_center)) for c in candidates]
             index = int(np.argmin(distances))
             if distances[index] > self.config.origin_lock_radius_px:
-                return CrossCircleRoles("AMBIGUOUS", candidates=candidates)
+                return self._set_current(CrossCircleRoles(
+                    "AMBIGUOUS", candidates=candidates))
             origin, wheel = candidates[index], candidates[1 - index]
+            if origin is not large:
+                return self._set_current(CrossCircleRoles(
+                    "AMBIGUOUS", candidates=candidates))
             self._origin_center = np.asarray(origin.center, dtype=np.float64)
-        return CrossCircleRoles("VALID", origin, wheel, candidates)
+        origin = replace(origin, assigned_role="origin")
+        wheel = replace(wheel, assigned_role="wheel")
+        return self._set_current(CrossCircleRoles(
+            "VALID", origin, wheel, candidates))
 
 
 __all__: Sequence[str] = (

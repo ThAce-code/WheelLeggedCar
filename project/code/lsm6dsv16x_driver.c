@@ -5,6 +5,8 @@
 ********************************************************************************************************************/
 
 #include "lsm6dsv16x_driver.h"
+#include "app_config.h"
+#include "imu_gyro_calibration.h"
 #include "math.h"
 
 #define LSM6DSV_RAD_TO_DEG              (57.2957795f)
@@ -19,7 +21,6 @@
 #define LSM6DSV_SFLP_ODR_120HZ          (0x18)
 #define LSM6DSV_FIFO_MAX_FRAMES         (32U)
 #define LSM6DSV_GYRO_CAL_SAMPLE_MS      (9U)
-#define LSM6DSV_GYRO_CAL_MAX_VARIANCE   (0.64f)
 #define LSM6DSV_ACC_FS_4G               (0x01)
 #define LSM6DSV_GYRO_FS_2000DPS         (0x04)
 #define LSM6DSV_FIFO_STREAM_MODE        (0x06)
@@ -233,58 +234,29 @@ uint8 lsm6dsv16x_gyro_offset_init(void)
     int16 gyro_x;
     int16 gyro_y;
     int16 gyro_z;
-    float sum_x = 0.0f;
-    float sum_y = 0.0f;
-    float sum_z = 0.0f;
-    float sum_sq_x = 0.0f;
-    float sum_sq_y = 0.0f;
-    float sum_sq_z = 0.0f;
-    float sample_x;
-    float sample_y;
-    float sample_z;
-    float mean_x;
-    float mean_y;
-    float mean_z;
-    float variance_x;
-    float variance_y;
-    float variance_z;
+    imu_gyro_calibration_state_struct calibration;
     uint16 i;
 
     system_delay_ms(100);
+    imu_gyro_calibration_init(&calibration);
 
     for(i = 0; i < LSM6DSV_GYRO_OFFSET_SAMPLES; i++)
     {
         lsm6dsv16x_get_gyro(&gyro_x, &gyro_y, &gyro_z);
-        sample_x = (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS;
-        sample_y = (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS;
-        sample_z = (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS;
-        sum_x += sample_x;
-        sum_y += sample_y;
-        sum_z += sample_z;
-        sum_sq_x += sample_x * sample_x;
-        sum_sq_y += sample_y * sample_y;
-        sum_sq_z += sample_z * sample_z;
+        imu_gyro_calibration_add_sample(&calibration,
+                                        (float)gyro_x * LSM6DSV_GYRO_SENS_2000DPS,
+                                        (float)gyro_y * LSM6DSV_GYRO_SENS_2000DPS,
+                                        (float)gyro_z * LSM6DSV_GYRO_SENS_2000DPS);
         system_delay_ms(LSM6DSV_GYRO_CAL_SAMPLE_MS);
     }
 
-    mean_x = sum_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
-    mean_y = sum_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
-    mean_z = sum_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES;
-    variance_x = sum_sq_x / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_x * mean_x;
-    variance_y = sum_sq_y / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_y * mean_y;
-    variance_z = sum_sq_z / (float)LSM6DSV_GYRO_OFFSET_SAMPLES - mean_z * mean_z;
-
-    if((LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_x) ||
-       (LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_y) ||
-       (LSM6DSV_GYRO_CAL_MAX_VARIANCE < variance_z))
-    {
-        return 1U;
-    }
-
-    lsm6dsv16x_gyro_offset_x = mean_x;
-    lsm6dsv16x_gyro_offset_y = mean_y;
-    lsm6dsv16x_gyro_offset_z = mean_z;
-    return 0U;
+    return imu_gyro_calibration_finish(&calibration,
+                                       LSM6DSV_GYRO_OFFSET_SAMPLES,
+                                       APP_IMU_GYRO_CAL_MAX_ABS_MEAN_DPS,
+                                       APP_IMU_GYRO_CAL_MAX_VARIANCE_DPS2,
+                                       &lsm6dsv16x_gyro_offset_x,
+                                       &lsm6dsv16x_gyro_offset_y,
+                                       &lsm6dsv16x_gyro_offset_z);
 }
 
 void lsm6dsv16x_gyro_update(void)

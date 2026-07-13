@@ -12,6 +12,7 @@
 #define SENSOR_IMU_ERR_WHO_AM_I        (1U)
 #define SENSOR_IMU_ERR_INIT            (2U)
 #define SENSOR_IMU_ERR_SFLP            (3U)
+#define SENSOR_IMU_ERR_GYRO_CAL        (4U)
 
 uint8 sensor_imu_init(void);
 void sensor_imu_update(uint32 now_ms);

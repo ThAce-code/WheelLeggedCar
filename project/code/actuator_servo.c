@@ -77,6 +77,7 @@ static void actuator_servo_write_duty(uint8 index, uint32 duty)
     period = actuator_servo_pwm_cnt[index]->unPERIOD.u32Register;
     compare = period * duty / PWM_DUTY_MAX;
     Cy_Tcpwm_Pwm_SetCompare0_Buff(actuator_servo_pwm_cnt[index], compare);
+    Cy_Tcpwm_TriggerCapture0(actuator_servo_pwm_cnt[index]);
 }
 
 static void actuator_servo_write(uint8 index, float angle_deg)

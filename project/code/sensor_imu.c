@@ -83,9 +83,16 @@ uint8 sensor_imu_init(void)
         return SENSOR_IMU_ERR_INIT;
     }
 
-    if(0U != lsm6dsv16x_gyro_offset_init())
+    for(retry = 0U; retry < APP_IMU_GYRO_CAL_RETRY_COUNT; retry++)
     {
-        return SENSOR_IMU_ERR_INIT;
+        if(0U == lsm6dsv16x_gyro_offset_init())
+        {
+            break;
+        }
+    }
+    if(APP_IMU_GYRO_CAL_RETRY_COUNT <= retry)
+    {
+        return SENSOR_IMU_ERR_GYRO_CAL;
     }
 
     if(0U == lsm6dsv16x_sflp_init())

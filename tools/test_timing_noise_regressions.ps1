@@ -34,6 +34,8 @@ $imu = Get-Content "project/code/sensor_imu.c" -Raw
 $imuH = Get-Content "project/code/sensor_imu.h" -Raw
 $imuDriver = Get-Content "project/code/lsm6dsv16x_driver.c" -Raw
 $imuDriverH = Get-Content "project/code/lsm6dsv16x_driver.h" -Raw
+$gyroCalibration = Get-Content "project/code/imu_gyro_calibration.c" -Raw
+$gyroCalibrationH = Get-Content "project/code/imu_gyro_calibration.h" -Raw
 $safety = Get-Content "project/code/app_safety.c" -Raw
 $config = Get-Content "project/code/app_config.h" -Raw
 $hostSource = Get-Content "project/code/host_command.c" -Raw
@@ -41,11 +43,12 @@ $chassis = Get-Content "project/code/control_chassis.c" -Raw
 $bldc = Get-Content "project/code/bldc_foc_uart.c" -Raw
 $pwmDriver = Get-Content "libraries/zf_driver/zf_driver_pwm.c" -Raw
 
-# Runtime servo updates must only write the buffered compare register. The
-# hardware reload event applies it at a PWM-safe boundary; software CAPTURE0
-# would swap it immediately and can miss a shortened pulse's compare point.
+# Runtime servo updates must write the buffered compare register and then issue
+# the TCPWM PWM-mode CAPTURE0 command that swaps the buffered value into CC0.
+# This matches the proven vendor update sequence without modifying the driver.
 Require-Pattern $servo 'Cy_Tcpwm_Pwm_SetCompare0_Buff\(' 'Servo runtime PWM writes must use the buffered compare API.'
-Reject-Pattern $servo 'static void actuator_servo_write[^}]*pwm_set_duty\(' 'Servo runtime PWM writes must not trigger an immediate compare swap.'
+Require-Pattern $servo 'Cy_Tcpwm_Pwm_SetCompare0_Buff\([^;]+;\s*Cy_Tcpwm_TriggerCapture0\(' 'Servo runtime PWM writes must trigger the buffered compare swap.'
+Reject-Pattern $servo 'static void actuator_servo_write[^}]*pwm_set_duty\(' 'Servo runtime PWM writes must keep the vendor driver out of the 300 Hz ISR.'
 Require-Pattern $servo 'actuator_servo_write_duty\(i, 0U\)' 'Runtime disable paths must also use the buffered PWM writer.'
 
 # Keep the shared vendor driver byte-for-byte behavior out of the project fix.
@@ -90,9 +93,12 @@ Require-Pattern $safety 'app_safety_is_finite\(imu->roll\)' 'Top-level safety mu
 # Gyro bias calibration must use distinct 120 Hz samples and reject a moving
 # base instead of silently storing motion as a permanent balance-rate bias.
 Require-Pattern $imuDriverH 'uint8\s+lsm6dsv16x_gyro_offset_init' 'Gyro calibration must report stationarity failure.'
-Require-Pattern $imuDriver 'sum_sq_y' 'Gyro calibration must measure sample variance.'
-Require-Pattern $imuDriver 'LSM6DSV_GYRO_CAL_MAX_VARIANCE' 'Gyro calibration must enforce a stationarity threshold.'
-Require-Pattern $imu 'if\(0U != lsm6dsv16x_gyro_offset_init\(\)\)' 'IMU initialization must reject a moving-base gyro calibration.'
+Require-Pattern $gyroCalibrationH 'imu_gyro_calibration_state_struct' 'Gyro calibration must use an online statistics state.'
+Require-Pattern $gyroCalibration 'm2_y' 'Gyro calibration must compute variance with a stable online algorithm.'
+Require-Pattern $gyroCalibration 'max_abs_mean_dps' 'Gyro calibration must reject constant angular motion.'
+Require-Pattern $config 'APP_IMU_GYRO_CAL_MAX_VARIANCE_DPS2\s+\(4\.0f\)' 'Gyro variance threshold must include measured stationary-noise margin.'
+Require-Pattern $imu 'APP_IMU_GYRO_CAL_RETRY_COUNT' 'IMU initialization must retry a transient moving-base calibration.'
+Require-Pattern $imu 'return SENSOR_IMU_ERR_GYRO_CAL;' 'Persistent gyro calibration failure needs a distinct error code.'
 
 # Drain the 64-byte vendor RX ring at 1 kHz under a short critical section,
 # expire incomplete lines, and stop drive commands after host silence.

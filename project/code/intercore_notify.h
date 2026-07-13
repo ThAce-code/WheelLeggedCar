@@ -25,6 +25,7 @@ typedef struct
     uint32 busy_count;
     uint32 received_count;
     uint32 pending_bits;
+    uint32 pending_out_bits;
     uint8 initialized;
     uint8 in_flight;
 }intercore_notify_diag_struct;

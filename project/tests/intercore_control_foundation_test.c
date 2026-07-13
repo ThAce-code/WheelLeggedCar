@@ -12,6 +12,7 @@ static uint32 test_failure_count = 0U;
 static intercore_shared_layout_struct shared __attribute__((aligned(32)));
 static uint8 mock_notify_send_result = 0U;
 static uint32 mock_notify_send_count = 0U;
+static uint32 mock_notify_last_bits = 0U;
 static float mock_router_last_forward_rpm = 0.0f;
 static float mock_router_last_turn_rate_dps = 0.0f;
 static uint8 mock_router_last_enable = 0U;
@@ -50,7 +51,7 @@ uint8 intercore_notify_port_init(intercore_role_enum role)
 
 uint8 intercore_notify_port_send(const intercore_doorbell_struct *message)
 {
-    (void)message;
+    mock_notify_last_bits = message->data;
     mock_notify_send_count++;
     return mock_notify_send_result;
 }
@@ -260,18 +261,42 @@ static void test_nonblocking_notify_state(void)
     TEST_CHECK(0U == intercore_notify_init((intercore_role_enum)2));
     mock_notify_send_result = 1U;
     mock_notify_send_count = 0U;
+    mock_notify_last_bits = 0U;
     TEST_CHECK(1U == intercore_notify_init(INTERCORE_ROLE_CM7_1));
     TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_NAVIGATION));
     TEST_CHECK(1U == mock_notify_send_count);
+    TEST_CHECK(INTERCORE_NOTIFY_NAVIGATION == mock_notify_last_bits);
     TEST_CHECK(0U == intercore_notify_try(INTERCORE_NOTIFY_HEARTBEAT));
     TEST_CHECK(1U == mock_notify_send_count);
-    intercore_notify_release_callback();
-    TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_HEARTBEAT));
-    intercore_notify_release_callback();
-    mock_notify_send_result = 0U;
     TEST_CHECK(0U == intercore_notify_try(INTERCORE_NOTIFY_CONTROL_STATUS));
+    TEST_CHECK((INTERCORE_NOTIFY_HEARTBEAT | INTERCORE_NOTIFY_CONTROL_STATUS) ==
+               intercore_notify_get_diag()->pending_out_bits);
+    intercore_notify_release_callback();
+    TEST_CHECK(2U == mock_notify_send_count);
+    TEST_CHECK((INTERCORE_NOTIFY_HEARTBEAT | INTERCORE_NOTIFY_CONTROL_STATUS) ==
+               mock_notify_last_bits);
+    TEST_CHECK(1U == intercore_notify_get_diag()->in_flight);
+    intercore_notify_release_callback();
     TEST_CHECK(0U == intercore_notify_get_diag()->in_flight);
-    TEST_CHECK(2U == intercore_notify_get_diag()->busy_count);
+
+    TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_NAVIGATION));
+    TEST_CHECK(0U == intercore_notify_try(INTERCORE_NOTIFY_HEARTBEAT));
+    TEST_CHECK(INTERCORE_NOTIFY_HEARTBEAT ==
+               intercore_notify_get_diag()->pending_out_bits);
+    mock_notify_send_result = 0U;
+    intercore_notify_release_callback();
+    TEST_CHECK(0U == intercore_notify_get_diag()->in_flight);
+    TEST_CHECK(INTERCORE_NOTIFY_HEARTBEAT ==
+               intercore_notify_get_diag()->pending_out_bits);
+    TEST_CHECK(4U == mock_notify_send_count);
+    mock_notify_send_result = 1U;
+    TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_CONTROL_STATUS));
+    TEST_CHECK(5U == mock_notify_send_count);
+    TEST_CHECK((INTERCORE_NOTIFY_CONTROL_STATUS | INTERCORE_NOTIFY_HEARTBEAT) ==
+               mock_notify_last_bits);
+    intercore_notify_release_callback();
+    TEST_CHECK(0U == intercore_notify_get_diag()->in_flight);
+    TEST_CHECK(4U == intercore_notify_get_diag()->busy_count);
     intercore_notify_receive_callback(INTERCORE_NOTIFY_NAVIGATION);
     TEST_CHECK(INTERCORE_NOTIFY_NAVIGATION == intercore_notify_take_pending());
     TEST_CHECK(0U == intercore_notify_take_pending());

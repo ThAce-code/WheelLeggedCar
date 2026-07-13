@@ -37,6 +37,46 @@ static void intercore_notify_exit_critical(uint32 primask)
 #endif
 
 static volatile intercore_notify_diag_struct intercore_notify_diag;
+static volatile uint8 intercore_notify_release_handoff_active;
+
+static uint8 intercore_notify_send(uint32 bits)
+{
+    uint32 send_bits;
+    uint32 critical_state;
+
+    critical_state = INTERCORE_NOTIFY_ENTER_CRITICAL();
+    if(0U != intercore_notify_diag.in_flight)
+    {
+        intercore_notify_diag.pending_out_bits |= bits;
+        intercore_notify_diag.busy_count++;
+        INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+        return 0U;
+    }
+
+    send_bits = bits | intercore_notify_diag.pending_out_bits;
+    intercore_notify_diag.pending_out_bits = 0U;
+    INTERCORE_NOTIFY_MESSAGE->clientId = INTERCORE_NOTIFY_CLIENT_ID;
+    INTERCORE_NOTIFY_MESSAGE->data = send_bits;
+    INTERCORE_NOTIFY_DMB();
+    intercore_notify_diag.in_flight = 1U;
+    INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+
+    if(0U == intercore_notify_port_send(
+                  (const intercore_doorbell_struct *)INTERCORE_NOTIFY_MESSAGE))
+    {
+        critical_state = INTERCORE_NOTIFY_ENTER_CRITICAL();
+        intercore_notify_diag.in_flight = 0U;
+        intercore_notify_diag.pending_out_bits |= send_bits;
+        intercore_notify_diag.busy_count++;
+        INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+        return 0U;
+    }
+
+    critical_state = INTERCORE_NOTIFY_ENTER_CRITICAL();
+    intercore_notify_diag.success_count++;
+    INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+    return 1U;
+}
 
 uint8 intercore_notify_init(intercore_role_enum role)
 {
@@ -51,7 +91,9 @@ uint8 intercore_notify_init(intercore_role_enum role)
     intercore_notify_diag.busy_count = 0U;
     intercore_notify_diag.received_count = 0U;
     intercore_notify_diag.pending_bits = 0U;
+    intercore_notify_diag.pending_out_bits = 0U;
     intercore_notify_diag.in_flight = 0U;
+    intercore_notify_release_handoff_active = 0U;
     intercore_notify_diag.initialized = intercore_notify_port_init(role);
     return intercore_notify_diag.initialized;
 }
@@ -63,26 +105,7 @@ uint8 intercore_notify_try(uint32 bits)
         return 0U;
     }
 
-    if(0U != intercore_notify_diag.in_flight)
-    {
-        intercore_notify_diag.busy_count++;
-        return 0U;
-    }
-
-    INTERCORE_NOTIFY_MESSAGE->clientId = INTERCORE_NOTIFY_CLIENT_ID;
-    INTERCORE_NOTIFY_MESSAGE->data = bits;
-    INTERCORE_NOTIFY_DMB();
-    intercore_notify_diag.in_flight = 1U;
-    if(0U == intercore_notify_port_send(
-                  (const intercore_doorbell_struct *)INTERCORE_NOTIFY_MESSAGE))
-    {
-        intercore_notify_diag.in_flight = 0U;
-        intercore_notify_diag.busy_count++;
-        return 0U;
-    }
-
-    intercore_notify_diag.success_count++;
-    return 1U;
+    return intercore_notify_send(bits);
 }
 
 uint32 intercore_notify_take_pending(void)
@@ -98,7 +121,29 @@ uint32 intercore_notify_take_pending(void)
 
 void intercore_notify_release_callback(void)
 {
+    uint32 pending_bits;
+    uint32 critical_state = INTERCORE_NOTIFY_ENTER_CRITICAL();
+
     intercore_notify_diag.in_flight = 0U;
+    if(0U != intercore_notify_release_handoff_active)
+    {
+        INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+        return;
+    }
+
+    pending_bits = intercore_notify_diag.pending_out_bits;
+    intercore_notify_diag.pending_out_bits = 0U;
+    intercore_notify_release_handoff_active = 1U;
+    INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
+
+    if(0U != pending_bits)
+    {
+        (void)intercore_notify_send(pending_bits);
+    }
+
+    critical_state = INTERCORE_NOTIFY_ENTER_CRITICAL();
+    intercore_notify_release_handoff_active = 0U;
+    INTERCORE_NOTIFY_EXIT_CRITICAL(critical_state);
 }
 
 void intercore_notify_receive_callback(uint32 bits)

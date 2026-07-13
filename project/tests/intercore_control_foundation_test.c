@@ -6,6 +6,7 @@
 #include "intercore_notify.h"
 #include "intercore_notify_port.h"
 #include "motion_command_router.h"
+#include "intercore_control.h"
 
 static uint32 test_failure_count = 0U;
 static intercore_shared_layout_struct shared __attribute__((aligned(32)));
@@ -17,6 +18,11 @@ static uint8 mock_router_last_enable = 0U;
 static uint32 mock_router_last_now_ms = 0U;
 static uint32 mock_router_apply_count = 0U;
 static uint32 mock_router_stop_count = 0U;
+
+volatile intercore_shared_layout_struct *intercore_memory_get_layout(void)
+{
+    return &shared;
+}
 
 void motion_command_router_port_apply(float forward_rpm,
                                       float turn_rate_dps,
@@ -325,6 +331,7 @@ static void test_motion_router_maintenance_and_rearm(void)
 {
     motion_command_request_struct request = test_motion_request(12.0f, 1U, 100U);
     motion_command_router_init();
+    TEST_CHECK(1U == intercore_control_init());
     TEST_CHECK(1U == motion_command_router_arm_remote(100U, 0U));
     TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &request));
     TEST_CHECK(1U == motion_command_router_set_maintenance(1U, 101U));
@@ -353,6 +360,93 @@ static void test_motion_router_emergency_and_safety_latches(void)
     TEST_CHECK(0U < mock_router_stop_count);
 }
 
+static void test_intercore_navigation_acceptance_policy(void)
+{
+    navigation_command_struct command = {0};
+
+    motion_command_router_init();
+    TEST_CHECK(1U == intercore_control_init());
+    TEST_CHECK(1U == motion_command_router_arm_remote(100U, 0U));
+    command.forward_rpm = 25.0f;
+    command.turn_rate_dps = 15.0f;
+    command.confidence = 0.9f;
+    command.source_sequence = 1U;
+    command.valid_for_ms = 200U;
+    command.enable = 1U;
+    command.source = NAVIGATION_SOURCE_WIRELESS_MANUAL;
+    command.mode = NAVIGATION_MODE_MANUAL;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 100U));
+    motion_command_router_update(101U, 0U);
+    TEST_CHECK(MOTION_SOURCE_WIRELESS_MANUAL ==
+               motion_command_router_get_diag()->active_source);
+
+    command.source_sequence = 2U;
+    command.forward_rpm = 61.0f;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 102U));
+    command.forward_rpm = 25.0f;
+    command.source_sequence = 1U;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 103U));
+    command.source_sequence = 2U;
+    command.forward_rpm = 25.0f;
+    command.turn_rate_dps = 61.0f;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 104U));
+    command.turn_rate_dps = 15.0f;
+    command.forward_rpm = NAN;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 105U));
+
+    motion_command_router_init();
+    TEST_CHECK(1U == intercore_control_init());
+    TEST_CHECK(1U == motion_command_router_arm_remote(200U, 0U));
+    command = (navigation_command_struct){0};
+    command.forward_rpm = 10.0f;
+    command.turn_rate_dps = -5.0f;
+    command.confidence = 0.8f;
+    command.source_sequence = 1U;
+    command.valid_for_ms = 200U;
+    command.enable = 1U;
+    command.source = NAVIGATION_SOURCE_VISION;
+    command.mode = NAVIGATION_MODE_VISION_ASSIST;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 200U));
+    motion_command_router_update(201U, 0U);
+    TEST_CHECK(MOTION_SOURCE_AUTONOMOUS ==
+               motion_command_router_get_diag()->active_source);
+
+    command.source_sequence = 2U;
+    command.source = NAVIGATION_SOURCE_WAYPOINT;
+    command.mode = NAVIGATION_MODE_WAYPOINT;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 202U));
+    motion_command_router_update(203U, 0U);
+    TEST_CHECK(MOTION_SOURCE_AUTONOMOUS ==
+               motion_command_router_get_diag()->active_source);
+
+    motion_command_router_init();
+    TEST_CHECK(1U == intercore_control_init());
+    command.source = NAVIGATION_SOURCE_WAYPOINT;
+    command.mode = NAVIGATION_MODE_WAYPOINT;
+    command.source_sequence = 1U;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 300U));
+
+    motion_command_router_init();
+    TEST_CHECK(1U == intercore_control_init());
+    TEST_CHECK(1U == motion_command_router_arm_remote(400U, 0U));
+    command.source = NAVIGATION_SOURCE_WIRELESS_MANUAL;
+    command.mode = NAVIGATION_MODE_MANUAL;
+    command.source_sequence = 1U;
+    command.enable = 1U;
+    command.forward_rpm = 20.0f;
+    command.turn_rate_dps = 5.0f;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 400U));
+    motion_command_router_update(401U, 0U);
+    TEST_CHECK(MOTION_SOURCE_WIRELESS_MANUAL ==
+               motion_command_router_get_diag()->active_source);
+    command.source_sequence = 2U;
+    command.enable = 0U;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 402U));
+    motion_command_router_update(403U, 0U);
+    TEST_CHECK(MOTION_SOURCE_NONE ==
+               motion_command_router_get_diag()->active_source);
+}
+
 int main(void)
 {
     test_protocol_crc_and_sizes();
@@ -367,6 +461,7 @@ int main(void)
     test_motion_router_rejects_invalid_and_disarmed_remote();
     test_motion_router_maintenance_and_rearm();
     test_motion_router_emergency_and_safety_latches();
+    test_intercore_navigation_acceptance_policy();
 
     if(0U != test_failure_count)
     {

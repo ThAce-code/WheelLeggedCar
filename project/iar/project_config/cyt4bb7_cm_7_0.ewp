@@ -1272,6 +1272,8 @@
         <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_memory.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_memory.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_control.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_control.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.c</name></file>

@@ -105,6 +105,16 @@ uint8 motion_command_router_submit(motion_source_enum source,
         motion_router_diag.rejected_count++;
         return 0U;
     }
+    if(0U == request->enable)
+    {
+        motion_slots[source].valid = 0U;
+        if((motion_router_diag.active_source == source) &&
+           (0U != motion_router_output_active))
+        {
+            motion_router_stop(request->received_ms, MOTION_STOP_DISABLED);
+        }
+        return 1U;
+    }
     if((MOTION_SOURCE_UART_LOCAL != source) &&
        ((0U == motion_router_diag.remote_armed) ||
         (0U != motion_router_diag.maintenance_mode) ||
@@ -131,6 +141,21 @@ uint8 motion_command_router_submit(motion_source_enum source,
     slot->last_sequence = request->source_sequence;
     slot->valid = 1U;
     return 1U;
+}
+
+void motion_command_router_cancel_source(motion_source_enum source, uint32 now_ms)
+{
+    if((MOTION_SOURCE_AUTONOMOUS > source) ||
+       (MOTION_SOURCE_UART_LOCAL < source))
+    {
+        return;
+    }
+    motion_slots[source].valid = 0U;
+    if((motion_router_diag.active_source == source) &&
+       (0U != motion_router_output_active))
+    {
+        motion_router_stop(now_ms, MOTION_STOP_DISABLED);
+    }
 }
 
 void motion_command_router_update(uint32 now_ms, uint8 safety_fault)

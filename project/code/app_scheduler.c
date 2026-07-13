@@ -14,6 +14,8 @@
 #include "control_balance.h"
 #include "telemetry.h"
 #include "host_command.h"
+#include "intercore_control.h"
+#include "motion_command_router.h"
 
 static volatile uint32 app_tick_ms = 0;
 static volatile uint8 app_scheduler_pending = APP_FALSE;
@@ -121,6 +123,9 @@ void app_scheduler_run_pending(void)
     {
         app_safety_update(now_ms);
     }
+
+    intercore_control_update(now_ms);
+    motion_command_router_update(now_ms, app_safety_is_fault());
 
     if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
     {

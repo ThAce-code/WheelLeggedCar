@@ -16,6 +16,8 @@
 #include "control_balance.h"
 #include "host_command.h"
 #include "telemetry.h"
+#include "motion_command_router.h"
+#include "intercore_control.h"
 
 uint8 app_init(void)
 {
@@ -23,6 +25,11 @@ uint8 app_init(void)
 
     app_state_init();
     app_safety_init();
+    motion_command_router_init();
+    if(0U == intercore_control_init())
+    {
+        result |= 0x08U;
+    }
     app_scheduler_init();
     host_command_init();
     control_chassis_init();

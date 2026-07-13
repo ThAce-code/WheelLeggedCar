@@ -47,6 +47,7 @@ void motion_command_router_init(void);
 uint8 motion_command_router_arm_remote(uint32 now_ms, uint8 arm);
 uint8 motion_command_router_submit(motion_source_enum source,
                                    const motion_command_request_struct *request);
+void motion_command_router_cancel_source(motion_source_enum source, uint32 now_ms);
 void motion_command_router_update(uint32 now_ms, uint8 safety_fault);
 uint8 motion_command_router_set_maintenance(uint8 enabled, uint32 now_ms);
 uint8 motion_command_router_set_maintenance_mode(uint8 enabled, uint32 now_ms);

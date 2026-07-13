@@ -13,8 +13,8 @@ static uint32 mock_notify_send_count = 0U;
 
 uint8 intercore_notify_port_init(intercore_role_enum role)
 {
-    (void)role;
-    return 1U;
+    return ((INTERCORE_ROLE_CM7_0 == role) ||
+            (INTERCORE_ROLE_CM7_1 == role)) ? 1U : 0U;
 }
 
 uint8 intercore_notify_port_send(const intercore_doorbell_struct *message)
@@ -221,6 +221,12 @@ static void test_transport_epoch_reinitialization(void)
 
 static void test_nonblocking_notify_state(void)
 {
+    TEST_CHECK(INTERCORE_NOTIFY_CLIENT_ID < 8U);
+    TEST_CHECK(0x28081FF8UL == INTERCORE_NOTIFY_MESSAGE_ADDRESS);
+    TEST_CHECK(INTERCORE_SHARED_BASE_ADDRESS <= INTERCORE_NOTIFY_MESSAGE_ADDRESS);
+    TEST_CHECK((INTERCORE_NOTIFY_MESSAGE_ADDRESS + sizeof(intercore_doorbell_struct)) <=
+               (INTERCORE_SHARED_BASE_ADDRESS + INTERCORE_SHARED_SIZE_BYTES));
+    TEST_CHECK(0U == intercore_notify_init((intercore_role_enum)2));
     mock_notify_send_result = 1U;
     mock_notify_send_count = 0U;
     TEST_CHECK(1U == intercore_notify_init(INTERCORE_ROLE_CM7_1));

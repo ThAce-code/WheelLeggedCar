@@ -14,6 +14,12 @@ static void intercore_notify_port_receive(uint32 *message)
 
 uint8 intercore_notify_port_init(intercore_role_enum role)
 {
+    if((INTERCORE_ROLE_CM7_0 != role) &&
+       (INTERCORE_ROLE_CM7_1 != role))
+    {
+        return 0U;
+    }
+
     cy_stc_ipc_pipe_config_t pipe_config =
     {
         .epIndexForThisCpu = (uint8)((INTERCORE_ROLE_CM7_0 == role) ? 0U : 1U),

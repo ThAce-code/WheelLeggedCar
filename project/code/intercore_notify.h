@@ -3,7 +3,8 @@
 
 #include "intercore_transport.h"
 
-#define INTERCORE_NOTIFY_CLIENT_ID       (0x31UL)
+/* cy_ipc_pipe indexes its callback table directly; this must be < CY_IPC_PIPE_MAX_CLIENTS (8). */
+#define INTERCORE_NOTIFY_CLIENT_ID       (3UL)
 #define INTERCORE_NOTIFY_NAVIGATION      (0x00000001UL)
 #define INTERCORE_NOTIFY_CONTROL_STATUS  (0x00000002UL)
 #define INTERCORE_NOTIFY_HEARTBEAT       (0x00000004UL)
@@ -13,6 +14,10 @@ typedef struct
     uint32 clientId;
     uint32 data;
 }intercore_doorbell_struct;
+
+/* Reserve the final 8 bytes of the documented SRAM1 shared window for the doorbell. */
+#define INTERCORE_NOTIFY_MESSAGE_ADDRESS \
+    (INTERCORE_SHARED_BASE_ADDRESS + INTERCORE_SHARED_SIZE_BYTES - sizeof(intercore_doorbell_struct))
 
 typedef struct
 {

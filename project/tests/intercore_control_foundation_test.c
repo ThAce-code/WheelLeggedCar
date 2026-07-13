@@ -5,11 +5,36 @@
 #include "intercore_transport.h"
 #include "intercore_notify.h"
 #include "intercore_notify_port.h"
+#include "motion_command_router.h"
 
 static uint32 test_failure_count = 0U;
 static intercore_shared_layout_struct shared __attribute__((aligned(32)));
 static uint8 mock_notify_send_result = 0U;
 static uint32 mock_notify_send_count = 0U;
+static float mock_router_last_forward_rpm = 0.0f;
+static float mock_router_last_turn_rate_dps = 0.0f;
+static uint8 mock_router_last_enable = 0U;
+static uint32 mock_router_last_now_ms = 0U;
+static uint32 mock_router_apply_count = 0U;
+static uint32 mock_router_stop_count = 0U;
+
+void motion_command_router_port_apply(float forward_rpm,
+                                      float turn_rate_dps,
+                                      uint8 enable,
+                                      uint32 now_ms)
+{
+    mock_router_last_forward_rpm = forward_rpm;
+    mock_router_last_turn_rate_dps = turn_rate_dps;
+    mock_router_last_enable = enable;
+    mock_router_last_now_ms = now_ms;
+    mock_router_apply_count++;
+}
+
+void motion_command_router_port_stop(uint32 now_ms)
+{
+    mock_router_last_now_ms = now_ms;
+    mock_router_stop_count++;
+}
 
 uint8 intercore_notify_port_init(intercore_role_enum role)
 {
@@ -246,6 +271,88 @@ static void test_nonblocking_notify_state(void)
     TEST_CHECK(0U == intercore_notify_take_pending());
 }
 
+static motion_command_request_struct test_motion_request(float forward_rpm,
+                                                          uint8 source_sequence,
+                                                          uint16 valid_for_ms)
+{
+    motion_command_request_struct request = {0};
+    request.forward_rpm = forward_rpm;
+    request.turn_rate_dps = forward_rpm / 10.0f;
+    request.enable = 1U;
+    request.received_ms = 100U;
+    request.valid_for_ms = valid_for_ms;
+    request.source_sequence = source_sequence;
+    return request;
+}
+
+static void test_motion_router_priority_and_timeout(void)
+{
+    motion_command_request_struct autonomous = {10.0f, 1.0f, 1U, 100U, 200U, 1U};
+    motion_command_request_struct wireless = {20.0f, 2.0f, 2U, 100U, 200U, 1U};
+    motion_command_request_struct uart = {30.0f, 3.0f, 3U, 100U, 500U, 1U};
+
+    motion_command_router_init();
+    mock_router_apply_count = 0U;
+    mock_router_stop_count = 0U;
+    TEST_CHECK(1U == motion_command_router_arm_remote(100U, 0U));
+    TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_AUTONOMOUS, &autonomous));
+    TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &wireless));
+    TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_UART_LOCAL, &uart));
+    motion_command_router_update(101U, 0U);
+    TEST_CHECK(30.0f == mock_router_last_forward_rpm);
+    TEST_CHECK(MOTION_SOURCE_UART_LOCAL ==
+               motion_command_router_get_diag()->active_source);
+    motion_command_router_update(600U, 0U);
+    TEST_CHECK(0U < mock_router_stop_count);
+    TEST_CHECK(MOTION_SOURCE_NONE ==
+               motion_command_router_get_diag()->active_source);
+}
+
+static void test_motion_router_rejects_invalid_and_disarmed_remote(void)
+{
+    motion_command_request_struct request = test_motion_request(12.0f, 1U, 100U);
+    motion_command_router_init();
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &request));
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_AUTONOMOUS, NULL));
+    request.forward_rpm = NAN;
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_UART_LOCAL, &request));
+    request.forward_rpm = 12.0f;
+    request.valid_for_ms = 0U;
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_UART_LOCAL, &request));
+}
+
+static void test_motion_router_maintenance_and_rearm(void)
+{
+    motion_command_request_struct request = test_motion_request(12.0f, 1U, 100U);
+    motion_command_router_init();
+    TEST_CHECK(1U == motion_command_router_arm_remote(100U, 0U));
+    TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &request));
+    TEST_CHECK(1U == motion_command_router_set_maintenance(1U, 101U));
+    TEST_CHECK(0U == motion_command_router_get_diag()->remote_armed);
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &request));
+    TEST_CHECK(1U == motion_command_router_set_maintenance(0U, 102U));
+    motion_command_router_update(103U, 0U);
+    TEST_CHECK(MOTION_SOURCE_NONE == motion_command_router_get_diag()->active_source);
+    TEST_CHECK(0U == motion_command_router_arm_remote(103U, 1U));
+    TEST_CHECK(1U == motion_command_router_arm_remote(103U, 0U));
+}
+
+static void test_motion_router_emergency_and_safety_latches(void)
+{
+    motion_command_request_struct request = test_motion_request(12.0f, 1U, 100U);
+    motion_command_router_init();
+    mock_router_stop_count = 0U;
+    TEST_CHECK(1U == motion_command_router_arm_remote(100U, 0U));
+    TEST_CHECK(1U == motion_command_router_submit(MOTION_SOURCE_WIRELESS_MANUAL, &request));
+    TEST_CHECK(1U == motion_command_router_latch_emergency_stop(101U));
+    TEST_CHECK(0U == motion_command_router_submit(MOTION_SOURCE_UART_LOCAL, &request));
+    TEST_CHECK(1U == motion_command_router_clear_emergency_stop(102U));
+    motion_command_router_update(103U, 1U);
+    TEST_CHECK(MOTION_STOP_SAFETY == motion_command_router_get_diag()->stop_reason);
+    TEST_CHECK(0U == motion_command_router_get_diag()->remote_armed);
+    TEST_CHECK(0U < mock_router_stop_count);
+}
+
 int main(void)
 {
     test_protocol_crc_and_sizes();
@@ -256,6 +363,10 @@ int main(void)
     test_transport_rejects_slot_sequence_mismatch();
     test_transport_epoch_reinitialization();
     test_nonblocking_notify_state();
+    test_motion_router_priority_and_timeout();
+    test_motion_router_rejects_invalid_and_disarmed_remote();
+    test_motion_router_maintenance_and_rearm();
+    test_motion_router_emergency_and_safety_latches();
 
     if(0U != test_failure_count)
     {

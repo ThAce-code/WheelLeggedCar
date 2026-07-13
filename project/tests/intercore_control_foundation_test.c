@@ -2,8 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "intercore_protocol.h"
+#include "intercore_transport.h"
 
 static uint32 test_failure_count = 0U;
+static intercore_shared_layout_struct shared __attribute__((aligned(32)));
 
 #define TEST_CHECK(condition)                                                   \
     do                                                                          \
@@ -80,11 +82,109 @@ static void test_record_rejects_corruption(void)
                                                sizeof(command)));
 }
 
+static navigation_command_struct test_navigation_command(void)
+{
+    navigation_command_struct command = {0};
+
+    command.forward_rpm = 20.0f;
+    command.turn_rate_dps = -5.0f;
+    command.confidence = 0.9f;
+    command.source_sequence = 7U;
+    command.valid_for_ms = 100U;
+    command.enable = 1U;
+    command.source = NAVIGATION_SOURCE_VISION;
+    command.mode = NAVIGATION_MODE_VISION_ASSIST;
+    return command;
+}
+
+static void test_transport_publish_and_consume(void)
+{
+    intercore_transport_struct receiver = {0};
+    intercore_transport_struct sender = {0};
+    navigation_command_struct sent = test_navigation_command();
+    navigation_command_struct received = {0};
+    uint32 record_sequence = 0U;
+
+    memset(&shared, 0, sizeof(shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(INTERCORE_PROTOCOL_MAGIC == shared.metadata.magic);
+    TEST_CHECK(INTERCORE_PROTOCOL_VERSION == shared.metadata.version);
+    TEST_CHECK(1U == shared.metadata.boot_epoch);
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    TEST_CHECK(1U == shared.metadata.cm7_1_ready);
+    TEST_CHECK(1U == intercore_transport_publish_navigation(&sender, &sent, 50U));
+    TEST_CHECK(INTERCORE_TRANSPORT_OK ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(0 == memcmp(&sent, &received, sizeof(sent)));
+    TEST_CHECK(1U == record_sequence);
+    TEST_CHECK(INTERCORE_TRANSPORT_NO_DATA ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+}
+
+static void test_transport_rejects_corruption_and_bad_metadata(void)
+{
+    intercore_transport_struct receiver = {0};
+    intercore_transport_struct sender = {0};
+    navigation_command_struct command = test_navigation_command();
+    navigation_command_struct received = {0};
+    uint32 record_sequence = 0U;
+    uint32 active_index;
+
+    memset(&shared, 0, sizeof(shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    TEST_CHECK(1U == intercore_transport_publish_navigation(&sender, &command, 50U));
+    active_index = shared.metadata.navigation_active_index;
+    shared.navigation[active_index].payload.forward_rpm += 1.0f;
+    TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(1U == shared.health.crc_error_count);
+
+    shared.metadata.navigation_active_index = 2U;
+    TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+
+    shared.metadata.navigation_active_index = active_index;
+    shared.metadata.version = (uint16)(INTERCORE_PROTOCOL_VERSION + 1U);
+    TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(1U == shared.health.version_error_count);
+}
+
+static void test_transport_epoch_reinitialization(void)
+{
+    intercore_transport_struct receiver = {0};
+    intercore_transport_struct sender = {0};
+    navigation_command_struct command = test_navigation_command();
+    navigation_command_struct received = {0};
+    uint32 record_sequence = 0U;
+
+    memset(&shared, 0, sizeof(shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(2U == shared.metadata.boot_epoch);
+    TEST_CHECK(0U == intercore_transport_publish_navigation(&sender, &command, 100U));
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    TEST_CHECK(1U == intercore_transport_publish_navigation(&sender, &command, 100U));
+
+    memset(&shared, 0, sizeof(shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    shared.metadata.boot_epoch = 2U;
+    TEST_CHECK(INTERCORE_TRANSPORT_EPOCH_CHANGED ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(2U == receiver.boot_epoch);
+}
+
 int main(void)
 {
     test_protocol_crc_and_sizes();
     test_navigation_structural_validation();
     test_record_rejects_corruption();
+    test_transport_publish_and_consume();
+    test_transport_rejects_corruption_and_bad_metadata();
+    test_transport_epoch_reinitialization();
 
     if(0U != test_failure_count)
     {

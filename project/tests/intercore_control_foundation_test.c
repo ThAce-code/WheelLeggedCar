@@ -143,12 +143,37 @@ static void test_transport_rejects_corruption_and_bad_metadata(void)
     shared.metadata.navigation_active_index = 2U;
     TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
                intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(0U == shared.health.version_error_count);
 
     shared.metadata.navigation_active_index = active_index;
     shared.metadata.version = (uint16)(INTERCORE_PROTOCOL_VERSION + 1U);
     TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
                intercore_transport_read_navigation(&receiver, &received, &record_sequence));
     TEST_CHECK(1U == shared.health.version_error_count);
+}
+
+static void test_transport_rejects_slot_sequence_mismatch(void)
+{
+    intercore_transport_struct receiver = {0};
+    intercore_transport_struct sender = {0};
+    navigation_command_struct command = test_navigation_command();
+    navigation_command_struct received = {0};
+    uint32 record_sequence = 0U;
+    uint32 active_index;
+
+    memset(&shared, 0, sizeof(shared));
+    TEST_CHECK(1U == intercore_transport_cm7_0_init(&receiver, &shared));
+    TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
+    TEST_CHECK(1U == intercore_transport_publish_navigation(&sender, &command, 50U));
+
+    active_index = shared.metadata.navigation_active_index;
+    shared.metadata.navigation_sequence =
+        shared.navigation[active_index].header.sequence + 1U;
+    TEST_CHECK(INTERCORE_TRANSPORT_INVALID ==
+               intercore_transport_read_navigation(&receiver, &received, &record_sequence));
+    TEST_CHECK(0U == shared.health.crc_error_count);
+    TEST_CHECK(0U == shared.health.version_error_count);
+    TEST_CHECK(0U == shared.health.cm7_0_consume_count);
 }
 
 static void test_transport_epoch_reinitialization(void)
@@ -184,6 +209,7 @@ int main(void)
     test_record_rejects_corruption();
     test_transport_publish_and_consume();
     test_transport_rejects_corruption_and_bad_metadata();
+    test_transport_rejects_slot_sequence_mismatch();
     test_transport_epoch_reinitialization();
 
     if(0U != test_failure_count)

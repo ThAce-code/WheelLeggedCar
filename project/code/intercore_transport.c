@@ -191,7 +191,6 @@ intercore_transport_result_enum intercore_transport_read_navigation(
     sequence_before = transport->shared->metadata.navigation_sequence;
     if(1U < active_before)
     {
-        transport->shared->health.version_error_count++;
         return INTERCORE_TRANSPORT_INVALID;
     }
     if((0U == sequence_before) ||
@@ -209,6 +208,11 @@ intercore_transport_result_enum intercore_transport_read_navigation(
     if((active_before != active_after) || (sequence_before != sequence_after))
     {
         return INTERCORE_TRANSPORT_NO_DATA;
+    }
+
+    if(local_slot.header.sequence != sequence_before)
+    {
+        return INTERCORE_TRANSPORT_INVALID;
     }
 
     if((INTERCORE_PROTOCOL_MAGIC != local_slot.header.magic) ||

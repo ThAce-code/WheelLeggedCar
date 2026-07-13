@@ -111,8 +111,12 @@ define symbol _base_SRAM_CM0P                   = sram_base_address + sram_priva
 define symbol _size_SRAM_CM0P                   = cm0plus_sram_reserve - sram_private_for_srom;
 define symbol _base_SRAM_CM7_0                  = sram_base_address + cm0plus_sram_reserve;
 define symbol _size_SRAM_CM7_0                  = cm7_0_sram_reserve;
-define symbol _base_SRAM_CM7_1                  = sram_base_address + cm0plus_sram_reserve + cm7_0_sram_reserve + 8K;
-define symbol _size_SRAM_CM7_1                  = sram_total_size_user - cm0plus_sram_reserve - cm7_0_sram_reserve - 8K;
+define symbol intercore_shared_sram_size        = 8K;
+define symbol _base_SRAM_CM7_SHARED             = sram_base_address + cm0plus_sram_reserve + cm7_0_sram_reserve;
+define symbol _base_SRAM_CM7_1                  = _base_SRAM_CM7_SHARED + intercore_shared_sram_size;
+define symbol _size_SRAM_CM7_1                  = sram_total_size_user - cm0plus_sram_reserve - cm7_0_sram_reserve - intercore_shared_sram_size;
+define exported symbol __intercore_shared_sram_base = _base_SRAM_CM7_SHARED;
+define exported symbol __intercore_shared_sram_size = intercore_shared_sram_size;
 
 // Code flash reservations
 define symbol _base_CODE_FLASH_CM0P             = code_flash_base_address;

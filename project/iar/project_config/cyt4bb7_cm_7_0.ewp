@@ -1276,6 +1276,23 @@
         </file>
     </group>
     <group>
+        <name>intercore</name>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.h</name></file>
+    </group>
+    <group>
         <name>doc</name>
         <file>
             <name>$PROJ_DIR$\..\..\..\libraries\doc\GPL3_permission_statement.txt</name>

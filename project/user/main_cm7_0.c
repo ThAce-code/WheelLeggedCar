@@ -37,6 +37,7 @@
 #include "zf_common_headfile.h"
 #include "app.h"
 #include "app_config.h"
+#include "intercore_memory.h"
 
 static void led_blink_error_code(uint8 code)
 {
@@ -66,6 +67,11 @@ int main(void)
 
     // P19.0 板载LED, 低电平有效, 初始高电平=灭
     gpio_init(P19_0, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+
+    if(1U != intercore_memory_configure())
+    {
+        led_blink_error_code(4U);
+    }
 
     app_result = app_init();
     if(0U != app_result)

@@ -1116,21 +1116,6 @@
     <group>
         <name>code</name>
         <group>
-            <name>intercore_notify</name>
-            <file>
-                <name>$PROJ_DIR$\..\..\code\intercore_notify.c</name>
-            </file>
-            <file>
-                <name>$PROJ_DIR$\..\..\code\intercore_notify.h</name>
-            </file>
-            <file>
-                <name>$PROJ_DIR$\..\..\code\intercore_notify_port.c</name>
-            </file>
-            <file>
-                <name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name>
-            </file>
-        </group>
-        <group>
             <name>app</name>
             <file>
                 <name>$PROJ_DIR$\..\..\code\app.c</name>

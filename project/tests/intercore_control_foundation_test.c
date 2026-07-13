@@ -3,9 +3,26 @@
 #include <string.h>
 #include "intercore_protocol.h"
 #include "intercore_transport.h"
+#include "intercore_notify.h"
+#include "intercore_notify_port.h"
 
 static uint32 test_failure_count = 0U;
 static intercore_shared_layout_struct shared __attribute__((aligned(32)));
+static uint8 mock_notify_send_result = 0U;
+static uint32 mock_notify_send_count = 0U;
+
+uint8 intercore_notify_port_init(intercore_role_enum role)
+{
+    (void)role;
+    return 1U;
+}
+
+uint8 intercore_notify_port_send(const intercore_doorbell_struct *message)
+{
+    (void)message;
+    mock_notify_send_count++;
+    return mock_notify_send_result;
+}
 
 #define TEST_CHECK(condition)                                                   \
     do                                                                          \
@@ -202,6 +219,27 @@ static void test_transport_epoch_reinitialization(void)
     TEST_CHECK(2U == receiver.boot_epoch);
 }
 
+static void test_nonblocking_notify_state(void)
+{
+    mock_notify_send_result = 1U;
+    mock_notify_send_count = 0U;
+    TEST_CHECK(1U == intercore_notify_init(INTERCORE_ROLE_CM7_1));
+    TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_NAVIGATION));
+    TEST_CHECK(1U == mock_notify_send_count);
+    TEST_CHECK(0U == intercore_notify_try(INTERCORE_NOTIFY_HEARTBEAT));
+    TEST_CHECK(1U == mock_notify_send_count);
+    intercore_notify_release_callback();
+    TEST_CHECK(1U == intercore_notify_try(INTERCORE_NOTIFY_HEARTBEAT));
+    intercore_notify_release_callback();
+    mock_notify_send_result = 0U;
+    TEST_CHECK(0U == intercore_notify_try(INTERCORE_NOTIFY_CONTROL_STATUS));
+    TEST_CHECK(0U == intercore_notify_get_diag()->in_flight);
+    TEST_CHECK(2U == intercore_notify_get_diag()->busy_count);
+    intercore_notify_receive_callback(INTERCORE_NOTIFY_NAVIGATION);
+    TEST_CHECK(INTERCORE_NOTIFY_NAVIGATION == intercore_notify_take_pending());
+    TEST_CHECK(0U == intercore_notify_take_pending());
+}
+
 int main(void)
 {
     test_protocol_crc_and_sizes();
@@ -211,6 +249,7 @@ int main(void)
     test_transport_rejects_corruption_and_bad_metadata();
     test_transport_rejects_slot_sequence_mismatch();
     test_transport_epoch_reinitialization();
+    test_nonblocking_notify_state();
 
     if(0U != test_failure_count)
     {

@@ -78,9 +78,9 @@ Keep wheel power disabled. Place the legs in the validated all-90-degree referen
 
 - [ ] **Step 3: Build the original reference without source edits**
 
-Open the E9_01 IAR workspace with IAR 9.40.1 and build its CM0+, CM7_0, and CM7_1 projects. Record warnings/errors and generated map paths.
+Open the E9_01 IAR workspace with IAR 9.40.1 and build both supplied projects: CM7_0 and CM7_1. Record warnings/errors and generated map paths.
 
-Expected: all three reference projects build. If not, set Gate A to `FAIL` and stop.
+Expected: both supplied reference projects build. The E9_01 workspace does not supply a CM0+ project. If either supplied project fails, set Gate A to `FAIL` and stop.
 
 - [ ] **Step 4: Run the debug-UART Assistant display for 60 seconds**
 

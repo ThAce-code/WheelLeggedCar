@@ -212,3 +212,10 @@ Task 2 source ownership, transport integration, host/static regressions, fresh I
 | Hardware disposition after review | `FAIL` / `NOT RUN` | Hardware was not rerun. Gate 1 remains `FAIL`: initialization succeeded but no finish event/completed frame appeared in 118.600 seconds. Gate 2 remains `NOT RUN` by the zero-frame rule. No root cause or cross-core runtime acceptance is claimed. |
 
 Review-fix disposition remains `DONE_WITH_CONCERNS`.
+
+#### Final P2 attach-classification correction
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Camera magic classification RED/GREEN | PASS | The host regression first failed because a nonzero incorrect camera magic returned not-ready without incrementing `invalid_layout_count`. After the minimal fix, `magic == 0` remains a silent startup retry, nonzero incorrect magic increments the invalid counter and fails, and correct magic with producer-epoch mismatch remains a silent not-ready retry. |
+| Focused regression and build | PASS | Camera host/static, foundation host, and `git diff --check` passed. Incremental IAR builds passed for CM7_0 with 0 errors/3 unchanged pre-existing `Pe550` warnings and CM7_1 with 0 errors/0 warnings. No hardware was run; Gate 1 remains `FAIL` and Gate 2 remains `NOT RUN`. |

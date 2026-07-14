@@ -324,13 +324,19 @@ static void test_invalid_layout_fields_are_rejected(void)
     }
 }
 
-static void test_consumer_attach_not_ready_is_a_silent_retry(void)
+static void test_consumer_attach_classifies_startup_and_bad_magic(void)
 {
     fixture_init();
     shared.camera.magic = 0U;
     TEST_CHECK(0U == intercore_camera_consumer_attach(
                          &consumer, &shared, camera_data, 1U));
     TEST_CHECK(0U == shared.camera.invalid_layout_count);
+
+    fixture_init();
+    shared.camera.magic = INTERCORE_CAMERA_MAGIC ^ 1U;
+    TEST_CHECK(0U == intercore_camera_consumer_attach(
+                         &consumer, &shared, camera_data, 1U));
+    TEST_CHECK(1U == shared.camera.invalid_layout_count);
 
     fixture_init();
     shared.camera.producer_boot_epoch = 0U;
@@ -400,7 +406,7 @@ int main(void)
     test_epoch_change_is_rejected();
     test_consumer_restart_releases_only_stale_reading();
     test_invalid_layout_fields_are_rejected();
-    test_consumer_attach_not_ready_is_a_silent_retry();
+    test_consumer_attach_classifies_startup_and_bad_magic();
     test_invalid_slot_state_rejects_every_public_transition();
 
     if(0U != test_failure_count)

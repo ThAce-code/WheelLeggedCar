@@ -185,8 +185,13 @@ uint8 intercore_camera_consumer_attach(intercore_camera_transport_struct *transp
     {
         return 0U;
     }
+    if(0U == shared->camera.magic)
+    {
+        return 0U;
+    }
     if(INTERCORE_CAMERA_MAGIC != shared->camera.magic)
     {
+        shared->camera.invalid_layout_count++;
         return 0U;
     }
     INTERCORE_CAMERA_DMB();

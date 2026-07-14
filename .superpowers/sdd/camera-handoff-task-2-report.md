@@ -62,3 +62,17 @@ Wheel motor power was operator-confirmed OFF. Camera wiring and the servo all-90
 ## Disposition
 
 Static ownership, host behavior, IAR builds, and map ownership are complete and passing. Hardware capture acceptance is not met, and cross-core runtime acceptance remains unproven because Gate 2 was correctly stopped. Final status is `DONE_WITH_CONCERNS`.
+
+## Independent review fixes
+
+The Task 2 review fixes were implemented with new RED/GREEN host and static coverage:
+
+- Frame age now snapshots `producer_heartbeat_ms` and compares it with `capture_ms` in the CM7_0 clock domain. The helper clamps a producer timestamp that has not yet caught up to capture to zero instead of unsigned-underflowing, while preserving normal 32-bit wrap (`0xFFFFFFF0` to `16` is 32 ms). CM7_0 refreshes the producer heartbeat to the capture timestamp immediately before publishing `READY`.
+- A public producer abort safely returns a claimed slot to `FREE` only while the transport remains the attached CM7_0 producer, metadata and camera-control epochs still match that transport, and the slot remains `WRITING`. Host tests cover same-epoch invalid-layout recovery, non-`WRITING` rejection, and an old epoch failing publish/abort without modifying a newly claimed `WRITING` slot.
+- Consumer attach treats an unpublished camera magic or a producer epoch that has not caught up as normal `NOT_READY` retry state without increasing `invalid_layout_count`. Once magic and epoch are published, invalid version, format, dimensions, stride, slot count, frame size, or slot state still increments the invalid counter.
+- Release-at-time validates the matching `READING` state and sequence before refreshing the consumer heartbeat. A time-advance test records the actual release tick, while a mismatched view leaves heartbeat, consume count, and consume time unchanged.
+- The static test strips C comments and enforces the producer service order `Disable TCPWM59 -> exact memcpy -> producer-clock catch-up -> publish -> Enable TCPWM59 -> conditional abort`. It also rejects cross-domain consumer age subtraction and requires release with a fresh consumer tick.
+
+The complete host/static regression set passed after these changes. A new clean IAR 9.40.1 build also passed: CM0+ 0 errors/0 warnings, CM7_0 0 errors/3 pre-existing `Pe550` warnings, and CM7_1 0 errors/0 warnings. Fresh map timestamps were local `03:33:55.894`, `03:35:20.443`, and `03:36:32.519`. Ownership and memory ranges remained unchanged: CM7_0 owns the MT9V03X driver/producer/fixed objects, CM7_1 owns only the no-WiFi consumer and has no camera-driver, WiFi, or Assistant symbols, and the `0x28060000`/`0x10000` camera plus `0x28080000`/`0x2000` control reservations do not overlap ordinary placement.
+
+No hardware test was rerun for the review fixes. The evidence-supported hardware disposition therefore remains unchanged: Gate 1 `FAIL` after 118.600 seconds with initialization success but zero finish events/completed frames, and Gate 2 `NOT RUN` by rule. Status remains `DONE_WITH_CONCERNS`.

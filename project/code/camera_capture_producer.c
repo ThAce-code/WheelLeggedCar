@@ -111,12 +111,19 @@ void camera_capture_producer_service(void)
                 copy_start_us = timer_get(TC_TIME2_CH0);
                 Cy_SysInt_DisableIRQ(tcpwm_0_interrupts_59_IRQn);
                 memcpy((void *)slot_pixels, mt9v03x_image[0], MT9V03X_IMAGE_SIZE);
+                camera_transport.control->producer_heartbeat_ms = now_ms;
                 publish_ok = intercore_camera_producer_publish(&camera_transport,
                                                                slot_index,
                                                                now_ms,
                                                                app_get_ms());
                 copy_duration_us = timer_get(TC_TIME2_CH0) - copy_start_us;
                 Cy_SysInt_EnableIRQ(tcpwm_0_interrupts_59_IRQn);
+                if(0U == publish_ok)
+                {
+                    (void)intercore_camera_producer_abort(&camera_transport,
+                                                          slot_index);
+                    producer_diag.invalid_count++;
+                }
 
                 producer_diag.last_copy_duration_us = copy_duration_us;
                 producer_diag.max_copy_duration_us =
@@ -135,10 +142,6 @@ void camera_capture_producer_service(void)
                     {
                         camera_transport.control->notify_count++;
                     }
-                }
-                else
-                {
-                    producer_diag.invalid_count++;
                 }
             }
             else if(INTERCORE_CAMERA_NO_FREE_SLOT == result)

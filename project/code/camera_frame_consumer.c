@@ -81,6 +81,7 @@ void camera_frame_consumer_service(void)
 {
     uint8 release_ok;
     uint32 now_ms;
+    uint32 producer_now_ms;
     intercore_camera_frame_view_struct view;
     intercore_camera_result_enum result;
 
@@ -116,7 +117,9 @@ void camera_frame_consumer_service(void)
 
     consumer_diag.last_sequence = view.sequence;
     consumer_diag.last_capture_ms = view.capture_ms;
-    consumer_diag.last_frame_age_ms = now_ms - view.capture_ms;
+    producer_now_ms = camera_transport.control->producer_heartbeat_ms;
+    consumer_diag.last_frame_age_ms =
+        intercore_camera_frame_age_ms(producer_now_ms, view.capture_ms);
     consumer_diag.acquired_count++;
     if(APP_CAMERA_STALE_TIMEOUT_MS < consumer_diag.last_frame_age_ms)
     {
@@ -131,7 +134,10 @@ void camera_frame_consumer_service(void)
         consumer_diag.frame_valid = 1U;
     }
 
-    release_ok = intercore_camera_consumer_release(&camera_transport, &view);
+    release_ok = intercore_camera_consumer_release_at(
+                     &camera_transport,
+                     &view,
+                     camera_frame_consumer_now_ms());
     if(0U != release_ok)
     {
         consumer_diag.released_count++;

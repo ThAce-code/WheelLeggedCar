@@ -197,3 +197,18 @@ authoritative camera library remained unchanged.
 ### Task 2 disposition
 
 Task 2 source ownership, transport integration, host/static regressions, fresh IAR builds, and map ownership checks pass. Hardware Gate 1 fails because no CM7_0 frame completes in the integrated robot image despite successful camera initialization. Per the approved gate, Gate 2 was not run. The implementation is recorded as `DONE_WITH_CONCERNS`; integrated cross-core runtime acceptance remains unproven.
+
+### Task 2 independent-review correction evidence
+
+| Review item | Status | Evidence / observation |
+| --- | --- | --- |
+| Single-domain frame age | PASS | Consumer age now uses a snapshot of CM7_0 `producer_heartbeat_ms` against CM7_0 `capture_ms`, not CM7_1 `consumer_ms`. Host cases prove 150 ms normal age, no unsigned underflow when the producer timestamp is briefly behind capture, and a correct 32 ms age across 32-bit wrap. The producer heartbeat is refreshed to the capture timestamp immediately before the slot is published `READY`. |
+| Failed-publish rollback | PASS | The public abort frees only an attached CM7_0 transport's still-`WRITING` slot when both metadata and camera-control producer epochs match the transport. Tests prove same-epoch invalid-layout failure recovery, non-`WRITING` rejection, and that an old epoch's failed publish/abort cannot alter a new producer's `WRITING` slot. The producer restores TCPWM59 before conditional abort and invalid accounting. |
+| Attach startup competition | PASS | Unpublished camera magic and a producer epoch not yet matching the current boot epoch return not-ready without increasing `invalid_layout_count`. After magic and epoch match, invalid version, format, width, height, stride, slot count, frame bytes, and slot state remain hard invalid cases and each increments the counter. |
+| Release-time accounting | PASS | Release-at-time validates the matching `READING` state/sequence, refreshes the consumer heartbeat with the current consumer tick immediately before release, and records that tick as `last_consume_ms`. A simulated time advance records 475 ms instead of the earlier 100 ms; a mismatched view leaves heartbeat and accounting unchanged. |
+| Strengthened static contract | PASS | The PowerShell test strips C comments, constrains the ordered producer service path `Disable -> memcpy -> heartbeat catch-up -> publish -> Enable -> conditional abort`, rejects cross-domain subtraction, and requires a fresh tick at release. |
+| Full software regression | PASS | Camera static, camera host, inter-core foundation host, CM7 UART ownership, IMU numeric, servo 300 Hz, leg IK zero, IK height, and `git diff --check` all passed. |
+| Fresh three-core review-fix build | PASS | IAR 9.40.1 clean/build: CM0+ 0 errors/0 warnings; CM7_0 0 errors/3 unchanged pre-existing `Pe550` warnings; CM7_1 0 errors/0 warnings. Fresh map timestamps were local `03:33:55.894`, `03:35:20.443`, and `03:36:32.519`. CM7_0 still contains the producer, MT9V03X driver/callback/init/fixed objects; CM7_1 contains the consumer and no MT9V03X implementation, WiFi, or Assistant symbols. Camera/control reservations remain `0x28060000`/`0x10000` and `0x28080000`/`0x2000`, with no ordinary-placement overlap. |
+| Hardware disposition after review | `FAIL` / `NOT RUN` | Hardware was not rerun. Gate 1 remains `FAIL`: initialization succeeded but no finish event/completed frame appeared in 118.600 seconds. Gate 2 remains `NOT RUN` by the zero-frame rule. No root cause or cross-core runtime acceptance is claimed. |
+
+Review-fix disposition remains `DONE_WITH_CONCERNS`.

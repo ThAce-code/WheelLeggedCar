@@ -62,10 +62,17 @@ uint8 intercore_camera_producer_publish(intercore_camera_transport_struct *trans
                                         uint8 slot_index,
                                         uint32 capture_ms,
                                         uint32 publish_ms);
+uint8 intercore_camera_producer_abort(intercore_camera_transport_struct *transport,
+                                      uint8 slot_index);
 intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
     intercore_camera_transport_struct *transport,
     intercore_camera_frame_view_struct *view);
 uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *transport,
                                         const intercore_camera_frame_view_struct *view);
+uint8 intercore_camera_consumer_release_at(
+    intercore_camera_transport_struct *transport,
+    const intercore_camera_frame_view_struct *view,
+    uint32 consumer_ms);
+uint32 intercore_camera_frame_age_ms(uint32 producer_ms, uint32 capture_ms);
 
 #endif

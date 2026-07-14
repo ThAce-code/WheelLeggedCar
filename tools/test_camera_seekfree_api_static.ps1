@@ -52,6 +52,16 @@ function Assert-NoMatch([string]$text, [string]$pattern, [string]$message)
     }
 }
 
+function Remove-CComments([string]$text)
+{
+    if ($null -eq $text)
+    {
+        return $null
+    }
+
+    return [Regex]::Replace($text, '(?s)/\*.*?\*/|//[^\r\n]*', '')
+}
+
 Assert-Hash 'libraries\zf_device\zf_device_mt9v03x.c' '33C9B8C1D5641CB48933B4E6796788BB247C813909B4A3F16D963A6B40D7E7E0'
 Assert-Hash 'libraries\zf_device\zf_device_mt9v03x.h' '0C489FABA1851C861E33B44E222D7D72B331EEC851B09F93DC694A20FA17DED2'
 Assert-Hash 'libraries\zf_components\seekfree_assistant.c' '6C6BABD379FAFCCBB64F4DE27A8E837EC3C73EF4E7ECD169656CF80B0C13A28B'
@@ -173,18 +183,22 @@ Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_ENABLE\s+\(\s
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_DISPLAY_PERIOD_MS\s+\(\s*100U\s*\)' 'camera snapshot period is not 100 ms'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_STALE_TIMEOUT_MS\s+\(\s*200U\s*\)' 'camera stale timeout is not 200 ms'
 
-$cameraProducer = Read-RepoFile 'project\code\camera_capture_producer.c'
+$cameraProducer = Remove-CComments (Read-RepoFile 'project\code\camera_capture_producer.c')
 Assert-Match $cameraProducer 'Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not disable only the TCPWM59 system interrupt source'
 Assert-Match $cameraProducer 'Cy_SysInt_EnableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not re-enable the TCPWM59 system interrupt source'
 Assert-Match $cameraProducer 'memcpy\s*\(\s*\(\s*void\s*\*\s*\)\s*slot_pixels\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)' 'camera producer does not copy exactly MT9V03X_IMAGE_SIZE bytes into the claimed slot'
+Assert-Match $cameraProducer '(?s)camera_capture_producer_service\s*\([^)]*\)\s*\{.*?Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)\s*;.*?memcpy\s*\(\s*\(\s*void\s*\*\s*\)\s*slot_pixels\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)\s*;\s*camera_transport\.control->producer_heartbeat_ms\s*=\s*now_ms\s*;\s*publish_ok\s*=\s*intercore_camera_producer_publish\s*\(.*?\)\s*;.*?Cy_SysInt_EnableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)\s*;.*?if\s*\(\s*0U\s*==\s*publish_ok\s*\).*?intercore_camera_producer_abort\s*\(\s*&camera_transport\s*,\s*slot_index\s*\)' 'producer critical path is not ordered Disable -> memcpy -> producer clock catch-up -> publish -> Enable -> conditional abort'
 Assert-Match $cameraProducer 'APP_CAMERA_DISPLAY_PERIOD_MS\s*<=\s*\(\s*now_ms\s*-\s*producer_diag\.last_publish_ms\s*\)' 'camera producer does not enforce the 100 ms latest-frame publication period'
 Assert-NoMatch $cameraProducer '(?i)\bNVIC_DisableIRQ\s*\(\s*CPUIntIdx3_IRQn\s*\)|\b(?:__disable_irq|Cy_SysLib_EnterCriticalSection)\s*\(' 'camera producer masks the aggregate CPU IRQ or globally disables interrupts'
 Assert-NoMatch $cameraProducer '(?i)\b(?:Cy_TCPWM_ClearInterrupt|Cy_TCPWM_Counter_ClearInterrupt|NVIC_ClearPendingIRQ)\s*\(' 'camera producer clears pending camera or aggregate interrupt state'
 Assert-NoMatch $cameraProducer '(?i)\b(?:wifi_spi_|seekfree_assistant_)\w*\s*\(' 'WiFi or Assistant work is reachable from the CM7_0 producer'
 
-$cameraConsumer = Read-RepoFile 'project\code\camera_frame_consumer.c'
+$cameraConsumer = Remove-CComments (Read-RepoFile 'project\code\camera_frame_consumer.c')
 Assert-NoMatch $cameraConsumer '(?i)\b(?:mt9v03x_init|mt9v03x_finish_flag|memcpy|wifi_spi_|seekfree_assistant_)\w*\s*\(' 'camera init/driver flag, copying, WiFi, or Assistant work is reachable from the no-WiFi consumer'
 Assert-NoMatch $cameraConsumer '(?i)\bmt9v03x_finish_flag\b' 'camera driver finish flag is referenced by the no-WiFi consumer'
+Assert-Match $cameraConsumer '(?s)producer_now_ms\s*=\s*camera_transport\.control->producer_heartbeat_ms\s*;.*?consumer_diag\.last_frame_age_ms\s*=\s*intercore_camera_frame_age_ms\s*\(\s*producer_now_ms\s*,\s*view\.capture_ms\s*\)' 'consumer frame age is not calculated from a snapshot of the CM7_0 producer clock domain'
+Assert-NoMatch $cameraConsumer '\bnow_ms\s*-\s*view\.capture_ms\b' 'consumer subtracts producer capture time from the unrelated CM7_1 clock domain'
+Assert-Match $cameraConsumer 'intercore_camera_consumer_release_at\s*\(\s*&camera_transport\s*,\s*&view\s*,\s*camera_frame_consumer_now_ms\s*\(\s*\)\s*\)' 'consumer does not refresh the heartbeat with the current tick immediately at release'
 
 $actuatorMotor = Read-RepoFile 'project\code\actuator_motor.c'
 Assert-Match $actuatorMotor '(?s)static\s+void\s+actuator_motor_send_duty\s*\(\s*int16\s+left_duty\s*,\s*int16\s+right_duty\s*\)\s*\{\s*#if\s+APP_CAMERA_DEBUG_ONLY\s+left_duty\s*=\s*0\s*;\s*right_duty\s*=\s*0\s*;\s*#endif.*?bldc_foc_uart_set_duty\s*\(\s*left_duty\s*,\s*right_duty\s*\)' 'actuator_motor_send_duty does not clamp both duties to zero before the BLDC choke point'

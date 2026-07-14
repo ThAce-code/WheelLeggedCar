@@ -185,6 +185,15 @@ uint8 intercore_camera_consumer_attach(intercore_camera_transport_struct *transp
     {
         return 0U;
     }
+    if(INTERCORE_CAMERA_MAGIC != shared->camera.magic)
+    {
+        return 0U;
+    }
+    INTERCORE_CAMERA_DMB();
+    if(boot_epoch != shared->camera.producer_boot_epoch)
+    {
+        return 0U;
+    }
     if(0U == intercore_camera_control_is_valid(&shared->camera, boot_epoch))
     {
         shared->camera.invalid_layout_count++;
@@ -291,6 +300,34 @@ uint8 intercore_camera_producer_publish(intercore_camera_transport_struct *trans
     return 1U;
 }
 
+uint8 intercore_camera_producer_abort(intercore_camera_transport_struct *transport,
+                                      uint8 slot_index)
+{
+    volatile intercore_camera_control_struct *control;
+
+    if((NULL == transport) ||
+       (0U == transport->attached) ||
+       ((uint8)INTERCORE_ROLE_CM7_0 != transport->role) ||
+       (INTERCORE_CAMERA_SLOT_COUNT <= slot_index) ||
+       (0U == intercore_camera_pointer_is_valid(transport->shared)) ||
+       (0U == intercore_camera_pointer_is_valid(transport->control)))
+    {
+        return 0U;
+    }
+    control = transport->control;
+    if((transport->boot_epoch != transport->shared->metadata.boot_epoch) ||
+       (transport->boot_epoch != control->producer_boot_epoch) ||
+       (INTERCORE_CAMERA_SLOT_WRITING != control->slot[slot_index].state))
+    {
+        return 0U;
+    }
+
+    INTERCORE_CAMERA_DMB();
+    control->slot[slot_index].state = INTERCORE_CAMERA_SLOT_FREE;
+    INTERCORE_CAMERA_DMB();
+    return 1U;
+}
+
 intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
     intercore_camera_transport_struct *transport,
     intercore_camera_frame_view_struct *view)
@@ -355,8 +392,11 @@ intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
     return INTERCORE_CAMERA_OK;
 }
 
-uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *transport,
-                                        const intercore_camera_frame_view_struct *view)
+static uint8 intercore_camera_consumer_release_internal(
+    intercore_camera_transport_struct *transport,
+    const intercore_camera_frame_view_struct *view,
+    uint8 update_heartbeat,
+    uint32 consumer_ms)
 {
     volatile intercore_camera_control_struct *control;
 
@@ -374,6 +414,10 @@ uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *trans
         return 0U;
     }
 
+    if(0U != update_heartbeat)
+    {
+        control->consumer_heartbeat_ms = consumer_ms;
+    }
     INTERCORE_CAMERA_DMB();
     control->slot[view->slot_index].state = INTERCORE_CAMERA_SLOT_FREE;
     INTERCORE_CAMERA_DMB();
@@ -381,4 +425,29 @@ uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *trans
     control->last_consume_ms = control->consumer_heartbeat_ms;
     transport->last_consumed_sequence = view->sequence;
     return 1U;
+}
+
+uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *transport,
+                                        const intercore_camera_frame_view_struct *view)
+{
+    return intercore_camera_consumer_release_internal(transport, view, 0U, 0U);
+}
+
+uint8 intercore_camera_consumer_release_at(
+    intercore_camera_transport_struct *transport,
+    const intercore_camera_frame_view_struct *view,
+    uint32 consumer_ms)
+{
+    return intercore_camera_consumer_release_internal(transport,
+                                                      view,
+                                                      1U,
+                                                      consumer_ms);
+}
+
+uint32 intercore_camera_frame_age_ms(uint32 producer_ms, uint32 capture_ms)
+{
+    uint32 age_ms;
+
+    age_ms = producer_ms - capture_ms;
+    return (0x7FFFFFFFUL < age_ms) ? 0U : age_ms;
 }

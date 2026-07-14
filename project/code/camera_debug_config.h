@@ -7,7 +7,7 @@
 #define _camera_debug_config_h_
 
 #ifndef APP_CAMERA_WIFI_ENABLE
-#define APP_CAMERA_WIFI_ENABLE          (0U)
+#define APP_CAMERA_WIFI_ENABLE          (1U)
 #endif
 
 #define APP_CAMERA_DISPLAY_PERIOD_MS    (100U)

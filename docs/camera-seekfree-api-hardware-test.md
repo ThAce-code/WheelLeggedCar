@@ -247,3 +247,48 @@ This section supersedes the earlier Task 2 `FAIL`/`NOT RUN` hardware disposition
 | GPLv3 source record | PASS | `libraries/doc/GPL-3.0.txt` is the byte-identical 35,821-byte copy of `D:\smartcar\CYT4BB7_Library\LICENSE`; SHA-256 is `0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B`. The artifact provenance limits the `.ewx` to current local research and records the source/written-offer/authorization plus project-owner gate before push or external distribution without assigning a whole-repository license. |
 | Approved ABI documents | PASS | The handoff design and implementation plan now state camera-control version 2, mirror fields with a 72-byte trailing reserve, offsets 172/176, and successful-release-only data → DMB → sequence → DMB publication. |
 | Hardware scope | NOT RERUN | This review correction changed static validation, licensing/provenance documentation, and approved design/plan text only. The prior formal Gate 1/Gate 2 hardware evidence remains unchanged; Task 3 was not entered. |
+
+## Task 3 CM7_1 WiFi-SPI display and control-regression evidence
+
+This section records the Task 3 run performed with wheel motor power removed, the camera wiring confirmed, and the robot held at the all-90-degree safe reference. No motion, wheel, servo, or `LXY` command was issued.
+
+### Software, build, and ownership evidence
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Task 3 static RED/GREEN | PASS | The new contract first failed on exactly ten absent Task 3 requirements. After implementation it passes with WiFi enabled only on CM7_1, explicit TCP connect, two fixed-slot Assistant camera objects, send-before-release ordering, a 5 s retry gate, no direct application buffer-I/O call, and no CM7_0/ISR WiFi or Assistant call. |
+| Vision boundary | PASS | Each acquired inter-core view is exposed as `camera_vision_frame_view_struct`. This task deliberately records process duration as 0 us and publishes no navigation or motion command. |
+| Host and existing regressions | PASS | Camera handoff and inter-core foundation host tests, capture-service/camera/UART static checks, IMU gyro numeric, servo 300 Hz, leg IK zero, IK height, and `git diff --check` all passed. |
+| Fresh three-core IAR build | PASS | IAR 9.40.1 clean/build: CM0+ 0 errors/0 warnings; CM7_0 0 errors/3 unchanged pre-existing `Pe550` warnings; CM7_1 0 errors/0 warnings. |
+| Map ownership | PASS | CM7_0 retains the MT9V03X producer/driver/callback/fixed objects. CM7_1 owns the frame consumer plus WiFi/Assistant implementation and contains no MT9V03X implementation. Camera data remains at `0x28060000` size `0x10000`, shared control at `0x28080000` size `0x2000`, and ordinary placement does not overlap either reservation. |
+
+### Hardware Gate 3 - cross-core WiFi display
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Formal observation window | PASS | Local `2026-07-14 07:04:41.520 -07:00` to `07:08:37.712 -07:00`, 236.192 seconds. |
+| Capture and handoff progress | PASS | Captured sequence advanced `16161 -> 32842`; latest sequence `16160 -> 32841`; published `3155 -> 6451` (+3296); consumed `3154 -> 6450` (+3296); notify count `3155 -> 6451` (+3296). Producer/consumer lag remained one frame and both slots ended `FREE`. |
+| Drop/error accounting | PASS | `no_free_drop_count=195` and `stale_ready_drop_count=1` were stable through the window; invalid count remained 0 and timeout count remained 1. No counter grew during the formal window. |
+| Frame freshness and vision boundary | PASS | Consumer sequence advanced `16160 -> 32841`, age remained 0 ms, valid remained 1, both sampled pixels changed, and process last/max remained 0/0 us as designed. |
+| Copy/send duration | PASS WITH OBSERVATION | Copy start last/max was 82/94 us and end was 78/95 us, below the 1 ms source-mask limit. Send last/max was 19/210 ms throughout this formal window. |
+| Network and display | PASS | TCP remained `Established`; hotspot RX increased by 46,539,623 bytes and TX by 389,544 bytes. Seekfree Assistant displayed changing 188 x 120 grayscale frames at approximately 9-10 FPS and about 225 kB/s. After the final single-F5 resume check it showed 11 FPS and 229,048 B/s with consecutive screenshot hashes changing. |
+| Honest send semantics | PASS | `seekfree_assistant_camera_send()` returns `void`; therefore `sent_count` means only that a non-stale frame was acquired and the synchronous send call returned before release. It is not an ACK or remote-delivery result. Matching consumed progress, zero new stale/timeout errors, established TCP, interface traffic, and changing Assistant imagery provide independent end-to-end evidence. |
+
+### Camera-disabled versus streaming control regression
+
+| Metric | Camera-disabled baseline | Streaming window | Result |
+| --- | --- | --- | --- |
+| Host observation duration | 247.870 s (`07:34:26.576` to `07:38:34.446 -07:00`) | 240.993 s (`07:53:21.497` to `07:57:22.490 -07:00`) | PASS, both exceed 60 s |
+| Scheduler missed ticks / max gap | 0 / 1 ms | 0 / 1 ms | PASS |
+| Servo cadence | 73,740 updates / 245,756 ms = 300.054 Hz | 71,679 updates / 238,886 ms = 300.055 Hz | PASS, difference about 0.0003% and both within 1% of 300 Hz |
+| IMU sample ages | 3/5/5 ms | 3/7/5 ms | PASS, all below 30 ms |
+| Heartbeat | 245,756 | 238,886 | PASS, continued through each window |
+| Safety fault / BLDC duties | 0 / 0, 0 | 0 / 0, 0 | PASS |
+| Copy last/max | 79/94 us | 78/93 us | PASS, below 1 ms |
+| Shared send last/max | disabled | 18/1468 ms | OBSERVATION: the 1468 ms maximum is retained as a startup or exceptional blocking send observed in the fresh streaming-control run; the endpoint was back to a steady 18 ms. The formal Gate 3 window independently held at 19/210 ms. |
+
+The 1468 ms send maximum is not hidden or reclassified as success. Because CM7_1 holds one slot `READING` during the synchronous call and the producer implements latest-frame/no-queue behavior, a long block can cause intermediate frames to be dropped or the other slot to carry only the newest publishable frame; it cannot create a growing backlog of stale frames. The control comparison still met every required safety/timing threshold, but the peak remains a transport-latency observation for future monitoring.
+
+### Task 3 disposition
+
+**PASS.** CM7_1 consumed CM7_0-owned frames, held slot ownership through the synchronous Assistant send, released afterward, and displayed changing imagery for more than 60 seconds over an established TCP link. The camera-disabled/streaming comparison introduced no safety fault, scheduler miss, control-rate regression, IMU-age violation, source-mask overrun, or motor duty. The final target was left running with live Assistant imagery. The generated IAR `.sim` sidecar was deleted; the hash-locked `.ewx` remains local-only and was not pushed, packaged, or externally distributed.

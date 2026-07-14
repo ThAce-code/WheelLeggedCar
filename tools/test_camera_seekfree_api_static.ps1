@@ -197,14 +197,15 @@ foreach ($file in $applicationFiles)
     }
 }
 
-# Task 2: CM7_0 capture producer and CM7_1 no-WiFi frame consumer.
+# Task 3: CM7_0 capture producer and CM7_1 WiFi-SPI frame consumer.
 $appConfig = Read-RepoFile 'project\code\app_config.h'
 Assert-Match $appConfig '(?m)^\s*#define\s+APP_CAMERA_DEBUG_ONLY\s+\(\s*1U\s*\)' 'APP_CAMERA_DEBUG_ONLY is not locked to 1U'
 
 $cameraDebugConfig = Read-RepoFile 'project\code\camera_debug_config.h'
-Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_ENABLE\s+\(\s*0U\s*\)' 'APP_CAMERA_WIFI_ENABLE is not disabled for the portability gate'
+Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_ENABLE\s+\(\s*1U\s*\)' 'APP_CAMERA_WIFI_ENABLE is not enabled for the CM7_1 display gate'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_DISPLAY_PERIOD_MS\s+\(\s*100U\s*\)' 'camera snapshot period is not 100 ms'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_STALE_TIMEOUT_MS\s+\(\s*200U\s*\)' 'camera stale timeout is not 200 ms'
+Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_RETRY_MS\s+\(\s*5000U\s*\)' 'camera WiFi reconnect interval is not at least 5 seconds'
 
 $cameraProducer = Remove-CComments (Read-RepoFile 'project\code\camera_capture_producer.c')
 Assert-Match $cameraProducer 'Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not disable only the TCPWM59 system interrupt source'
@@ -217,12 +218,25 @@ Assert-NoMatch $cameraProducer '(?i)\b(?:Cy_TCPWM_ClearInterrupt|Cy_TCPWM_Counte
 Assert-NoMatch $cameraProducer '(?i)\b(?:wifi_spi_|seekfree_assistant_)\w*\s*\(' 'WiFi or Assistant work is reachable from the CM7_0 producer'
 
 $cameraConsumer = Remove-CComments (Read-RepoFile 'project\code\camera_frame_consumer.c')
-Assert-NoMatch $cameraConsumer '(?i)\b(?:mt9v03x_init|mt9v03x_finish_flag|memcpy|wifi_spi_|seekfree_assistant_)\w*\s*\(' 'camera init/driver flag, copying, WiFi, or Assistant work is reachable from the no-WiFi consumer'
-Assert-NoMatch $cameraConsumer '(?i)\bmt9v03x_finish_flag\b' 'camera driver finish flag is referenced by the no-WiFi consumer'
+Assert-NoMatch $cameraConsumer '(?i)\b(?:mt9v03x_init|mt9v03x_finish_flag|memcpy)\w*\s*\(' 'camera init/driver flag or copying is reachable from the CM7_1 consumer'
+Assert-NoMatch $cameraConsumer '(?i)\bmt9v03x_finish_flag\b' 'camera driver finish flag is referenced by the CM7_1 consumer'
+Assert-Match $cameraConsumer '(?s)camera_frame_consumer_try_network\s*\([^)]*\)\s*\{.*?wifi_spi_init\s*\(\s*APP_CAMERA_WIFI_SSID\s*,\s*APP_CAMERA_WIFI_PASSWORD\s*\).*?wifi_spi_socket_connect\s*\(\s*"TCP"\s*,\s*APP_CAMERA_WIFI_TARGET_IP\s*,\s*APP_CAMERA_WIFI_TARGET_PORT\s*,\s*APP_CAMERA_WIFI_LOCAL_PORT\s*\).*?camera_frame_consumer_configure_assistant\s*\(\s*\)' 'CM7_1 consumer does not initialize WiFi, connect TCP from config, then configure the Assistant interface'
+Assert-Match $cameraConsumer 'seekfree_assistant_interface_init\s*\(\s*SEEKFREE_ASSISTANT_WIFI_SPI\s*\)' 'CM7_1 consumer does not select the Assistant WiFi-SPI interface'
+Assert-Match $cameraConsumer '(?s)seekfree_assistant_camera_config\s*\(\s*&camera_information\[0\]\s*,\s*SEEKFREE_ASSISTANT_CAMERA_TYPE_MT9V03X\s*,\s*MT9V03X_W\s*,\s*MT9V03X_H\s*,\s*\(\s*uint8\s*\*\s*\)\s*\(\s*uintptr_t\s*\)\s*INTERCORE_CAMERA_DATA_BASE_ADDRESS\s*\).*?seekfree_assistant_camera_config\s*\(\s*&camera_information\[1\]\s*,\s*SEEKFREE_ASSISTANT_CAMERA_TYPE_MT9V03X\s*,\s*MT9V03X_W\s*,\s*MT9V03X_H\s*,\s*\(\s*uint8\s*\*\s*\)\s*\(\s*uintptr_t\s*\)\s*\(\s*INTERCORE_CAMERA_DATA_BASE_ADDRESS\s*\+\s*INTERCORE_CAMERA_SLOT_SIZE_BYTES\s*\)\s*\)' 'CM7_1 consumer does not configure one Assistant camera object for each fixed shared slot'
+Assert-Match $cameraConsumer '(?s)if\s*\(\s*\(\s*0U\s*!=\s*consumer_diag\.reconnect_count\s*\)\s*&&\s*\(\s*APP_CAMERA_WIFI_RETRY_MS\s*>\s*\(\s*now_ms\s*-\s*consumer_diag\.last_reconnect_ms\s*\)\s*\)\s*\)\s*\{\s*return\s*;\s*\}.*?consumer_diag\.last_reconnect_ms\s*=\s*now_ms\s*;.*?consumer_diag\.reconnect_count\+\+' 'CM7_1 reconnect attempts are not gated by APP_CAMERA_WIFI_RETRY_MS'
+Assert-Match $cameraConsumer '(?s)if\s*\(\s*\(uint8\)CAMERA_CONSUMER_INIT_OK\s*!=\s*consumer_diag\.init_state\s*\)\s*\{.*?camera_frame_consumer_try_network\s*\(\s*\)\s*;\s*return\s*;\s*\}.*?intercore_camera_consumer_acquire_latest' 'CM7_1 can acquire a frame while a blocking network connection attempt is in progress'
 Assert-Match $cameraConsumer '(?s)producer_now_ms\s*=\s*camera_transport\.control->producer_heartbeat_ms\s*;.*?consumer_diag\.last_frame_age_ms\s*=\s*intercore_camera_frame_age_ms\s*\(\s*producer_now_ms\s*,\s*view\.capture_ms\s*\)' 'consumer frame age is not calculated from a snapshot of the CM7_0 producer clock domain'
 Assert-NoMatch $cameraConsumer '\bnow_ms\s*-\s*view\.capture_ms\b' 'consumer subtracts producer capture time from the unrelated CM7_1 clock domain'
+Assert-Match $cameraConsumer '(?s)vision_view\.slot_index\s*=\s*view\.slot_index\s*;.*?vision_view\.sequence\s*=\s*view\.sequence\s*;.*?vision_view\.capture_ms\s*=\s*view\.capture_ms\s*;.*?vision_view\.frame_age_ms\s*=\s*consumer_diag\.last_frame_age_ms\s*;.*?vision_view\.width\s*=\s*view\.width\s*;.*?vision_view\.height\s*=\s*view\.height\s*;.*?vision_view\.stride\s*=\s*view\.stride\s*;.*?vision_view\.frame_bytes\s*=\s*view\.frame_bytes\s*;.*?vision_view\.pixels\s*=\s*view\.pixels\s*;' 'consumer does not expose the complete read-only vision frame boundary'
+Assert-Match $cameraConsumer '(?s)consumer_diag\.last_process_duration_us\s*=\s*0U\s*;\s*consumer_diag\.max_process_duration_us\s*=\s*0U\s*;\s*camera_transport\.control->last_process_duration_us\s*=\s*0U\s*;\s*camera_transport\.control->max_process_duration_us\s*=\s*0U\s*;' 'current vision boundary does not publish honest zero processing duration locally and in shared v2 diagnostics'
+Assert-Match $cameraConsumer '(?s)seekfree_assistant_camera_send\s*\(\s*&camera_information\[vision_view\.slot_index\]\s*\)\s*;.*?consumer_diag\.sent_count\+\+\s*;.*?consumer_diag\.last_sent_sequence\s*=\s*vision_view\.sequence\s*;.*?intercore_camera_consumer_release_at\s*\(\s*&camera_transport\s*,\s*&view\s*,\s*camera_frame_consumer_now_ms\s*\(\s*\)\s*\)' 'consumer does not hold the selected slot READING until the void Assistant send call returns'
+Assert-NoMatch $cameraConsumer '\b\w+\s*=\s*seekfree_assistant_camera_send\s*\(' 'consumer fabricates a success result from the void Assistant send API'
 Assert-Match $cameraConsumer 'intercore_camera_consumer_release_at\s*\(\s*&camera_transport\s*,\s*&view\s*,\s*camera_frame_consumer_now_ms\s*\(\s*\)\s*\)' 'consumer does not refresh the heartbeat with the current tick immediately at release'
 Assert-Match $cameraConsumer '(?s)if\s*\(\s*0U\s*!=\s*release_ok\s*\)\s*\{\s*consumer_diag\.released_count\+\+\s*;\s*\(void\)intercore_camera_consumer_publish_observation\s*\(\s*&camera_transport\s*,\s*consumer_diag\.last_sequence\s*,\s*consumer_diag\.last_frame_age_ms\s*,\s*consumer_diag\.sample_0_0\s*,\s*consumer_diag\.sample_center\s*,\s*consumer_diag\.frame_valid\s*\)\s*;' 'consumer does not publish the shared observation immediately after a successful release'
+
+$cameraConsumerHeader = Remove-CComments (Read-RepoFile 'project\code\camera_frame_consumer.h')
+Assert-Match $cameraConsumerHeader '(?s)typedef\s+struct\s*\{\s*uint8\s+slot_index\s*;\s*uint32\s+sequence\s*;\s*uint32\s+capture_ms\s*;\s*uint32\s+frame_age_ms\s*;\s*uint16\s+width\s*;\s*uint16\s+height\s*;\s*uint16\s+stride\s*;\s*uint32\s+frame_bytes\s*;\s*volatile\s+uint8\s*\*\s*pixels\s*;\s*\}\s*camera_vision_frame_view_struct\s*;' 'camera vision frame view boundary is missing or incomplete'
+Assert-Match $cameraConsumerHeader '(?s)uint32\s+sent_count\s*;.*?uint32\s+reconnect_count\s*;.*?uint32\s+stale_count\s*;.*?uint32\s+last_sent_sequence\s*;.*?uint32\s+last_reconnect_ms\s*;.*?uint32\s+last_send_duration_ms\s*;.*?uint32\s+max_send_duration_ms\s*;.*?uint32\s+last_process_duration_us\s*;.*?uint32\s+max_process_duration_us\s*;.*?uint8\s+wifi_state\s*;.*?uint8\s+socket_state\s*;' 'consumer diagnostics do not expose WiFi/socket, reconnect, stale, send, and process state'
 
 $actuatorMotor = Read-RepoFile 'project\code\actuator_motor.c'
 Assert-Match $actuatorMotor '(?s)static\s+void\s+actuator_motor_send_duty\s*\(\s*int16\s+left_duty\s*,\s*int16\s+right_duty\s*\)\s*\{\s*#if\s+APP_CAMERA_DEBUG_ONLY\s+left_duty\s*=\s*0\s*;\s*right_duty\s*=\s*0\s*;\s*#endif.*?bldc_foc_uart_set_duty\s*\(\s*left_duty\s*,\s*right_duty\s*\)' 'actuator_motor_send_duty does not clamp both duties to zero before the BLDC choke point'

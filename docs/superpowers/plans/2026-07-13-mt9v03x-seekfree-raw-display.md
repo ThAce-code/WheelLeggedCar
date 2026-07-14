@@ -1,5 +1,10 @@
 # MT9V03X Seekfree Raw Display Implementation Plan
 
+> **Status: SUPERSEDED — DO NOT EXECUTE.** The approved design now reuses the
+> source-matched Seekfree MT9V03X API and validates E9_01 before any core or
+> memory adaptation. Replace this plan after reviewing
+> `docs/superpowers/specs/2026-07-13-mt9v03x-seekfree-debug-view-design.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Display a stable 188 x 120 MT9V03X grayscale image in Seekfree Assistant through the Seekfree WiFi-SPI module without changing CM7_0 control behavior.

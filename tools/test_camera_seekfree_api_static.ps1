@@ -167,6 +167,7 @@ $boardAdc = Read-RepoFile 'project\code\board_adc.c'
 Assert-Match $boardAdc '(?m)^\s*#include\s+"app_config\.h"' 'board_adc.c does not include app_config.h'
 Assert-Match $boardAdc '(?s)#if\s+!APP_CAMERA_DEBUG_ONLY\s+adc_init\s*\(\s*BUS_PHASE_PORT.*?adc_mean_filter_convert\s*\(\s*BUS_PHASE_PORT.*?#endif' 'board_adc.c does not compile out BUS_PHASE_PORT initialization and warm-up reads'
 Assert-Match $boardAdc '(?s)#if\s+!APP_CAMERA_DEBUG_ONLY\s+uint16\s+adc_value_bus_phase\s*=\s*0\s*;\s*#endif.*?#if\s+!APP_CAMERA_DEBUG_ONLY\s+adc_value_bus_phase\s*=\s*adc_convert\s*\(\s*BUS_PHASE_PORT.*?#endif' 'board_adc.c does not compile out the BUS_PHASE_PORT raw variable and conversion'
+Assert-Match $boardAdc '(?s)adc_value_c_phase\s*=\s*adc_convert\s*\(\s*C_PHASE_PORT\s*\)\s*-\s*adc_information\.current_c_offset\s*;.*?#if\s+!APP_CAMERA_DEBUG_ONLY\s+adc_value_bus_phase\s*=\s*adc_convert\s*\(\s*BUS_PHASE_PORT\s*\)\s*-\s*adc_information\.voltage_bus_offset\s*;\s*.*?#endif\s+adc_value_v_reference\s*=\s*adc_mean_filter_convert\s*\(\s*V_REFERENCE\s*,\s*5\s*\)\s*;' 'non-camera BUS_PHASE conversion no longer precedes the V_REFERENCE mean sample'
 Assert-Match $boardAdc '(?s)#if\s+APP_CAMERA_DEBUG_ONLY\s+adc_information\.voltage_bus\s*=\s*0\.0f\s*;\s*adc_information\.voltage_bus_filter\s*=\s*0\.0f\s*;\s*adc_information\.voltage_bus_filter_offset\s*=\s*0\.0f\s*;\s*#else.*?#endif' 'camera-debug bus current and filter are not forced to benign zero'
 
 $cm7Main = Read-RepoFile 'project\user\main_cm7_1.c'

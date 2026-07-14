@@ -141,10 +141,10 @@ void adc_read(void)
     adc_value_a_phase               = adc_convert(A_PHASE_PORT          ) - adc_information.current_a_offset;                   // 获取A相电流采集端口的值
     adc_value_b_phase               = adc_convert(B_PHASE_PORT          ) - adc_information.current_b_offset;                   // 获取B相电流采集端口的值
     adc_value_c_phase               = adc_convert(C_PHASE_PORT          ) - adc_information.current_c_offset;                   // 获取C相电流采集端口的值
-    adc_value_v_reference           = adc_mean_filter_convert(V_REFERENCE           , 5);                                      // 获取参考电压采集端口的值
 #if !APP_CAMERA_DEBUG_ONLY
     adc_value_bus_phase             = adc_convert(BUS_PHASE_PORT        ) - adc_information.voltage_bus_offset;                 // 获取母线电流采集端口的值
 #endif
+    adc_value_v_reference           = adc_mean_filter_convert(V_REFERENCE           , 5);                                      // 获取参考电压采集端口的值
     adc_value_battery_phase         = adc_mean_filter_convert(BATTERY_PHASE_PORT    , 5);                                      // 获取电源电压采集端口的值
     adc_information.current_board   = adc_mean_filter_convert(BOARD_POTENTIOMET_PORT, 5);                                      // 获取板载电位器电压
       

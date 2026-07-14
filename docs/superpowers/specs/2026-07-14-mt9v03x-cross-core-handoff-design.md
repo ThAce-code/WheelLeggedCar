@@ -181,16 +181,14 @@ All pixel writes and metadata writes complete before CM7_0 publishes `READY` wit
 
 CM7_0 initializes the unchanged MT9V03X driver after the existing application and safety initialization has succeeded. Camera failure does not bypass IMU or safety initialization. The producer service runs in the main loop after `app_run_once()` and never from PIT, EXTI, IPC, or camera interrupt context.
 
-The source driver callback copies the completed capture buffer into `mt9v03x_image`. A second camera completion interrupt could otherwise replace `mt9v03x_image` halfway through the producer's handoff copy. Therefore the producer:
+The source driver callback copies the completed capture buffer into `mt9v03x_image`. A second camera completion interrupt could otherwise replace `mt9v03x_image` halfway through the producer's handoff copy. `CPUIntIdx3_IRQn` cannot be masked at the NVIC level because both the MT9V03X TCPWM59 system source and UART system sources map to that aggregate CPU interrupt index. Therefore the producer masks only the camera's system interrupt source:
 
-1. Verifies statically that `CPUIntIdx3_IRQn` is assigned only to the MT9V03X completion callback in this firmware.
-2. Records whether that CPU interrupt was enabled.
-3. Disables only `CPUIntIdx3_IRQn`.
-4. Copies exactly `MT9V03X_IMAGE_SIZE` bytes from `mt9v03x_image[0]` into the selected shared slot.
-5. Publishes the slot metadata and `READY` state.
-6. Restores the previous interrupt-enable state without clearing a pending camera interrupt.
+1. Calls `Cy_SysInt_DisableIRQ(tcpwm_0_interrupts_59_IRQn)` to invalidate only the TCPWM59-to-CPU route.
+2. Copies exactly `MT9V03X_IMAGE_SIZE` bytes from `mt9v03x_image[0]` into the selected shared slot.
+3. Publishes the slot metadata and `READY` state.
+4. Calls `Cy_SysInt_EnableIRQ(tcpwm_0_interrupts_59_IRQn)` without clearing the TCPWM59 peripheral flag or the aggregate CPU pending state.
 
-Global interrupts are never disabled. PIT, servo, IMU, and other external interrupts remain serviceable during the handoff copy. Copy duration and maximum copy duration are measured. If exclusive ownership of `CPUIntIdx3_IRQn` cannot be proven, implementation stops and this protection method is not used.
+The implementation must not call `NVIC_DisableIRQ(CPUIntIdx3_IRQn)`, because that would also mask UART sources mapped to the same CPU index. Global interrupts are never disabled. PIT, servo, IMU, UART, and other external interrupts remain serviceable during the handoff copy. A camera completion that arrives while its system route is invalid remains pending at its source and is handled after the route is restored. Copy duration and maximum source-mask duration are measured.
 
 CM7_0 may send a one-way `INTERCORE_NOTIFY_CAMERA_READY` hint after publishing. The shared slot state and sequence remain the source of truth, so lost or coalesced notifications do not lose frames. CM7_1 does not send a camera-release doorbell; CM7_0 observes `FREE` by polling. This avoids adding another bidirectional use of the existing single shared doorbell object.
 
@@ -273,7 +271,7 @@ Compare a 60-second pre-camera baseline with a 60-second streaming window. Requi
 - scheduler maximum gap does not increase by more than 1 ms over baseline;
 - servo tick count remains within 1 percent of 300 Hz;
 - the CM7_0 heartbeat continues without a visible stall;
-- maximum handoff-copy interrupt masking remains below 1 ms;
+- maximum handoff-copy TCPWM59 source masking remains below 1 ms;
 - both commanded BLDC duties remain zero.
 
 If a timing threshold fails, leave camera display evidence intact but do not claim control-safe integration.

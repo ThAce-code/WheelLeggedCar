@@ -161,3 +161,39 @@ authoritative camera library remained unchanged.
 | Gate B — existing Assistant camera packet over WiFi-SPI in an isolated E9_01 copy | PASS | The copied CM7_0 project built with 0 errors/0 warnings; WiFi init and TCP socket connect succeeded on a forced-2.4 GHz Windows hotspot; and the single-pending latest-frame scheduler reused the existing Assistant packets without a queue. Over a frozen 185.908-second window it delivered 1,856 sends (9.983 FPS), every measured send interval was at least 100 ms, TCP stayed connected, and Assistant displayed changing 188 x 120 frames. The isolated scheduler remains reference evidence only and is not integrated robot real-time-safety evidence. |
 | Gate C - unchanged-driver CM7_1 camera-only portability | FAIL | CM7_1 initialization succeeded, but no frame completed during approximately 448.479 seconds of a running target: `frame_count = 0`, `snapshot_count = 0`, `last_frame_ms = 0`, `frame_valid = 0`, and `mt9v03x_finish_flag = 0`. This meets the plan's STOP B condition. No DMA/GPIO/TCPWM rewrite, motion command, wheel motion, or `LXY` test was performed. |
 | Overall camera integration evidence | FAIL / STOP B | Gates A and B reference proofs remain PASS, and the Task 4 three-core builds, map audit, camera-debug hard wheel lock, and P06_5 ADC exclusion pass. The required CM7_1 capture gate fails with the unchanged driver, so integrated runtime/display acceptance is not claimed and work stops before bottom-driver redesign. |
+
+## Task 2 CM7_0 capture and cross-core handoff
+
+### Static, host, build, and ownership evidence
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Task 2 ownership/static RED | PASS | Before implementation, `tools/test_camera_seekfree_api_static.ps1` failed on exactly 21 new Task 2 assertions covering producer/consumer ownership, CM7 main/ISR wiring, TCPWM59-only masking, project membership, and removal of the old CM7_1 camera app. No pre-existing provenance, linker, MPU, or safety assertion failed. |
+| Task 1 release-accounting RED/GREEN | PASS | A host test first proved that a matching release left `last_consume_ms` at zero. The minimal transport correction now increments `consumed_count` and records `consumer_heartbeat_ms` as `last_consume_ms` only after a matching `READING` state and sequence release succeeds; a mismatched release leaves both fields unchanged. |
+| Task 2 static and host GREEN | PASS | Camera/static ownership contract, camera handoff host test, and existing inter-core foundation host test passed. The camera producer masks only `tcpwm_0_interrupts_59_IRQn`, copies exactly `MT9V03X_IMAGE_SIZE`, and publishes on the 100 ms latest-frame gate; the CM7_1 consumer performs no camera init, local frame copy, WiFi, or Assistant work. |
+| Fresh three-core IAR build | PASS | IAR Embedded Workbench 9.40.1 fresh clean/build succeeded for all cores. CM0+ reported 0 errors/0 warnings; CM7_0 reported 0 errors and the same 3 pre-existing `Pe550` unused-control-command warnings; CM7_1 reported 0 errors/0 warnings. Fresh map timestamps were local 02:30:38, 02:32:11, and 02:33:23 respectively. |
+| CM7_0 camera ownership map | PASS | The CM7_0 map contains `camera_capture_producer.o`, `zf_device_mt9v03x.o`, `camera_finish_callback`, `mt9v03x_init`, the three retained fixed camera objects, and `producer_diag`. Fixed objects remain `mt9v03x_h_num=0x28006BF0`, `mt9v03x_w_num=0x28006BF2`, and `mt9v03x_image_temp=0x28026024` size `0x5820`. |
+| CM7_1 no-camera/no-WiFi consumer map | PASS | The CM7_1 map contains `camera_frame_consumer.o` and no linked `zf_device_mt9v03x.o`, camera callback, `mt9v03x_*` driver symbol, `wifi_spi_init`, `wifi_spi_socket_connect`, or `seekfree_assistant_camera_send`. |
+| Memory ranges | PASS | All maps retain camera data at `0x28060000` size `0x10000` and shared control at `0x28080000` size `0x2000`. CM7_0 `HEAP_STACK` is `0x2807E000-0x2807FFFF`; CM7_1 ordinary placement starts at `0x28082000`. No overlap was found. |
+
+### Hardware Gate 1 - CM7_0 capture
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Three fresh images downloaded | PASS | IAR GUI `Download and Debug` completed and stopped at each core's `main()`: CM0+ local 02:37:49, CM7_0 02:42:09, and CM7_1 02:43:47. Each session displayed Errors 0 / Warnings 0. |
+| 60-second minimum runtime | PASS | CM7_0 Live Watch ran from UTC `2026-07-14T09:54:03.479Z` to `2026-07-14T09:56:02.079Z`, exactly 118.600 seconds. |
+| Camera initialization | PASS | Start and end `producer_diag.init_state` were `0x03`, which is `CAMERA_CAPTURE_INIT_OK`. |
+| Completed frames | FAIL | Start and end `producer_diag.frame_count` were `0`; `last_frame_ms=0`, `frame_valid=0`, and `mt9v03x_finish_flag=0` throughout. The unchanged driver reported successful init but no camera-finish event reached the application. |
+| Pixel response / controlled scene change | NOT RUN | With no completed frame, `mt9v03x_image[0][0]` and `mt9v03x_image[60][94]` remained `0`. A controlled high-contrast target movement could not produce meaningful evidence and was not claimed. |
+| Safety state | PASS WITH LIMITATION | Wheel motor power was operator-confirmed OFF before the run; camera wiring and the servo all-90-degree reference were also operator-confirmed. No motion command, wheel test, servo command, or `LXY` command was issued. Safety/control fault variables were not independently watched in Live Watch, so no runtime no-fault claim is made. |
+
+### Hardware Gate 2 - two-slot handoff without WiFi
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Gate 2 execution | NOT RUN | The plan requires Gate 2 to stop when Gate 1 produces no frames. Because `frame_count` remained zero for 118.600 seconds, no consumer/handoff timing window was started. No acquired/released accounting, frame-age, slot endpoint, copy-duration, or changing CM7_1 sample claim is made. |
+| WiFi/Assistant | NOT RUN | Task 2 neither initialized nor tested WiFi or Assistant transport. |
+
+### Task 2 disposition
+
+Task 2 source ownership, transport integration, host/static regressions, fresh IAR builds, and map ownership checks pass. Hardware Gate 1 fails because no CM7_0 frame completes in the integrated robot image despite successful camera initialization. Per the approved gate, Gate 2 was not run. The implementation is recorded as `DONE_WITH_CONCERNS`; integrated cross-core runtime acceptance remains unproven.

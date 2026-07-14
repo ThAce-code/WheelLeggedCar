@@ -126,6 +126,29 @@ static void test_newest_ready_wins_without_fifo(void)
     TEST_CHECK(1U == shared.camera.stale_ready_drop_count);
 }
 
+static void test_release_records_consume_time_only_after_matching_read(void)
+{
+    intercore_camera_frame_view_struct view;
+    uint32 sequence;
+
+    fixture_init();
+    fixture_publish(0U, 12U);
+    TEST_CHECK(INTERCORE_CAMERA_OK ==
+               intercore_camera_consumer_acquire_latest(&consumer, &view));
+    sequence = view.sequence;
+    shared.camera.consumer_heartbeat_ms = 222U;
+
+    view.sequence++;
+    TEST_CHECK(0U == intercore_camera_consumer_release(&consumer, &view));
+    TEST_CHECK(0U == shared.camera.consumed_count);
+    TEST_CHECK(0U == shared.camera.last_consume_ms);
+
+    view.sequence = sequence;
+    TEST_CHECK(1U == intercore_camera_consumer_release(&consumer, &view));
+    TEST_CHECK(1U == shared.camera.consumed_count);
+    TEST_CHECK(222U == shared.camera.last_consume_ms);
+}
+
 static void test_reading_slot_is_never_overwritten(void)
 {
     intercore_camera_frame_view_struct view;
@@ -252,6 +275,7 @@ int main(void)
     test_public_abi();
     test_normal_handoff();
     test_newest_ready_wins_without_fifo();
+    test_release_records_consume_time_only_after_matching_read();
     test_reading_slot_is_never_overwritten();
     test_epoch_change_is_rejected();
     test_consumer_restart_releases_only_stale_reading();

@@ -37,6 +37,7 @@
 #include "zf_common_headfile.h"
 #include "app.h"
 #include "app_config.h"
+#include "camera_capture_producer.h"
 #include "intercore_memory.h"
 
 static void led_blink_error_code(uint8 code)
@@ -80,12 +81,15 @@ int main(void)
         led_blink_error_code(app_result);
     }
 
+    (void)camera_capture_producer_init();
+
     pit_ms_init(PIT_CH0, APP_TICK_PERIOD_MS);
     pit_us_init(PIT_CH1, APP_SERVO_CONTROL_PERIOD_US);
 
     for(;;)
     {
         app_run_once();
+        camera_capture_producer_service();
 
         now_ms = app_get_ms();
         if(APP_HEARTBEAT_PERIOD_MS <= (now_ms - led_last_ms))

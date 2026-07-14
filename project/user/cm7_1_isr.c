@@ -35,7 +35,7 @@
 
 
 #include "zf_common_headfile.h"
-#include "camera_debug_app.h"
+#include "camera_frame_consumer.h"
 // **************************** PITÖÐ¶Ïº¯Êý ****************************
 void pit0_ch0_isr()
 {
@@ -61,7 +61,7 @@ void pit0_ch1_isr()
 void pit0_ch2_isr()
 {
     pit_isr_flag_clear(PIT_CH2);
-    camera_debug_app_tick_1ms();
+    camera_frame_consumer_tick_1ms();
 }
 
 void pit0_ch10_isr()

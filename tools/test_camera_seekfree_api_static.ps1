@@ -74,9 +74,6 @@ $headfile = Read-RepoFile 'libraries\zf_common\zf_common_headfile.h'
 Assert-Match $headfile '(?m)^\s*#include\s+"zf_device_mt9v03x\.h"' 'zf_common_headfile.h does not enable zf_device_mt9v03x.h'
 
 $cm7Project = Read-RepoFile 'project\iar\project_config\cyt4bb7_cm_7_1.ewp'
-Assert-Match $cm7Project '\\zf_device\\zf_device_mt9v03x\.c</name>' 'CM7_1 project does not contain zf_device_mt9v03x.c'
-Assert-Match $cm7Project '\\zf_device\\zf_device_mt9v03x\.h</name>' 'CM7_1 project does not contain zf_device_mt9v03x.h'
-Assert-Match $cm7Project '(?s)<name>IlinkKeepSymbols</name>\s*<state>mt9v03x_h_num</state>\s*<state>mt9v03x_w_num</state>\s*<state>mt9v03x_image_temp</state>' 'CM7_1 linker does not retain all three fixed MT9V03X objects for map verification'
 
 $assistantInterface = Read-RepoFile 'libraries\zf_components\seekfree_assistant_interface.c'
 Assert-Match $assistantInterface '(?s)case\s+SEEKFREE_ASSISTANT_WIFI_SPI\s*:.*?seekfree_assistant_transfer_callback\s*=\s*wifi_spi_send_buffer\s*;.*?seekfree_assistant_receive_callback\s*=\s*wifi_spi_read_buffer\s*;' 'Assistant WIFI_SPI interface no longer maps to wifi_spi_send_buffer/read_buffer'
@@ -167,7 +164,7 @@ foreach ($file in $applicationFiles)
     }
 }
 
-# Task 4: CM7_1 camera-only portability and hard motor lock.
+# Task 2: CM7_0 capture producer and CM7_1 no-WiFi frame consumer.
 $appConfig = Read-RepoFile 'project\code\app_config.h'
 Assert-Match $appConfig '(?m)^\s*#define\s+APP_CAMERA_DEBUG_ONLY\s+\(\s*1U\s*\)' 'APP_CAMERA_DEBUG_ONLY is not locked to 1U'
 
@@ -176,26 +173,18 @@ Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_ENABLE\s+\(\s
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_DISPLAY_PERIOD_MS\s+\(\s*100U\s*\)' 'camera snapshot period is not 100 ms'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_STALE_TIMEOUT_MS\s+\(\s*200U\s*\)' 'camera stale timeout is not 200 ms'
 
-$cameraDebugHeader = Read-RepoFile 'project\code\camera_debug_app.h'
-Assert-Match $cameraDebugHeader '(?s)typedef\s+enum\s*\{\s*CAMERA_DEBUG_INIT_NOT_RUN\s*=\s*0\s*,\s*CAMERA_DEBUG_INIT_CAMERA_FAILED\s*,\s*CAMERA_DEBUG_INIT_WIFI_FAILED\s*,\s*CAMERA_DEBUG_INIT_SOCKET_FAILED\s*,\s*CAMERA_DEBUG_INIT_OK\s*\}\s*camera_debug_init_state_enum\s*;' 'camera debug init-state public enum does not match the approved contract'
-Assert-Match $cameraDebugHeader '(?s)typedef\s+struct\s*\{.*?uint32\s+frame_count\s*;.*?uint32\s+snapshot_count\s*;.*?uint32\s+sent_count\s*;.*?uint32\s+dropped_count\s*;.*?uint32\s+timeout_count\s*;.*?uint32\s+last_frame_ms\s*;.*?uint32\s+last_send_ms\s*;.*?uint32\s+last_send_duration_ms\s*;.*?uint32\s+max_send_duration_ms\s*;.*?uint8\s+frame_valid\s*;.*?uint8\s+init_state\s*;.*?\}\s*camera_debug_diag_struct\s*;' 'camera debug diagnostics struct does not match the approved public contract'
-foreach ($apiPattern in @(
-    'uint8\s+camera_debug_app_init\s*\(\s*void\s*\)\s*;',
-    'void\s+camera_debug_app_tick_1ms\s*\(\s*void\s*\)\s*;',
-    'void\s+camera_debug_app_service\s*\(\s*void\s*\)\s*;',
-    'uint32\s+camera_debug_app_now_ms\s*\(\s*void\s*\)\s*;',
-    'const\s+camera_debug_diag_struct\s*\*\s*camera_debug_app_get_diag\s*\(\s*void\s*\)\s*;'
-))
-{
-    Assert-Match $cameraDebugHeader $apiPattern "camera debug public API is missing: $apiPattern"
-}
+$cameraProducer = Read-RepoFile 'project\code\camera_capture_producer.c'
+Assert-Match $cameraProducer 'Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not disable only the TCPWM59 system interrupt source'
+Assert-Match $cameraProducer 'Cy_SysInt_EnableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not re-enable the TCPWM59 system interrupt source'
+Assert-Match $cameraProducer 'memcpy\s*\(\s*\(\s*void\s*\*\s*\)\s*slot_pixels\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)' 'camera producer does not copy exactly MT9V03X_IMAGE_SIZE bytes into the claimed slot'
+Assert-Match $cameraProducer 'APP_CAMERA_DISPLAY_PERIOD_MS\s*<=\s*\(\s*now_ms\s*-\s*producer_diag\.last_publish_ms\s*\)' 'camera producer does not enforce the 100 ms latest-frame publication period'
+Assert-NoMatch $cameraProducer '(?i)\bNVIC_DisableIRQ\s*\(\s*CPUIntIdx3_IRQn\s*\)|\b(?:__disable_irq|Cy_SysLib_EnterCriticalSection)\s*\(' 'camera producer masks the aggregate CPU IRQ or globally disables interrupts'
+Assert-NoMatch $cameraProducer '(?i)\b(?:Cy_TCPWM_ClearInterrupt|Cy_TCPWM_Counter_ClearInterrupt|NVIC_ClearPendingIRQ)\s*\(' 'camera producer clears pending camera or aggregate interrupt state'
+Assert-NoMatch $cameraProducer '(?i)\b(?:wifi_spi_|seekfree_assistant_)\w*\s*\(' 'WiFi or Assistant work is reachable from the CM7_0 producer'
 
-$cameraDebugSource = Read-RepoFile 'project\code\camera_debug_app.c'
-Assert-Match $cameraDebugSource '(?m)^\s*static\s+uint8\s+image_copy\s*\[\s*MT9V03X_H\s*\]\s*\[\s*MT9V03X_W\s*\]\s*;' 'camera debug app does not use one fixed image_copy buffer'
-Assert-Match $cameraDebugSource '(?m)^\s*static\s+seekfree_assistant_camera_struct\s+camera_information\s*;' 'camera debug app does not reserve the approved Assistant camera object'
-Assert-Match $cameraDebugSource 'memcpy\s*\(\s*image_copy\s*\[\s*0\s*\]\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)' 'camera snapshot does not copy exactly MT9V03X_IMAGE_SIZE bytes'
-Assert-NoMatch $cameraDebugSource '(?i)\b(?:malloc|calloc|realloc|free)\s*\(' 'camera debug app introduces dynamic allocation'
-Assert-NoMatch $cameraDebugSource '(?i)\b(?:wifi_spi_init|wifi_spi_socket_connect|seekfree_assistant_interface_init|seekfree_assistant_camera_config|seekfree_assistant_camera_send)\s*\(' 'WiFi or Assistant transport is reachable in the disabled portability implementation'
+$cameraConsumer = Read-RepoFile 'project\code\camera_frame_consumer.c'
+Assert-NoMatch $cameraConsumer '(?i)\b(?:mt9v03x_init|mt9v03x_finish_flag|memcpy|wifi_spi_|seekfree_assistant_)\w*\s*\(' 'camera init/driver flag, copying, WiFi, or Assistant work is reachable from the no-WiFi consumer'
+Assert-NoMatch $cameraConsumer '(?i)\bmt9v03x_finish_flag\b' 'camera driver finish flag is referenced by the no-WiFi consumer'
 
 $actuatorMotor = Read-RepoFile 'project\code\actuator_motor.c'
 Assert-Match $actuatorMotor '(?s)static\s+void\s+actuator_motor_send_duty\s*\(\s*int16\s+left_duty\s*,\s*int16\s+right_duty\s*\)\s*\{\s*#if\s+APP_CAMERA_DEBUG_ONLY\s+left_duty\s*=\s*0\s*;\s*right_duty\s*=\s*0\s*;\s*#endif.*?bldc_foc_uart_set_duty\s*\(\s*left_duty\s*,\s*right_duty\s*\)' 'actuator_motor_send_duty does not clamp both duties to zero before the BLDC choke point'
@@ -207,24 +196,48 @@ Assert-Match $boardAdc '(?s)#if\s+!APP_CAMERA_DEBUG_ONLY\s+uint16\s+adc_value_bu
 Assert-Match $boardAdc '(?s)adc_value_c_phase\s*=\s*adc_convert\s*\(\s*C_PHASE_PORT\s*\)\s*-\s*adc_information\.current_c_offset\s*;.*?#if\s+!APP_CAMERA_DEBUG_ONLY\s+adc_value_bus_phase\s*=\s*adc_convert\s*\(\s*BUS_PHASE_PORT\s*\)\s*-\s*adc_information\.voltage_bus_offset\s*;\s*.*?#endif\s+adc_value_v_reference\s*=\s*adc_mean_filter_convert\s*\(\s*V_REFERENCE\s*,\s*5\s*\)\s*;' 'non-camera BUS_PHASE conversion no longer precedes the V_REFERENCE mean sample'
 Assert-Match $boardAdc '(?s)#if\s+APP_CAMERA_DEBUG_ONLY\s+adc_information\.voltage_bus\s*=\s*0\.0f\s*;\s*adc_information\.voltage_bus_filter\s*=\s*0\.0f\s*;\s*adc_information\.voltage_bus_filter_offset\s*=\s*0\.0f\s*;\s*#else.*?#endif' 'camera-debug bus current and filter are not forced to benign zero'
 
+$cm7_0Main = Read-RepoFile 'project\user\main_cm7_0.c'
+Assert-Match $cm7_0Main '(?s)app_result\s*=\s*app_init\s*\(\s*\)\s*;.*?if\s*\(\s*0U\s*!=\s*app_result\s*\).*?\}.*?camera_capture_producer_init\s*\(\s*\)' 'CM7_0 main does not initialize the camera producer after successful app_init'
+Assert-Match $cm7_0Main '(?s)app_run_once\s*\(\s*\)\s*;\s*camera_capture_producer_service\s*\(\s*\)\s*;' 'CM7_0 main does not service the camera producer immediately after app_run_once'
+
 $cm7Main = Read-RepoFile 'project\user\main_cm7_1.c'
 Assert-Match $cm7Main 'pit_ms_init\s*\(\s*PIT_CH2\s*,\s*1\s*\)' 'CM7_1 main does not initialize PIT_CH2 at 1 ms'
-Assert-Match $cm7Main 'camera_debug_app_init\s*\(\s*\)' 'CM7_1 main does not initialize the camera debug app'
-Assert-Match $cm7Main '(?s)while\s*\(\s*true\s*\)\s*\{\s*camera_debug_app_service\s*\(\s*\)\s*;\s*\}' 'CM7_1 main loop does not exclusively service the camera debug app'
+Assert-Match $cm7Main 'camera_frame_consumer_init\s*\(\s*\)' 'CM7_1 main does not initialize the frame consumer'
+Assert-Match $cm7Main '(?s)while\s*\(\s*true\s*\)\s*\{\s*camera_frame_consumer_service\s*\(\s*\)\s*;\s*\}' 'CM7_1 main loop does not exclusively service the frame consumer'
+Assert-NoMatch $cm7Main '(?i)\b(?:mt9v03x_init|mt9v03x_finish_flag|wifi_spi_|seekfree_assistant_)\w*\s*\(' 'CM7_1 main owns camera capture, WiFi, or Assistant work'
 Assert-NoMatch $cm7Main '(?i)uart_init\s*\(\s*UART_0' 'CM7_1 main introduces UART0 initialization'
 
 $cm7Isr = Read-RepoFile 'project\user\cm7_1_isr.c'
-Assert-Match $cm7Isr '(?s)void\s+pit0_ch2_isr\s*\(\s*\)\s*\{\s*pit_isr_flag_clear\s*\(\s*PIT_CH2\s*\)\s*;\s*camera_debug_app_tick_1ms\s*\(\s*\)\s*;\s*\}' 'PIT_CH2 ISR is not limited to flag clear plus 1 ms camera tick'
-Assert-NoMatch $cm7Isr '(?i)\b(?:mt9v03x_init|memcpy|wifi_spi_|seekfree_assistant_|camera_debug_app_init|camera_debug_app_service)\s*\(' 'camera initialization, copying, service, or transport appears in CM7_1 ISR context'
+Assert-Match $cm7Isr '(?s)void\s+pit0_ch2_isr\s*\(\s*\)\s*\{\s*pit_isr_flag_clear\s*\(\s*PIT_CH2\s*\)\s*;\s*camera_frame_consumer_tick_1ms\s*\(\s*\)\s*;\s*\}' 'PIT_CH2 ISR is not limited to flag clear plus the consumer 1 ms tick'
 foreach ($pitChannel in 10..21)
 {
     Assert-Match $cm7Isr "(?s)void\s+pit0_ch${pitChannel}_isr\s*\(\s*\)\s*\{\s*pit_isr_flag_clear\s*\(\s*PIT_CH${pitChannel}\s*\)\s*;\s*\}" "CM7_1 PIT_CH$pitChannel linker stub is missing or does more than clear its own flag"
 }
 
-foreach ($cameraProjectFile in @('camera_debug_app.c', 'camera_debug_app.h', 'camera_debug_config.h'))
+$isrFiles = Get-ChildItem -Path (Join-Path $repoRoot 'project\user') -File -Filter '*_isr.c'
+foreach ($isrFile in $isrFiles)
+{
+    $isrText = [System.IO.File]::ReadAllText($isrFile.FullName)
+    Assert-NoMatch $isrText '(?i)\b(?:mt9v03x_init|memcpy|wifi_spi_|seekfree_assistant_|camera_capture_producer_service|camera_frame_consumer_service)\w*\s*\(' "camera copy, WiFi, Assistant, or deferred camera service appears in ISR context: $($isrFile.Name)"
+}
+
+$keepSymbolsPattern = '(?s)<name>IlinkKeepSymbols</name>\s*<state>mt9v03x_h_num</state>\s*<state>mt9v03x_w_num</state>\s*<state>mt9v03x_image_temp</state>'
+Assert-Match $cm7_0Project '\\zf_device\\zf_device_mt9v03x\.c</name>' 'CM7_0 project does not contain zf_device_mt9v03x.c'
+Assert-Match $cm7_0Project $keepSymbolsPattern 'CM7_0 linker does not retain all three fixed MT9V03X objects'
+Assert-NoMatch $cm7Project '\\zf_device\\zf_device_mt9v03x\.c</name>' 'CM7_1 project still contains zf_device_mt9v03x.c'
+Assert-NoMatch $cm7Project $keepSymbolsPattern 'CM7_1 linker still retains fixed MT9V03X objects'
+Assert-Match $cm7Project '\\zf_device\\zf_device_mt9v03x\.h</name>' 'CM7_1 project does not retain the MT9V03X dimension header'
+
+foreach ($cameraProjectFile in @('camera_capture_producer.c', 'camera_capture_producer.h', 'camera_debug_config.h'))
+{
+    Assert-Match $cm7_0Project ([Regex]::Escape("\code\$cameraProjectFile</name>")) "CM7_0 project does not contain $cameraProjectFile"
+}
+foreach ($cameraProjectFile in @('camera_frame_consumer.c', 'camera_frame_consumer.h', 'camera_debug_config.h'))
 {
     Assert-Match $cm7Project ([Regex]::Escape("\code\$cameraProjectFile</name>")) "CM7_1 project does not contain $cameraProjectFile"
 }
+Assert-NoMatch $cm7_0Project '\\code\\camera_debug_app\.[ch]</name>' 'CM7_0 project still contains the deleted camera_debug_app'
+Assert-NoMatch $cm7Project '\\code\\camera_debug_app\.[ch]</name>' 'CM7_1 project still contains the deleted camera_debug_app'
 
 if ($failures.Count -ne 0)
 {

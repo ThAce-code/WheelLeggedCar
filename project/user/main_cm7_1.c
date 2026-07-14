@@ -34,7 +34,7 @@
 ********************************************************************************************************************/
 
 #include "zf_common_headfile.h"
-#include "camera_debug_app.h"
+#include "camera_frame_consumer.h"
 #include "intercore_memory.h"
 // 打开新的工程或者工程移动了位置务必执行以下操作
 // 第一步 关闭上面所有打开的文件
@@ -58,11 +58,11 @@ int main(void)
     }
 
     pit_ms_init(PIT_CH2, 1);
-    (void)camera_debug_app_init();
+    (void)camera_frame_consumer_init();
 
     while(true)
     {
-        camera_debug_app_service();
+        camera_frame_consumer_service();
     }
 }
 

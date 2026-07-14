@@ -378,6 +378,7 @@ uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *trans
     control->slot[view->slot_index].state = INTERCORE_CAMERA_SLOT_FREE;
     INTERCORE_CAMERA_DMB();
     control->consumed_count++;
+    control->last_consume_ms = control->consumer_heartbeat_ms;
     transport->last_consumed_sequence = view->sequence;
     return 1U;
 }

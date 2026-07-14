@@ -13,30 +13,35 @@ typedef enum
 
 typedef enum
 {
-    INTERCORE_CAMERA_NO_READY_SLOT = 0,
+    INTERCORE_CAMERA_NO_FRAME = 0,
     INTERCORE_CAMERA_OK = 1,
     INTERCORE_CAMERA_INVALID = 2,
-    INTERCORE_CAMERA_EPOCH_CHANGED = 3,
-    INTERCORE_CAMERA_NO_FREE_SLOT = 4
+    INTERCORE_CAMERA_NO_FREE_SLOT = 3,
+    INTERCORE_CAMERA_EPOCH_CHANGED = 4
 }intercore_camera_result_enum;
 
 typedef struct
 {
-    volatile intercore_shared_layout_struct *shared;
+    volatile intercore_camera_control_struct *control;
     volatile uint8 *data_plane;
     uint32 boot_epoch;
+    uint32 last_consumed_sequence;
     uint8 role;
     uint8 attached;
+    volatile intercore_shared_layout_struct *shared;
 }intercore_camera_transport_struct;
 
 typedef struct
 {
-    volatile uint8 *pixels;
+    uint8 slot_index;
     uint32 sequence;
     uint32 capture_ms;
     uint32 publish_ms;
+    uint16 width;
+    uint16 height;
+    uint16 stride;
     uint32 frame_bytes;
-    uint8 slot_index;
+    volatile uint8 *pixels;
 }intercore_camera_frame_view_struct;
 
 uint8 intercore_camera_producer_init(intercore_camera_transport_struct *transport,

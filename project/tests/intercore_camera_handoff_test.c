@@ -59,6 +59,29 @@ static void test_layout(void)
     TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));
 }
 
+static void test_public_abi(void)
+{
+    intercore_camera_frame_view_struct view = {0};
+
+    TEST_CHECK(0U == INTERCORE_CAMERA_NO_FRAME);
+    TEST_CHECK(1U == INTERCORE_CAMERA_OK);
+    TEST_CHECK(2U == INTERCORE_CAMERA_INVALID);
+    TEST_CHECK(3U == INTERCORE_CAMERA_NO_FREE_SLOT);
+    TEST_CHECK(4U == INTERCORE_CAMERA_EPOCH_CHANGED);
+
+    fixture_init();
+    TEST_CHECK(&shared.camera == producer.control);
+    TEST_CHECK(&shared.camera == consumer.control);
+    TEST_CHECK(0U == producer.last_consumed_sequence);
+    TEST_CHECK(0U == consumer.last_consumed_sequence);
+    view.width = INTERCORE_CAMERA_WIDTH;
+    view.height = INTERCORE_CAMERA_HEIGHT;
+    view.stride = INTERCORE_CAMERA_STRIDE;
+    TEST_CHECK(INTERCORE_CAMERA_WIDTH == view.width);
+    TEST_CHECK(INTERCORE_CAMERA_HEIGHT == view.height);
+    TEST_CHECK(INTERCORE_CAMERA_STRIDE == view.stride);
+}
+
 static void test_normal_handoff(void)
 {
     uint8 slot_index = 0xFFU;
@@ -78,11 +101,15 @@ static void test_normal_handoff(void)
     TEST_CHECK(INTERCORE_CAMERA_OK ==
                intercore_camera_consumer_acquire_latest(&consumer, &view));
     TEST_CHECK(slot_index == view.slot_index);
+    TEST_CHECK(INTERCORE_CAMERA_WIDTH == view.width);
+    TEST_CHECK(INTERCORE_CAMERA_HEIGHT == view.height);
+    TEST_CHECK(INTERCORE_CAMERA_STRIDE == view.stride);
     TEST_CHECK(0x12U == view.pixels[0]);
     TEST_CHECK(0x34U == view.pixels[INTERCORE_CAMERA_SLOT_SIZE_BYTES - 1U]);
     TEST_CHECK(INTERCORE_CAMERA_SLOT_READING == shared.camera.slot[slot_index].state);
     TEST_CHECK(1U == intercore_camera_consumer_release(&consumer, &view));
     TEST_CHECK(INTERCORE_CAMERA_SLOT_FREE == shared.camera.slot[slot_index].state);
+    TEST_CHECK(view.sequence == consumer.last_consumed_sequence);
 }
 
 static void test_newest_ready_wins_without_fifo(void)
@@ -133,32 +160,103 @@ static void test_epoch_change_is_rejected(void)
 static void test_consumer_restart_releases_only_stale_reading(void)
 {
     fixture_init();
-    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_READING;
+    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_WRITING;
     shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READY;
+    TEST_CHECK(1U == intercore_camera_consumer_attach(
+                         &consumer, &shared, camera_data, 1U));
+    TEST_CHECK(INTERCORE_CAMERA_SLOT_WRITING == shared.camera.slot[0].state);
+    TEST_CHECK(INTERCORE_CAMERA_SLOT_READY == shared.camera.slot[1].state);
+
+    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_READING;
     TEST_CHECK(1U == intercore_camera_consumer_attach(
                          &consumer, &shared, camera_data, 1U));
     TEST_CHECK(INTERCORE_CAMERA_SLOT_FREE == shared.camera.slot[0].state);
     TEST_CHECK(INTERCORE_CAMERA_SLOT_READY == shared.camera.slot[1].state);
 }
 
-static void test_invalid_layout_is_rejected(void)
+static void test_invalid_layout_fields_are_rejected(void)
 {
+    uint32 invalid_case;
+
+    for(invalid_case = 0U; invalid_case < 10U; invalid_case++)
+    {
+        fixture_init();
+        switch(invalid_case)
+        {
+            case 0U: shared.camera.magic = 0U; break;
+            case 1U: shared.camera.version++; break;
+            case 2U: shared.camera.format++; break;
+            case 3U: shared.camera.width--; break;
+            case 4U: shared.camera.height--; break;
+            case 5U: shared.camera.stride--; break;
+            case 6U: shared.camera.slot_count--; break;
+            case 7U: shared.camera.frame_bytes--; break;
+            case 8U: shared.camera.producer_boot_epoch++; break;
+            default:
+                shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+                break;
+        }
+        TEST_CHECK(0U == intercore_camera_consumer_attach(
+                             &consumer, &shared, camera_data, 1U));
+        TEST_CHECK(1U == shared.camera.invalid_layout_count);
+    }
+}
+
+static void test_invalid_slot_state_rejects_every_public_transition(void)
+{
+    uint8 slot_index = 0xFFU;
+    volatile uint8 *pixels = NULL;
+    intercore_camera_frame_view_struct view = {0};
+    uint32 captured_count;
+
     fixture_init();
-    shared.camera.frame_bytes = INTERCORE_CAMERA_SLOT_SIZE_BYTES - 1U;
-    TEST_CHECK(0U == intercore_camera_consumer_attach(
-                         &consumer, &shared, camera_data, 1U));
+    shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+    captured_count = shared.camera.captured_count;
+    intercore_camera_producer_record_capture(&producer, 10U);
+    TEST_CHECK(captured_count == shared.camera.captured_count);
+    TEST_CHECK(1U == shared.camera.invalid_layout_count);
+
+    fixture_init();
+    shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+    TEST_CHECK(INTERCORE_CAMERA_INVALID ==
+               intercore_camera_producer_claim(&producer, &slot_index, &pixels));
+    TEST_CHECK(1U == shared.camera.invalid_layout_count);
+
+    fixture_init();
+    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_WRITING;
+    shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+    TEST_CHECK(0U == intercore_camera_producer_publish(&producer, 0U, 10U, 11U));
+    TEST_CHECK(1U == shared.camera.invalid_layout_count);
+
+    fixture_init();
+    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_READY;
+    shared.camera.slot[0].sequence = 1U;
+    shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+    TEST_CHECK(INTERCORE_CAMERA_INVALID ==
+               intercore_camera_consumer_acquire_latest(&consumer, &view));
+    TEST_CHECK(1U == shared.camera.invalid_layout_count);
+
+    fixture_init();
+    shared.camera.slot[0].state = INTERCORE_CAMERA_SLOT_READING;
+    shared.camera.slot[0].sequence = 1U;
+    shared.camera.slot[1].state = INTERCORE_CAMERA_SLOT_READING + 1U;
+    view.slot_index = 0U;
+    view.sequence = 1U;
+    TEST_CHECK(0U == intercore_camera_consumer_release(&consumer, &view));
     TEST_CHECK(1U == shared.camera.invalid_layout_count);
 }
 
 int main(void)
 {
     test_layout();
+    test_public_abi();
     test_normal_handoff();
     test_newest_ready_wins_without_fifo();
     test_reading_slot_is_never_overwritten();
     test_epoch_change_is_rejected();
     test_consumer_restart_releases_only_stale_reading();
-    test_invalid_layout_is_rejected();
+    test_invalid_layout_fields_are_rejected();
+    test_invalid_slot_state_rejects_every_public_transition();
 
     if(0U != test_failure_count)
     {

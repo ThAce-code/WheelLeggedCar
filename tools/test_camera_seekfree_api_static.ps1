@@ -135,6 +135,17 @@ if (([Regex]::Matches($intercoreMemory, 'Cy_MPU_Setup\s*\(')).Count -ne 1)
 $intercoreMemoryHeader = Read-RepoFile 'project\code\intercore_memory.h'
 Assert-Match $intercoreMemoryHeader 'volatile\s+uint8\s*\*\s*intercore_memory_get_camera_data\s*\(\s*void\s*\)\s*;' 'camera data-plane getter is not exposed'
 
+$intercoreCameraHeader = Read-RepoFile 'project\code\intercore_camera.h'
+Assert-Match $intercoreCameraHeader '(?s)typedef\s+enum\s*\{\s*INTERCORE_CAMERA_NO_FRAME\s*=\s*0\s*,\s*INTERCORE_CAMERA_OK\s*=\s*1\s*,\s*INTERCORE_CAMERA_INVALID\s*=\s*2\s*,\s*INTERCORE_CAMERA_NO_FREE_SLOT\s*=\s*3\s*,\s*INTERCORE_CAMERA_EPOCH_CHANGED\s*=\s*4\s*\}\s*intercore_camera_result_enum\s*;' 'camera result enum does not match the approved fixed ABI'
+Assert-Match $intercoreCameraHeader '(?s)typedef\s+struct\s*\{\s*uint8\s+slot_index\s*;\s*uint32\s+sequence\s*;\s*uint32\s+capture_ms\s*;\s*uint32\s+publish_ms\s*;\s*uint16\s+width\s*;\s*uint16\s+height\s*;\s*uint16\s+stride\s*;\s*uint32\s+frame_bytes\s*;\s*volatile\s+uint8\s*\*\s*pixels\s*;\s*\}\s*intercore_camera_frame_view_struct\s*;' 'camera frame view does not match the approved fixed ABI'
+Assert-Match $intercoreCameraHeader '(?s)typedef\s+struct\s*\{\s*volatile\s+intercore_camera_control_struct\s*\*\s*control\s*;\s*volatile\s+uint8\s*\*\s*data_plane\s*;\s*uint32\s+boot_epoch\s*;\s*uint32\s+last_consumed_sequence\s*;\s*uint8\s+role\s*;\s*uint8\s+attached\s*;' 'camera transport prefix does not match the approved fixed ABI'
+
+$intercoreCameraSource = Read-RepoFile 'project\code\intercore_camera.c'
+Assert-Match $intercoreCameraSource '(?s)if\s*\(\s*INTERCORE_CAMERA_MAGIC\s*!=\s*control->magic\s*\)\s*\{\s*return\s+0U\s*;\s*\}\s*INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;' 'camera control validation does not acquire after observing magic'
+Assert-Match $intercoreCameraSource '(?s)control->slot\[slot_index\]\.sequence\s*=\s*control->capture_sequence\s*;.*?INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;\s*control->slot\[slot_index\]\.state\s*=\s*INTERCORE_CAMERA_SLOT_READY\s*;\s*INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;' 'camera publish does not order fields before READY with DMB barriers'
+Assert-Match $intercoreCameraSource '(?s)INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;\s*control->slot\[view->slot_index\]\.state\s*=\s*INTERCORE_CAMERA_SLOT_FREE\s*;\s*INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;' 'camera release does not fence before and after FREE ownership transfer'
+Assert-Match $intercoreCameraSource '(?s)for\s*\(\s*slot\s*=\s*0U\s*;\s*slot\s*<\s*INTERCORE_CAMERA_SLOT_COUNT\s*;\s*slot\+\+\s*\).*?INTERCORE_CAMERA_SLOT_READING\s*<\s*control->slot\[slot\]\.state' 'camera layout validation does not reject illegal slot states'
+
 $cm7_0Project = Read-RepoFile 'project\iar\project_config\cyt4bb7_cm_7_0.ewp'
 foreach ($cameraProjectFile in @('intercore_camera.c', 'intercore_camera.h'))
 {

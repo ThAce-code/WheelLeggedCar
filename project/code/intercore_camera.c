@@ -31,15 +31,32 @@ static uint8 intercore_camera_control_is_valid(
     const volatile intercore_camera_control_struct *control,
     uint32 boot_epoch)
 {
-    return ((INTERCORE_CAMERA_MAGIC == control->magic) &&
-            (INTERCORE_CAMERA_VERSION == control->version) &&
-            (INTERCORE_CAMERA_FORMAT_GRAY8 == control->format) &&
-            (INTERCORE_CAMERA_WIDTH == control->width) &&
-            (INTERCORE_CAMERA_HEIGHT == control->height) &&
-            (INTERCORE_CAMERA_STRIDE == control->stride) &&
-            (INTERCORE_CAMERA_SLOT_COUNT == control->slot_count) &&
-            (INTERCORE_CAMERA_SLOT_SIZE_BYTES == control->frame_bytes) &&
-            (boot_epoch == control->producer_boot_epoch)) ? 1U : 0U;
+    uint32 slot;
+
+    if(INTERCORE_CAMERA_MAGIC != control->magic)
+    {
+        return 0U;
+    }
+    INTERCORE_CAMERA_DMB();
+    if((INTERCORE_CAMERA_VERSION != control->version) ||
+       (INTERCORE_CAMERA_FORMAT_GRAY8 != control->format) ||
+       (INTERCORE_CAMERA_WIDTH != control->width) ||
+       (INTERCORE_CAMERA_HEIGHT != control->height) ||
+       (INTERCORE_CAMERA_STRIDE != control->stride) ||
+       (INTERCORE_CAMERA_SLOT_COUNT != control->slot_count) ||
+       (INTERCORE_CAMERA_SLOT_SIZE_BYTES != control->frame_bytes) ||
+       (boot_epoch != control->producer_boot_epoch))
+    {
+        return 0U;
+    }
+    for(slot = 0U; slot < INTERCORE_CAMERA_SLOT_COUNT; slot++)
+    {
+        if(INTERCORE_CAMERA_SLOT_READING < control->slot[slot].state)
+        {
+            return 0U;
+        }
+    }
+    return 1U;
 }
 
 static uint8 intercore_camera_transport_is_configured(
@@ -49,6 +66,7 @@ static uint8 intercore_camera_transport_is_configured(
     if((NULL == transport) || (0U == transport->attached) ||
        ((uint8)expected_role != transport->role) ||
        (0U == intercore_camera_pointer_is_valid(transport->shared)) ||
+       (0U == intercore_camera_pointer_is_valid(transport->control)) ||
        (0U == intercore_camera_pointer_is_valid(transport->data_plane)))
     {
         return 0U;
@@ -58,10 +76,10 @@ static uint8 intercore_camera_transport_is_configured(
     {
         return 0U;
     }
-    if(0U == intercore_camera_control_is_valid(&transport->shared->camera,
+    if(0U == intercore_camera_control_is_valid(transport->control,
                                                transport->boot_epoch))
     {
-        transport->shared->camera.invalid_layout_count++;
+        transport->control->invalid_layout_count++;
         return 0U;
     }
     return 1U;
@@ -140,8 +158,10 @@ uint8 intercore_camera_producer_init(intercore_camera_transport_struct *transpor
     shared->camera.magic = INTERCORE_CAMERA_MAGIC;
 
     transport->shared = shared;
+    transport->control = &shared->camera;
     transport->data_plane = data_plane;
     transport->boot_epoch = boot_epoch;
+    transport->last_consumed_sequence = 0U;
     transport->role = INTERCORE_ROLE_CM7_0;
     transport->attached = 1U;
     return 1U;
@@ -181,8 +201,10 @@ uint8 intercore_camera_consumer_attach(intercore_camera_transport_struct *transp
     INTERCORE_CAMERA_DMB();
 
     transport->shared = shared;
+    transport->control = &shared->camera;
     transport->data_plane = data_plane;
     transport->boot_epoch = boot_epoch;
+    transport->last_consumed_sequence = 0U;
     transport->role = INTERCORE_ROLE_CM7_1;
     transport->attached = 1U;
     return 1U;
@@ -198,7 +220,7 @@ void intercore_camera_producer_record_capture(intercore_camera_transport_struct 
     {
         return;
     }
-    control = &transport->shared->camera;
+    control = transport->control;
     control->captured_count++;
     control->capture_sequence = intercore_camera_next_sequence(control->capture_sequence);
     control->last_capture_ms = capture_ms;
@@ -223,7 +245,7 @@ intercore_camera_result_enum intercore_camera_producer_claim(
         return INTERCORE_CAMERA_INVALID;
     }
 
-    control = &transport->shared->camera;
+    control = transport->control;
     slot = intercore_camera_find_free_slot(control);
     if(INTERCORE_CAMERA_SLOT_COUNT == slot)
     {
@@ -250,7 +272,7 @@ uint8 intercore_camera_producer_publish(intercore_camera_transport_struct *trans
     {
         return 0U;
     }
-    control = &transport->shared->camera;
+    control = transport->control;
     if(INTERCORE_CAMERA_SLOT_WRITING != control->slot[slot_index].state)
     {
         return 0U;
@@ -289,7 +311,7 @@ intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
         return INTERCORE_CAMERA_INVALID;
     }
 
-    control = &transport->shared->camera;
+    control = transport->control;
     for(slot = 0U; slot < INTERCORE_CAMERA_SLOT_COUNT; slot++)
     {
         if((INTERCORE_CAMERA_SLOT_READY == control->slot[slot].state) &&
@@ -302,19 +324,22 @@ intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
     }
     if(INTERCORE_CAMERA_SLOT_COUNT == newest_slot)
     {
-        return INTERCORE_CAMERA_NO_READY_SLOT;
+        return INTERCORE_CAMERA_NO_FRAME;
     }
 
     INTERCORE_CAMERA_DMB();
     control->slot[newest_slot].state = INTERCORE_CAMERA_SLOT_READING;
     INTERCORE_CAMERA_DMB();
-    view->pixels = transport->data_plane +
-                   (newest_slot * INTERCORE_CAMERA_SLOT_SIZE_BYTES);
+    view->slot_index = (uint8)newest_slot;
     view->sequence = control->slot[newest_slot].sequence;
     view->capture_ms = control->slot[newest_slot].capture_ms;
     view->publish_ms = control->slot[newest_slot].publish_ms;
+    view->width = INTERCORE_CAMERA_WIDTH;
+    view->height = INTERCORE_CAMERA_HEIGHT;
+    view->stride = INTERCORE_CAMERA_STRIDE;
     view->frame_bytes = control->slot[newest_slot].frame_bytes;
-    view->slot_index = (uint8)newest_slot;
+    view->pixels = transport->data_plane +
+                   (newest_slot * INTERCORE_CAMERA_SLOT_SIZE_BYTES);
 
     for(slot = 0U; slot < INTERCORE_CAMERA_SLOT_COUNT; slot++)
     {
@@ -342,15 +367,17 @@ uint8 intercore_camera_consumer_release(intercore_camera_transport_struct *trans
     {
         return 0U;
     }
-    control = &transport->shared->camera;
+    control = transport->control;
     if((INTERCORE_CAMERA_SLOT_READING != control->slot[view->slot_index].state) ||
        (view->sequence != control->slot[view->slot_index].sequence))
     {
         return 0U;
     }
 
-    control->slot[view->slot_index].state = INTERCORE_CAMERA_SLOT_FREE;
-    control->consumed_count++;
     INTERCORE_CAMERA_DMB();
+    control->slot[view->slot_index].state = INTERCORE_CAMERA_SLOT_FREE;
+    INTERCORE_CAMERA_DMB();
+    control->consumed_count++;
+    transport->last_consumed_sequence = view->sequence;
     return 1U;
 }

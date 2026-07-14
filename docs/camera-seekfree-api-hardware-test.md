@@ -65,7 +65,10 @@ The authoritative reference remained read-only. The copied application retained 
 `image_copy`, `memcpy`, camera/boundary configuration, and Assistant camera/boundary send calls. Only the transport
 initialization/interface selection and a no-queue 100 ms send gate were added. Temporary volatile stage markers were
 also added to the copied WiFi-SPI library to locate an initial association timeout; they did not alter command flow or
-return values.
+return values. For completion, collapse, and drop quantification, the external temporary copy also declared
+`mt9v03x_completion_count` in `zf_device_mt9v03x.h` and incremented it in the camera-finish callback in
+`zf_device_mt9v03x.c`. This counter-only diagnostic did not change camera capture or Assistant send behavior, and the
+authoritative camera library remained unchanged.
 
 | Result | Status | Evidence / observation |
 | --- | --- | --- |

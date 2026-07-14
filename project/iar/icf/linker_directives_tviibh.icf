@@ -117,6 +117,10 @@ define symbol _base_SRAM_CM7_1                  = _base_SRAM_CM7_SHARED + interc
 define symbol _size_SRAM_CM7_1                  = sram_total_size_user - cm0plus_sram_reserve - cm7_0_sram_reserve - intercore_shared_sram_size;
 define exported symbol __intercore_shared_sram_base = _base_SRAM_CM7_SHARED;
 define exported symbol __intercore_shared_sram_size = intercore_shared_sram_size;
+define symbol camera_shared_sram_base           = 0x28060000;
+define symbol camera_shared_sram_size           = 64K;
+define exported symbol __camera_shared_sram_base = camera_shared_sram_base;
+define exported symbol __camera_shared_sram_size = camera_shared_sram_size;
 
 // Code flash reservations
 define symbol _base_CODE_FLASH_CM0P             = code_flash_base_address;
@@ -223,8 +227,9 @@ else if(isdefinedsymbol(_CORE_cm7_0_))
 {
     // MT9V03X owns 0x5820 bytes at 0x28026024 for its capture scratch image.
     define region SRAM                          = mem:[from _base_SRAM                  to 0x28026023                   ]
-                                                | mem:[from 0x2802B844                  to (_base_SRAM + _size_SRAM - 1)];
-    define region SRAM_HEAP_STACK               = mem:[from 0x2802B844                  to (_base_SRAM + _size_SRAM - 1)];
+                                                | mem:[from 0x2802B844                  to 0x2805FFFF                   ]
+                                                | mem:[from 0x28070000                  to 0x2807FFFF                   ];
+    define region SRAM_HEAP_STACK               = mem:[from 0x28070000                  to 0x2807FFFF                   ];
 }
 else
 {

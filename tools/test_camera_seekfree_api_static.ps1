@@ -113,12 +113,38 @@ Assert-Match $assistantHeader '(?s)void\s+seekfree_assistant_camera_send\s*\(\s*
 
 $linkerDirectives = Read-RepoFile 'project\iar\icf\linker_directives_tviibh.icf'
 Assert-Match $linkerDirectives '(?s)mem:\[from\s+_base_SRAM\s+to\s+0x28006BEF\s*\]\s*\|\s*mem:\[from\s+0x28006BF4\s+to\s+\(_base_SRAM\s*\+\s*_size_SRAM\s*-\s*1\)\s*\]' 'CM0+ SRAM union does not reserve 0x28006BF0-0x28006BF3'
-Assert-Match $linkerDirectives '(?s)mem:\[from\s+_base_SRAM\s+to\s+0x28026023\s*\]\s*\|\s*mem:\[from\s+0x2802B844\s+to\s+\(_base_SRAM\s*\+\s*_size_SRAM\s*-\s*1\)\s*\]' 'CM7_0 SRAM union does not reserve 0x28026024-0x2802B843'
+Assert-Match $linkerDirectives '(?s)mem:\[from\s+_base_SRAM\s+to\s+0x28026023\s*\]\s*\|\s*mem:\[from\s+0x2802B844\s+to\s+0x2805FFFF\s*\]\s*\|\s*mem:\[from\s+0x28070000\s+to\s+0x2807FFFF\s*\]' 'CM7_0 SRAM union does not reserve the fixed image and 0x28060000-0x2806FFFF camera data plane'
 Assert-Match $linkerDirectives '(?s)define\s+region\s+SRAM_HEAP_STACK\s*=\s*mem:\[from\s+0x28006BF4\s+to\s+\(_base_SRAM\s*\+\s*_size_SRAM\s*-\s*1\)\s*\]' 'CM0+ heap/stack region is not a contiguous post-camera range'
-Assert-Match $linkerDirectives '(?s)define\s+region\s+SRAM_HEAP_STACK\s*=\s*mem:\[from\s+0x2802B844\s+to\s+\(_base_SRAM\s*\+\s*_size_SRAM\s*-\s*1\)\s*\]' 'CM7_0 heap/stack region is not a contiguous post-camera range'
+Assert-Match $linkerDirectives '(?s)define\s+region\s+SRAM_HEAP_STACK\s*=\s*mem:\[from\s+0x28070000\s+to\s+0x2807FFFF\s*\]' 'CM7_0 heap/stack region is not 0x28070000-0x2807FFFF'
 Assert-Match $linkerDirectives '(?m)^\s*place\s+at\s+end\s+of\s+SRAM_HEAP_STACK\s*\{\s*block\s+HEAP_STACK\s*\}\s*;' 'HEAP_STACK is not placed at the end of its contiguous SRAM range'
 Assert-Match $linkerDirectives '(?m)^\s*define\s+symbol\s+intercore_shared_sram_size\s*=\s*8K\s*;' 'shared SRAM size is no longer 8 KiB'
 Assert-Match $linkerDirectives '(?m)^\s*define\s+symbol\s+_base_SRAM_CM7_1\s*=\s*_base_SRAM_CM7_SHARED\s*\+\s*intercore_shared_sram_size\s*;' 'CM7_1 ordinary SRAM no longer begins after the 8 KiB shared range'
+Assert-Match $linkerDirectives '(?s)define\s+symbol\s+camera_shared_sram_base\s*=\s*0x28060000\s*;\s*define\s+symbol\s+camera_shared_sram_size\s*=\s*64K\s*;.*?define\s+exported\s+symbol\s+__camera_shared_sram_base\s*=\s*camera_shared_sram_base\s*;\s*define\s+exported\s+symbol\s+__camera_shared_sram_size\s*=\s*camera_shared_sram_size\s*;' 'camera linker symbols are not exported as 0x28060000/64K'
+Assert-Match $linkerDirectives '(?s)(?=.*?define\s+symbol\s+_base_SRAM_CM7_SHARED\s*=\s*sram_base_address\s*\+\s*cm0plus_sram_reserve\s*\+\s*cm7_0_sram_reserve\s*;)(?=.*?define\s+symbol\s+intercore_shared_sram_size\s*=\s*8K\s*;)(?=.*?define\s+symbol\s+_base_SRAM_CM7_1\s*=\s*_base_SRAM_CM7_SHARED\s*\+\s*intercore_shared_sram_size\s*;)' 'shared control 0x28080000/8K or CM7_1 base 0x28082000 contract changed'
+
+$intercoreMemory = Read-RepoFile 'project\code\intercore_memory.c'
+Assert-Match $intercoreMemory '(?s)extern\s+uint8\s+__intercore_shared_sram_base\s*;\s*extern\s+uint8\s+__intercore_shared_sram_size\s*;\s*extern\s+uint8\s+__camera_shared_sram_base\s*;\s*extern\s+uint8\s+__camera_shared_sram_size\s*;' 'intercore_memory_configure does not consume both linker regions'
+Assert-Match $intercoreMemory '(?s)INTERCORE_SHARED_BASE_ADDRESS\s*!=\s*shared_base.*?INTERCORE_SHARED_SIZE_BYTES\s*!=\s*shared_size.*?INTERCORE_CAMERA_DATA_BASE_ADDRESS\s*!=\s*camera_base.*?INTERCORE_CAMERA_DATA_SIZE_BYTES\s*!=\s*camera_size' 'intercore_memory_configure does not validate both linker base/size pairs'
+Assert-Match $intercoreMemory '(?s)const\s+cy_stc_mpu_region_cfg_t\s+regions\s*\[\s*2\s*\]\s*=\s*\{.*?\.addr\s*=\s*INTERCORE_SHARED_BASE_ADDRESS\s*,.*?\.size\s*=\s*CY_MPU_SIZE_8KB\s*,.*?\.attribute\s*=\s*CY_MPU_ATTR_NORM_SHR_MEM_NC\s*,.*?\.execute\s*=\s*CY_MPU_INST_ACCESS_DIS\s*,.*?\.addr\s*=\s*INTERCORE_CAMERA_DATA_BASE_ADDRESS\s*,.*?\.size\s*=\s*CY_MPU_SIZE_64KB\s*,.*?\.attribute\s*=\s*CY_MPU_ATTR_NORM_SHR_MEM_NC\s*,.*?\.execute\s*=\s*CY_MPU_INST_ACCESS_DIS\s*,' 'MPU region array is not two non-cacheable, execute-never shared/control regions'
+Assert-Match $intercoreMemory 'Cy_MPU_Setup\s*\(\s*regions\s*,\s*2U\s*,' 'Cy_MPU_Setup does not receive the two-element region array'
+if (([Regex]::Matches($intercoreMemory, 'Cy_MPU_Setup\s*\(')).Count -ne 1)
+{
+    Add-Failure 'intercore_memory_configure must call Cy_MPU_Setup exactly once'
+}
+
+$intercoreMemoryHeader = Read-RepoFile 'project\code\intercore_memory.h'
+Assert-Match $intercoreMemoryHeader 'volatile\s+uint8\s*\*\s*intercore_memory_get_camera_data\s*\(\s*void\s*\)\s*;' 'camera data-plane getter is not exposed'
+
+$cm7_0Project = Read-RepoFile 'project\iar\project_config\cyt4bb7_cm_7_0.ewp'
+foreach ($cameraProjectFile in @('intercore_camera.c', 'intercore_camera.h'))
+{
+    $cameraProjectPattern = [Regex]::Escape("\code\$cameraProjectFile</name>")
+    Assert-Match $cm7_0Project $cameraProjectPattern "CM7_0 project does not contain $cameraProjectFile"
+    Assert-Match $cm7Project $cameraProjectPattern "CM7_1 project does not contain $cameraProjectFile"
+}
+
+$intercoreNotify = Read-RepoFile 'project\code\intercore_notify.h'
+Assert-Match $intercoreNotify '(?m)^\s*#define\s+INTERCORE_NOTIFY_CAMERA_READY\s+\(\s*0x00000008UL\s*\)' 'INTERCORE_NOTIFY_CAMERA_READY is not 0x00000008UL'
 
 $applicationFiles = Get-ChildItem -Path (Join-Path $repoRoot 'project\code'), (Join-Path $repoRoot 'project\user') -File -Recurse -Include '*.c','*.h'
 foreach ($file in $applicationFiles)

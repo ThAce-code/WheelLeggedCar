@@ -7,8 +7,18 @@
 #define INTERCORE_SHARED_BASE_ADDRESS      (0x28080000UL)
 #define INTERCORE_SHARED_SIZE_BYTES        (8192U)
 #define INTERCORE_PROTOCOL_MAGIC           (0x574C4349UL)
-#define INTERCORE_PROTOCOL_VERSION         (1U)
+#define INTERCORE_PROTOCOL_VERSION         (2U)
 #define INTERCORE_NAVIGATION_MAX_VALID_MS  (200U)
+#define INTERCORE_CAMERA_DATA_BASE_ADDRESS (0x28060000UL)
+#define INTERCORE_CAMERA_DATA_SIZE_BYTES   (65536U)
+#define INTERCORE_CAMERA_SLOT_COUNT        (2U)
+#define INTERCORE_CAMERA_SLOT_SIZE_BYTES   (22560U)
+#define INTERCORE_CAMERA_MAGIC             (0x43414D52UL)
+#define INTERCORE_CAMERA_VERSION           (1U)
+#define INTERCORE_CAMERA_FORMAT_GRAY8      (1U)
+#define INTERCORE_CAMERA_WIDTH             (188U)
+#define INTERCORE_CAMERA_HEIGHT            (120U)
+#define INTERCORE_CAMERA_STRIDE            (188U)
 
 typedef enum
 {
@@ -143,12 +153,59 @@ typedef struct
 
 typedef struct
 {
+    uint32 state;
+    uint32 sequence;
+    uint32 capture_ms;
+    uint32 publish_ms;
+    uint32 frame_bytes;
+    uint32 reserved[3];
+}intercore_camera_slot_struct;
+
+typedef struct
+{
+    uint32 magic;
+    uint16 version;
+    uint16 format;
+    uint16 width;
+    uint16 height;
+    uint16 stride;
+    uint16 slot_count;
+    uint32 frame_bytes;
+    uint32 producer_boot_epoch;
+    uint32 capture_sequence;
+    uint32 latest_published_sequence;
+    intercore_camera_slot_struct slot[2];
+    uint32 captured_count;
+    uint32 published_count;
+    uint32 no_free_drop_count;
+    uint32 stale_ready_drop_count;
+    uint32 consumed_count;
+    uint32 invalid_layout_count;
+    uint32 timeout_count;
+    uint32 last_capture_ms;
+    uint32 last_publish_ms;
+    uint32 last_consume_ms;
+    uint32 producer_heartbeat_ms;
+    uint32 consumer_heartbeat_ms;
+    uint32 last_copy_duration_us;
+    uint32 max_copy_duration_us;
+    uint32 last_send_duration_ms;
+    uint32 max_send_duration_ms;
+    uint32 notify_count;
+    uint32 last_process_duration_us;
+    uint32 max_process_duration_us;
+    uint8 reserved[84];
+}intercore_camera_control_struct;
+
+typedef struct
+{
     intercore_metadata_struct metadata;
     intercore_navigation_slot_struct navigation[2];
     intercore_control_slot_struct control[2];
     intercore_event_struct events[16];
     intercore_health_struct health;
-    uint8 reserved[5120];
+    intercore_camera_control_struct camera;
+    uint8 reserved[4864];
 }intercore_shared_layout_struct;
 
 #define INTERCORE_LAYOUT_CHECK(name, condition) \
@@ -162,13 +219,16 @@ INTERCORE_LAYOUT_CHECK(navigation_slot_size, sizeof(intercore_navigation_slot_st
 INTERCORE_LAYOUT_CHECK(control_slot_size, sizeof(intercore_control_slot_struct) == 512U);
 INTERCORE_LAYOUT_CHECK(event_size, sizeof(intercore_event_struct) == 64U);
 INTERCORE_LAYOUT_CHECK(health_size, sizeof(intercore_health_struct) == 256U);
+INTERCORE_LAYOUT_CHECK(camera_slot_size, sizeof(intercore_camera_slot_struct) == 32U);
+INTERCORE_LAYOUT_CHECK(camera_control_size, sizeof(intercore_camera_control_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(shared_size, sizeof(intercore_shared_layout_struct) == 8192U);
 INTERCORE_LAYOUT_CHECK(metadata_offset, offsetof(intercore_shared_layout_struct, metadata) == 0x000U);
 INTERCORE_LAYOUT_CHECK(navigation_offset, offsetof(intercore_shared_layout_struct, navigation) == 0x100U);
 INTERCORE_LAYOUT_CHECK(control_offset, offsetof(intercore_shared_layout_struct, control) == 0x300U);
 INTERCORE_LAYOUT_CHECK(events_offset, offsetof(intercore_shared_layout_struct, events) == 0x700U);
 INTERCORE_LAYOUT_CHECK(health_offset, offsetof(intercore_shared_layout_struct, health) == 0xB00U);
-INTERCORE_LAYOUT_CHECK(reserved_offset, offsetof(intercore_shared_layout_struct, reserved) == 0xC00U);
+INTERCORE_LAYOUT_CHECK(camera_offset, offsetof(intercore_shared_layout_struct, camera) == 0xC00U);
+INTERCORE_LAYOUT_CHECK(reserved_offset, offsetof(intercore_shared_layout_struct, reserved) == 0xD00U);
 
 uint32 intercore_crc32(const uint8 *data, uint32 size);
 void intercore_record_prepare(intercore_header_struct *header,

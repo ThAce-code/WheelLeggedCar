@@ -1136,6 +1136,8 @@
         <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_memory.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_memory.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.h</name></file>
     </group>
     <group>
         <name>doc</name>

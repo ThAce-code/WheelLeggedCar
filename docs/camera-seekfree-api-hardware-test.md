@@ -119,10 +119,25 @@ authoritative camera library remained unchanged.
 | `mt9v03x_w_num` fixed placement | PASS | Integrated CM7_1 map lists `.noinit` and symbol `mt9v03x_w_num` at `0x28006BF2`, size `0x2`; exclusive end `0x28006BF4`. |
 | `mt9v03x_image_temp` fixed placement | PASS | Integrated CM7_1 map lists `.noinit` and symbol `mt9v03x_image_temp` at `0x28026024`, size `0x5820`; exclusive end `0x2802B844` (inclusive last byte `0x2802B843`). |
 | CM0+ ordinary SRAM excludes camera absolute words | PASS | CM0+ map placement summary restricts ordinary read-write placement to `0x28000800-0x28006BEF` union `0x28006BF4-0x2801FFFF`; ordinary allocation cannot occupy `0x28006BF0-0x28006BF3`. Heap/stack is placed at the end of the contiguous post-hole range. |
-| CM7_0 ordinary SRAM excludes camera scratch image | PASS | CM7_0 map placement summary restricts ordinary read-write placement to `0x28020000-0x28026023` union `0x2802B844-0x2807FFFF`; ordinary allocation cannot occupy `0x28026024-0x2802B843`. Heap/stack is placed at the end of the contiguous post-hole range. |
+| CM7_0 ordinary SRAM excludes camera scratch image and data plane | PASS | Task 1 CM7_0 map placement summary restricts ordinary read-write placement to `0x28020000-0x28026023`, `0x2802B844-0x2805FFFF`, and `0x28070000-0x2807FFFF`; ordinary allocation cannot occupy `0x28026024-0x2802B843` or the camera data plane at `0x28060000-0x2806FFFF`. Heap/stack is confined to the final range. |
 | Shared SRAM remains `0x28080000-0x28081FFF` | PASS | All three integrated maps export `__intercore_shared_sram_base = 0x28080000` and `__intercore_shared_sram_size = 0x2000`. |
 | CM7_1 ordinary SRAM begins at `0x28082000` | PASS | Integrated CM7_1 placement summary is `0x28082000-0x280BFFFF`; the first initialized data block begins at `0x28082000`. |
-| Integrated three-core map ranges checked for overlap | PASS | Revalidated after the Task 4 fresh builds. CM0+ ordinary SRAM is `0x28000800-0x28006BEF` union `0x28006BF4-0x2801FFFF`; CM7_0 ordinary SRAM is `0x28020000-0x28026023` union `0x2802B844-0x2807FFFF`; CM7_1 ordinary SRAM is `0x28082000-0x280BFFFF`. The fixed camera objects remain at `0x28006BF0`, `0x28006BF2`, and `0x28026024`, while shared SRAM remains `0x28080000` size `0x2000`. |
+| Integrated three-core map ranges checked for overlap | PASS | Revalidated after the Task 1 fresh builds. CM0+ ordinary SRAM is `0x28000800-0x28006BEF` union `0x28006BF4-0x2801FFFF`; CM7_0 ordinary SRAM is `0x28020000-0x28026023`, `0x2802B844-0x2805FFFF`, and `0x28070000-0x2807FFFF`; CM7_1 ordinary SRAM is `0x28082000-0x280BFFFF`. The fixed camera objects remain at `0x28006BF0`, `0x28006BF2`, and `0x28026024`; camera data is `0x28060000` size `0x10000`; shared control remains `0x28080000` size `0x2000`. |
+
+## Task 1 cross-core camera handoff evidence
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Host state-machine RED | PASS | After adding `project/tests/intercore_camera_handoff_test.c` and before production implementation, the required GCC command exited `1` with `fatal error: intercore_camera.h: No such file or directory` and `fatal error: project/code/intercore_camera.c: No such file or directory`. |
+| Host state-machine GREEN | PASS | GCC C11 with `-Wall -Wextra -Werror -DINTERCORE_HOST_TEST` compiled the camera handoff test; `intercore_camera_handoff_test: PASS`. The existing foundation regression also reported `intercore_control_foundation_test: PASS`. |
+| Linker/MPU static RED and GREEN | PASS | The extended static contract first failed on exactly 14 new camera linker, MPU, project, getter, and notify assertions. After implementation, `powershell -ExecutionPolicy Bypass -File tools/test_camera_seekfree_api_static.ps1` reported `PASS`; `git diff --check` also exited `0`. |
+| Task 1 CM0+ fresh build | PASS | IAR ARM compiler 9.40.1.364 clean build: 0 errors, 0 warnings. |
+| Task 1 CM7_0 fresh build | PASS | IAR ARM compiler 9.40.1.364 clean build: 0 errors, 3 pre-existing `Pe550` warnings for unused `control_leg_height_cmd`, `control_leg_pitch_cmd`, and `control_leg_roll_cmd`. No linker overlap was reported. |
+| Task 1 CM7_1 fresh build | PASS | IAR ARM compiler 9.40.1.364 clean build: 0 errors, 0 warnings. Both CM7 projects compile `intercore_camera.c/.h`. |
+| Camera data-plane reservation | PASS | All three maps export `__camera_shared_sram_base = 0x28060000` and `__camera_shared_sram_size = 0x10000`. CM7_0 ordinary read-write placement is `0x28020000-0x28026023`, `0x2802B844-0x2805FFFF`, and `0x28070000-0x2807FFFF`, leaving the full 64 KiB data plane unallocated. |
+| CM7_0 heap/stack placement | PASS | CM7_0 places `HEAP_STACK` at `0x2807E000-0x2807FFFF`, wholly inside the dedicated `0x28070000-0x2807FFFF` heap/stack region. |
+| Shared control and CM7_1 ordinary SRAM | PASS | All three maps retain `__intercore_shared_sram_base = 0x28080000` and `__intercore_shared_sram_size = 0x2000`; CM7_1 ordinary read-write placement remains `0x28082000-0x280BFFFF`. |
+| Fixed MT9V03X objects after reservation | PASS | CM7_1 map retains `mt9v03x_h_num` at `0x28006BF0` size `0x2`, `mt9v03x_w_num` at `0x28006BF2` size `0x2`, and `mt9v03x_image_temp` at `0x28026024` size `0x5820`. |
 
 ## Timing
 

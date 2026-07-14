@@ -1117,6 +1117,9 @@
     </configuration>
     <group>
         <name>code</name>
+        <file><name>$PROJ_DIR$\..\..\code\camera_debug_app.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_debug_app.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_debug_config.h</name></file>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>

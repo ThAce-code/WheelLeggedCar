@@ -88,7 +88,14 @@ authoritative camera library remained unchanged.
 
 | Result | Status | Evidence / observation |
 | --- | --- | --- |
-| Camera path ported to and validated on CM7_1 | NOT RUN | Outside Gate A; no portability claim made. |
+| Camera-only application initializes on CM7_1 | PASS | All three cores were downloaded, CM7_1 was set Active and run, and IAR Live Watch showed `camera_debug_diag.init_state = 0x04` (`CAMERA_DEBUG_INIT_OK`). WiFi and Assistant transport were disabled. |
+| Unchanged MT9V03X driver completes frames on CM7_1 | FAIL | Target reset/download occurred at local `2026-07-13 23:53:36 -07:00`. At `2026-07-14 00:01:04.479 -07:00`, after approximately 448.479 seconds, Live Watch still showed `frame_count = 0`, `last_frame_ms = 0`, `frame_valid = 0`, and `mt9v03x_finish_flag = 0`. IAR Debug state confirmed the CPU was running rather than stopped at a breakpoint. |
+| 100 ms snapshot scheduler runs at approximately 10 FPS | FAIL | `snapshot_count` remained `0` because no completed frame reached the scheduler. This is a capture failure, not a scheduler-rate measurement. |
+| Sample pixels respond to a controlled scene change | NOT RUN | No completed CM7_1 frame was available. Watched samples `image_copy[0][0]` and `image_copy[60][94]` both remained `0`. |
+| Hard wheel-duty lock in camera-debug mode | PASS | `APP_CAMERA_DEBUG_ONLY` is locked to `1U`; the sole `actuator_motor_send_duty()` choke point overwrites both requested duties with zero before `bldc_foc_uart_set_duty()`. The static safety contract passed and wheel motor power remained operator-confirmed OFF. |
+| Motion-command logical safety check | NOT RUN | No motion command was sent after the no-frame condition triggered STOP B. No wheel motion or `LXY` command was attempted. |
+| Servos remain at the all-90-degree reference pose | NOT RUN | The physical servo pose was not independently observable during this run; no servo command was sent. |
+| Core-dependent reference architecture reviewed | PASS | The unchanged driver had already produced repeated changing frames on CM7_0 during Gate A. The supplied `E8_09_mt9v03x_uart_seekfree_assistant_cross_ram_m7_1_demo` likewise keeps `mt9v03x_init()` and capture/copy ownership on CM7_0; CM7_1 only reads cross-RAM and sends the Assistant image. This supports the planned core-dependent STOP B classification without modifying DMA/GPIO/TCPWM. |
 
 ## Three-core robot build
 
@@ -97,9 +104,9 @@ authoritative camera library remained unchanged.
 | Source-matched MT9V03X and Assistant files | PASS | Imported only `zf_device_mt9v03x.c/.h` and `seekfree_assistant.c/.h` from the approved E9 library. SHA-256 values are respectively `33C9B8C1D5641CB48933B4E6796788BB247C813909B4A3F16D963A6B40D7E7E0`, `0C489FABA1851C861E33B44E222D7D72B331EEC851B09F93DC694A20FA17DED2`, `6C6BABD379FAFCCBB64F4DE27A8E837EC3C73EF4E7ECD169656CF80B0C13A28B`, and `FA6FC8DD75323AF03A49FB48BBA63029AD2CB36C1C8484F4B9596835EADEBBB5`, matching the approved hashes enforced by `tools/test_camera_seekfree_api_static.ps1`. Existing Assistant interface, WiFi-SPI, and device-config files were not replaced. |
 | Hash-locked source checkout and whitespace policy | PASS | Repository `core.autocrlf=true`, while the approved upstream Assistant bytes include trailing whitespace. `.gitattributes` therefore limits `-text -whitespace` to exactly the four hash-locked source paths: checkout cannot translate line endings, and `git diff --check` does not require altering approved upstream bytes. The static test verifies all four exact attribute rows. |
 | Static provenance, ownership, pin, API, and linker contract | PASS | `powershell -ExecutionPolicy Bypass -File tools/test_camera_seekfree_api_static.ps1` reported `PASS`. The test was first observed RED before the four imports, again RED before the contiguous heap/stack linker correction, and again RED before the CM7_1 linker retained the three fixed symbols. |
-| Integrated robot CM0+ build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 0 warnings. Map: `project/iar/Debug_m0_plus/List/cyt4bb7_cm_0_plus.map`. |
-| Integrated robot CM7_0 build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 3 pre-existing `Pe550` warnings for unused `control_leg_height_cmd`, `control_leg_pitch_cmd`, and `control_leg_roll_cmd`. Map: `project/iar/Debug_m7_0/List/cyt4bb7_cm_7_0.map`. |
-| Integrated robot CM7_1 build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 0 warnings. The linker command records `--keep mt9v03x_h_num --keep mt9v03x_w_num --keep mt9v03x_image_temp`, so the unused-at-Task-3 absolute objects remain visible for map verification. Map: `project/iar/Debug_m7_1/List/cyt4bb7_cm_7_1.map`. |
+| Integrated robot CM0+ build | PASS | Task 4 fresh IAR ARM compiler 9.40.1.364 build: 0 errors, 0 warnings in 83.0 seconds. Map: `project/iar/Debug_m0_plus/List/cyt4bb7_cm_0_plus.map`. |
+| Integrated robot CM7_0 build | PASS | Task 4 fresh IAR ARM compiler 9.40.1.364 build: 0 errors, 3 pre-existing `Pe550` warnings for unused `control_leg_height_cmd`, `control_leg_pitch_cmd`, and `control_leg_roll_cmd` in 103.7 seconds. Map: `project/iar/Debug_m7_0/List/cyt4bb7_cm_7_0.map`. |
+| Integrated robot CM7_1 build | PASS | Task 4 fresh IAR ARM compiler 9.40.1.364 build: 0 errors, 0 warnings in 84.3 seconds. PIT_CH10..CH21 clear-only handlers were required by the real link and added without application work. The linker retains the three fixed camera symbols. Map: `project/iar/Debug_m7_1/List/cyt4bb7_cm_7_1.map`. |
 
 ## Map ranges
 
@@ -115,7 +122,7 @@ authoritative camera library remained unchanged.
 | CM7_0 ordinary SRAM excludes camera scratch image | PASS | CM7_0 map placement summary restricts ordinary read-write placement to `0x28020000-0x28026023` union `0x2802B844-0x2807FFFF`; ordinary allocation cannot occupy `0x28026024-0x2802B843`. Heap/stack is placed at the end of the contiguous post-hole range. |
 | Shared SRAM remains `0x28080000-0x28081FFF` | PASS | All three integrated maps export `__intercore_shared_sram_base = 0x28080000` and `__intercore_shared_sram_size = 0x2000`. |
 | CM7_1 ordinary SRAM begins at `0x28082000` | PASS | Integrated CM7_1 placement summary is `0x28082000-0x280BFFFF`; the first initialized data block begins at `0x28082000`. |
-| Integrated three-core map ranges checked for overlap | PASS | All three full links succeeded with the two ordinary-SRAM holes enforced. The integrated CM7_1 map places the three retained absolute sections only in those holes, while CM0+/CM7_0 maps exclude them and preserve the existing shared/CM7_1 boundary. |
+| Integrated three-core map ranges checked for overlap | PASS | Revalidated after the Task 4 fresh builds. CM0+ ordinary SRAM is `0x28000800-0x28006BEF` union `0x28006BF4-0x2801FFFF`; CM7_0 ordinary SRAM is `0x28020000-0x28026023` union `0x2802B844-0x2807FFFF`; CM7_1 ordinary SRAM is `0x28082000-0x280BFFFF`. The fixed camera objects remain at `0x28006BF0`, `0x28006BF2`, and `0x28026024`, while shared SRAM remains `0x28080000` size `0x2000`. |
 
 ## Timing
 
@@ -125,7 +132,8 @@ authoritative camera library remained unchanged.
 | Live Watch camera-buffer observation held for 60 seconds | PASS | UTC `2026-07-14T02:43:05.588Z` to `2026-07-14T02:44:23.976Z` (78.388 seconds). |
 | UART Assistant image observation held for 60 seconds | PASS | UTC `2026-07-14T03:09:20.250Z` to `2026-07-14T03:10:35.250Z` (75.000 seconds), continuously connected on COM6 with 188 x 120 live imagery and approximately 11.4 kB/s receive rate. |
 | WiFi-SPI Assistant image observation held for 60 seconds | PASS | Frozen formal window local `2026-07-13 22:23:04.599` to `22:26:10.507 -07:00` (185.908 seconds), continuously connected over TCP with changing 188 x 120 imagery. Firmware measured 9.983 FPS with zero `<100 ms` intervals; concurrent throughput was 247,742.9 bytes/s (1.890 Mbit/s). |
-| Integrated scheduler/control timing impact checked | NOT RUN | Outside Gate A. |
+| CM7_1 portability Live Watch held beyond 60 seconds | FAIL | Local `2026-07-13 23:53:36 -07:00` to `2026-07-14 00:01:04.479 -07:00` (approximately 448.479 seconds). CPU remained running, initialization stayed OK, but `frame_count`, `snapshot_count`, and both watched copy-buffer samples remained zero. |
+| Integrated scheduler/control timing impact checked | NOT RUN | STOP B occurred before a valid frame or snapshot cadence existed, so no runtime scheduling-impact claim is made. |
 
 ## Final disposition
 
@@ -133,4 +141,5 @@ authoritative camera library remained unchanged.
 | --- | --- | --- |
 | Gate A — untouched E9_01 supplied-project build plus 60-second debug-UART camera proof | PASS | Both supplied E9_01 projects build with 0 errors/0 warnings, the untouched CM7_0 reference downloads and runs, Assistant displays changing 188 x 120 imagery for 75.000 seconds, the operator-confirmed hand/object movement changes the scene and both watched samples, wheel motor power was operator-confirmed OFF, and camera wiring was operator-confirmed against the planned pin map. Individual continuity-meter measurements and the conditional all-90-degree leg-pose observation remain accurately `NOT RUN` and are not claimed. |
 | Gate B — existing Assistant camera packet over WiFi-SPI in an isolated E9_01 copy | PASS | The copied CM7_0 project built with 0 errors/0 warnings; WiFi init and TCP socket connect succeeded on a forced-2.4 GHz Windows hotspot; and the single-pending latest-frame scheduler reused the existing Assistant packets without a queue. Over a frozen 185.908-second window it delivered 1,856 sends (9.983 FPS), every measured send interval was at least 100 ms, TCP stayed connected, and Assistant displayed changing 188 x 120 frames. The isolated scheduler remains reference evidence only and is not integrated robot real-time-safety evidence. |
-| Overall camera integration evidence | NOT RUN | Gates A and B reference proofs are PASS, and the integrated three-core source builds plus map audit are PASS. CM7_1 portability and the integrated robot runtime/display gates remain `NOT RUN`; no robot real-time-safety claim is made. |
+| Gate C - unchanged-driver CM7_1 camera-only portability | FAIL | CM7_1 initialization succeeded, but no frame completed during approximately 448.479 seconds of a running target: `frame_count = 0`, `snapshot_count = 0`, `last_frame_ms = 0`, `frame_valid = 0`, and `mt9v03x_finish_flag = 0`. This meets the plan's STOP B condition. No DMA/GPIO/TCPWM rewrite, motion command, wheel motion, or `LXY` test was performed. |
+| Overall camera integration evidence | FAIL / STOP B | Gates A and B reference proofs remain PASS, and the Task 4 three-core builds, map audit, camera-debug hard wheel lock, and P06_5 ADC exclusion pass. The required CM7_1 capture gate fails with the unchanged driver, so integrated runtime/display acceptance is not claimed and work stops before bottom-driver redesign. |

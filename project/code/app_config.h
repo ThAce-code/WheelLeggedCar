@@ -9,6 +9,7 @@
 #include "zf_common_headfile.h"
 
 #define APP_TICK_PERIOD_MS              (1U)
+#define APP_CAMERA_DEBUG_ONLY           (1U)
 #define APP_SCHEDULER_IMU_ONLY          (0U)
 #define APP_HEARTBEAT_PERIOD_MS         (250U)
 #define APP_CHASSIS_PERIOD_MS           (5U)

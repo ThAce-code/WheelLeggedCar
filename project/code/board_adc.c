@@ -34,6 +34,7 @@
 ********************************************************************************************************************/
 
 #include "bldc_config.h"
+#include "app_config.h"
 #include "zf_common_function.h"
 #include "board_adc.h"
 
@@ -51,7 +52,9 @@ void adc_collection_init(void)
     adc_init(A_PHASE_PORT               , ADC_GATHER_RESOLUTION);               // 初始化A相电流采集端口
     adc_init(B_PHASE_PORT               , ADC_GATHER_RESOLUTION);               // 初始化B相电流采集端口
     adc_init(C_PHASE_PORT               , ADC_GATHER_RESOLUTION);               // 初始化C相电流采集端口
+#if !APP_CAMERA_DEBUG_ONLY
     adc_init(BUS_PHASE_PORT             , ADC_GATHER_RESOLUTION);               // 初始化母线电流采集端口
+#endif
     adc_init(BOARD_POTENTIOMET_PORT     , ADC_GATHER_RESOLUTION);               // 初始化板载电位器采集端口
     adc_init(BATTERY_PHASE_PORT         , ADC_GATHER_RESOLUTION);               // 初始化电源电压采集端口
     adc_init(V_REFERENCE                , ADC_GATHER_RESOLUTION);               // 初始化参考电压采集端口
@@ -60,7 +63,9 @@ void adc_collection_init(void)
     adc_mean_filter_convert(A_PHASE_PORT                , 10);                  // 丢弃10次A相电流采集端口的值
     adc_mean_filter_convert(B_PHASE_PORT                , 10);                  // 丢弃10次B相电流采集端口的值
     adc_mean_filter_convert(C_PHASE_PORT                , 10);                  // 丢弃10次C相电流采集端口的值
+#if !APP_CAMERA_DEBUG_ONLY
     adc_mean_filter_convert(BUS_PHASE_PORT              , 10);                  // 丢弃10次母线电流采集端口的值
+#endif
     adc_mean_filter_convert(BOARD_POTENTIOMET_PORT      , 10);                  // 丢弃10次板载电位器采集端口的值
     adc_mean_filter_convert(BATTERY_PHASE_PORT          , 10);                  // 丢弃10次电源电压采集端口的值
     adc_mean_filter_convert(V_REFERENCE                 , 10);                  // 丢弃10次参考电压采集端口的值
@@ -125,7 +130,9 @@ void adc_read(void)
     uint16 adc_value_a_phase        = 0;
     uint16 adc_value_b_phase        = 0;
     uint16 adc_value_c_phase        = 0;
+#if !APP_CAMERA_DEBUG_ONLY
     uint16 adc_value_bus_phase      = 0;
+#endif
     uint16 adc_value_battery_phase  = 0;
     uint16 adc_value_v_reference    = 0;
     static uint32 lock_count       = 0;
@@ -134,20 +141,25 @@ void adc_read(void)
     adc_value_a_phase               = adc_convert(A_PHASE_PORT          ) - adc_information.current_a_offset;                   // 获取A相电流采集端口的值
     adc_value_b_phase               = adc_convert(B_PHASE_PORT          ) - adc_information.current_b_offset;                   // 获取B相电流采集端口的值
     adc_value_c_phase               = adc_convert(C_PHASE_PORT          ) - adc_information.current_c_offset;                   // 获取C相电流采集端口的值
-    adc_value_bus_phase             = adc_convert(BUS_PHASE_PORT        ) - adc_information.voltage_bus_offset;                 // 获取母线电流采集端口的值
-    
-    
     adc_value_v_reference           = adc_mean_filter_convert(V_REFERENCE           , 5);                                      // 获取参考电压采集端口的值
+#if !APP_CAMERA_DEBUG_ONLY
+    adc_value_bus_phase             = adc_convert(BUS_PHASE_PORT        ) - adc_information.voltage_bus_offset;                 // 获取母线电流采集端口的值
+#endif
     adc_value_battery_phase         = adc_mean_filter_convert(BATTERY_PHASE_PORT    , 5);                                      // 获取电源电压采集端口的值
     adc_information.current_board   = adc_mean_filter_convert(BOARD_POTENTIOMET_PORT, 5);                                      // 获取板载电位器电压
       
     adc_information.current_a       = (float)(adc_value_a_phase   - adc_value_v_reference)   * PHASE_CURRENT_TRANSITION_VALUE;                                // 计算A相电流
     adc_information.current_b       = (float)(adc_value_b_phase   - adc_value_v_reference)   * PHASE_CURRENT_TRANSITION_VALUE;                                // 计算B相电流
     adc_information.current_c       = (float)(adc_value_c_phase   - adc_value_v_reference)   * PHASE_CURRENT_TRANSITION_VALUE;                                // 计算C相电流
-    adc_information.voltage_bus     = (float)(adc_value_bus_phase - adc_value_v_reference)   * BUS_CURRENT_TRANSITION_VALUE;                                  // 计算母线电流
     adc_information.battery_voltage = (float)adc_value_battery_phase / 4096 * 3.3 * 11 * BATTERY_OFFSET_VALUE;                  // 计算电池电压
     adc_information.v_reference     = adc_value_v_reference;                    // 保存参考电压采样值
-    
+
+#if APP_CAMERA_DEBUG_ONLY
+    adc_information.voltage_bus = 0.0f;
+    adc_information.voltage_bus_filter = 0.0f;
+    adc_information.voltage_bus_filter_offset = 0.0f;
+#else
+    adc_information.voltage_bus     = (float)(adc_value_bus_phase - adc_value_v_reference)   * BUS_CURRENT_TRANSITION_VALUE;                                  // 计算母线电流
     adc_information.voltage_bus_filter = adc_information.voltage_bus * 0.01 + adc_information.voltage_bus_filter * 0.99;         // 母线电流滤波 获得较为稳定的母线电流       
     
     if(motor_control.motor_duty == 0) adc_information.voltage_bus_filter_offset = adc_information.voltage_bus_filter;    
@@ -155,6 +167,7 @@ void adc_read(void)
     adc_information.voltage_bus_filter = adc_information.voltage_bus_filter - adc_information.voltage_bus_filter_offset;
     
     adc_information.voltage_bus_filter = func_limit_ab(adc_information.voltage_bus_filter, 0, adc_information.voltage_bus_filter);
+#endif
     
     if(BATTERY_ERROR != motor_control.battery_state)
     {

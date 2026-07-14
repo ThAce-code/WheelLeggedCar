@@ -35,6 +35,7 @@
 
 
 #include "zf_common_headfile.h"
+#include "camera_debug_app.h"
 // **************************** PIT中断函数 ****************************
 void pit0_ch0_isr()
 {
@@ -60,10 +61,67 @@ void pit0_ch1_isr()
 void pit0_ch2_isr()
 {
     pit_isr_flag_clear(PIT_CH2);
-	
-	
-	
-	
+    camera_debug_app_tick_1ms();
+}
+
+void pit0_ch10_isr()
+{
+    pit_isr_flag_clear(PIT_CH10);
+}
+
+void pit0_ch11_isr()
+{
+    pit_isr_flag_clear(PIT_CH11);
+}
+
+void pit0_ch12_isr()
+{
+    pit_isr_flag_clear(PIT_CH12);
+}
+
+void pit0_ch13_isr()
+{
+    pit_isr_flag_clear(PIT_CH13);
+}
+
+void pit0_ch14_isr()
+{
+    pit_isr_flag_clear(PIT_CH14);
+}
+
+void pit0_ch15_isr()
+{
+    pit_isr_flag_clear(PIT_CH15);
+}
+
+void pit0_ch16_isr()
+{
+    pit_isr_flag_clear(PIT_CH16);
+}
+
+void pit0_ch17_isr()
+{
+    pit_isr_flag_clear(PIT_CH17);
+}
+
+void pit0_ch18_isr()
+{
+    pit_isr_flag_clear(PIT_CH18);
+}
+
+void pit0_ch19_isr()
+{
+    pit_isr_flag_clear(PIT_CH19);
+}
+
+void pit0_ch20_isr()
+{
+    pit_isr_flag_clear(PIT_CH20);
+}
+
+void pit0_ch21_isr()
+{
+    pit_isr_flag_clear(PIT_CH21);
 }
 // **************************** PIT中断函数 ****************************
 

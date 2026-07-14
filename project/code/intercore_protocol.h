@@ -200,7 +200,8 @@ typedef struct
     uint8 consumer_sample_center;
     uint8 consumer_frame_valid;
     uint8 consumer_reserved;
-    uint8 reserved[72];
+    uint32 producer_period_drop_count;
+    uint8 reserved[68];
 }intercore_camera_control_struct;
 
 typedef struct
@@ -233,6 +234,9 @@ INTERCORE_LAYOUT_CHECK(camera_consumer_sequence_offset,
 INTERCORE_LAYOUT_CHECK(camera_consumer_observation_offset,
                        offsetof(intercore_camera_control_struct,
                                 consumer_last_frame_age_ms) == 176U);
+INTERCORE_LAYOUT_CHECK(camera_period_drop_offset,
+                       offsetof(intercore_camera_control_struct,
+                                producer_period_drop_count) == 184U);
 INTERCORE_LAYOUT_CHECK(shared_size, sizeof(intercore_shared_layout_struct) == 8192U);
 INTERCORE_LAYOUT_CHECK(metadata_offset, offsetof(intercore_shared_layout_struct, metadata) == 0x000U);
 INTERCORE_LAYOUT_CHECK(navigation_offset, offsetof(intercore_shared_layout_struct, navigation) == 0x100U);

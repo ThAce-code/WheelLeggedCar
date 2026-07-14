@@ -65,8 +65,10 @@ static void test_layout(void)
                                 consumer_sample_center));
     TEST_CHECK(182U == offsetof(intercore_camera_control_struct,
                                 consumer_frame_valid));
-    TEST_CHECK(184U == offsetof(intercore_camera_control_struct, reserved));
-    TEST_CHECK(72U == sizeof(shared.camera.reserved));
+    TEST_CHECK(184U == offsetof(intercore_camera_control_struct,
+                                producer_period_drop_count));
+    TEST_CHECK(188U == offsetof(intercore_camera_control_struct, reserved));
+    TEST_CHECK(68U == sizeof(shared.camera.reserved));
     TEST_CHECK(0xC00U == offsetof(intercore_shared_layout_struct, camera));
     TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, reserved));
     TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));

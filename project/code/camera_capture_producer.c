@@ -19,6 +19,15 @@ camera_capture_producer_diag_struct producer_diag;
 static uint32 producer_last_init_attempt_ms;
 static uint8 producer_stale_latched;
 
+static void camera_capture_publish_period_drop_diag(void)
+{
+    if(0U != camera_transport.attached)
+    {
+        camera_transport.control->producer_period_drop_count =
+            producer_diag.period_drop_count;
+    }
+}
+
 static uint8 camera_capture_try_camera_init(void)
 {
     producer_last_init_attempt_ms = app_get_ms();
@@ -35,6 +44,11 @@ static uint8 camera_capture_try_camera_init(void)
 
 uint8 camera_capture_producer_init(void)
 {
+#if !APP_CAMERA_CAPTURE_ENABLE
+    memset(&producer_diag, 0, sizeof(producer_diag));
+    producer_diag.init_state = (uint8)CAMERA_CAPTURE_INIT_NOT_RUN;
+    return 0U;
+#else
     volatile intercore_shared_layout_struct *shared;
     volatile uint8 *camera_data;
 
@@ -59,10 +73,14 @@ uint8 camera_capture_producer_init(void)
     timer_init(TC_TIME2_CH0, TIMER_US);
     timer_start(TC_TIME2_CH0);
     return camera_capture_try_camera_init();
+#endif
 }
 
 void camera_capture_producer_service(void)
 {
+#if !APP_CAMERA_CAPTURE_ENABLE
+    return;
+#else
     uint8 notify_ok;
     uint8 publish_ok;
     uint8 slot_index;
@@ -160,6 +178,7 @@ void camera_capture_producer_service(void)
     }
 
     now_ms = app_get_ms();
+    camera_capture_publish_period_drop_diag();
     camera_transport.control->producer_heartbeat_ms = now_ms;
     if((0U != producer_diag.frame_valid) &&
        (APP_CAMERA_STALE_TIMEOUT_MS < (now_ms - producer_diag.last_frame_ms)))
@@ -172,6 +191,7 @@ void camera_capture_producer_service(void)
             camera_transport.control->timeout_count++;
         }
     }
+#endif
 }
 
 const camera_capture_producer_diag_struct *camera_capture_producer_get_diag(void)

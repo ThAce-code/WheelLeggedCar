@@ -35,8 +35,19 @@ typedef struct
     uint16 height;
     uint16 stride;
     uint32 frame_bytes;
-    volatile uint8 *pixels;
+    const volatile uint8 *pixels;
 } camera_vision_frame_view_struct;
+
+typedef struct
+{
+    uint32 le_25_ms;
+    uint32 le_50_ms;
+    uint32 le_100_ms;
+    uint32 le_200_ms;
+    uint32 le_500_ms;
+    uint32 le_1000_ms;
+    uint32 gt_1000_ms;
+} camera_send_duration_histogram_struct;
 
 typedef struct
 {
@@ -46,6 +57,7 @@ typedef struct
     uint32 invalid_count;
     uint32 timeout_count;
     uint32 sent_count;
+    uint32 send_failure_count;
     uint32 reconnect_count;
     uint32 stale_count;
     uint32 last_sent_sequence;
@@ -54,6 +66,8 @@ typedef struct
     uint32 max_send_duration_ms;
     uint32 last_process_duration_us;
     uint32 max_process_duration_us;
+    camera_send_duration_histogram_struct startup_send_histogram;
+    camera_send_duration_histogram_struct steady_send_histogram;
     uint32 last_sequence;
     uint32 last_capture_ms;
     uint32 last_frame_age_ms;
@@ -63,7 +77,45 @@ typedef struct
     uint8 init_state;
     uint8 wifi_state;
     uint8 socket_state;
+    uint8 handoff_state;
 } camera_frame_consumer_diag_struct;
+
+typedef struct
+{
+    uint32 generation;
+    uint32 consumer_ms;
+    uint32 producer_heartbeat_ms;
+    uint32 producer_last_publish_ms;
+    uint32 captured_count;
+    uint32 latest_published_sequence;
+    uint32 published_count;
+    uint32 notify_count;
+    uint32 no_free_drop_count;
+    uint32 period_drop_count;
+    uint32 acquired_count;
+    uint32 sent_count;
+    uint32 released_count;
+    uint32 reconnect_count;
+    uint32 invalid_count;
+    uint32 timeout_count;
+    uint32 stale_count;
+    uint32 send_failure_count;
+    uint32 slot_state[2];
+    uint32 slot_sequence[2];
+    camera_send_duration_histogram_struct startup_send_histogram;
+    camera_send_duration_histogram_struct steady_send_histogram;
+} camera_gate_snapshot_struct;
+
+typedef struct
+{
+    uint32 generation;
+    uint32 complete_count;
+    camera_gate_snapshot_struct start;
+    camera_gate_snapshot_struct end;
+} camera_gate_evidence_struct;
+
+extern volatile camera_gate_snapshot_struct camera_gate_snapshot;
+extern volatile camera_gate_evidence_struct camera_gate_evidence;
 
 uint8 camera_frame_consumer_init(void);
 void camera_frame_consumer_tick_1ms(void);

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Embedded C, CYT4BB/Traveo II dual Cortex-M7, IAR Embedded Workbench 9.40.1, Seekfree MT9V03X/WiFi-SPI/Assistant APIs, host GCC C11 tests, PowerShell static tests.
 
-**Change note (post-hardware review):** the camera-control version is 2. The approved ABI keeps the camera control at 256 bytes and the shared layout at 8,192 bytes, while consuming 12 bytes of the former camera reserve for a sequence-last CM7_1 observation mirror at offsets 172/176.
+**Change note (post-hardware review):** the camera-control version is 2. The approved ABI keeps the camera control at 256 bytes and the shared layout at 8,192 bytes, while consuming 16 bytes of the former camera reserve for a sequence-last CM7_1 observation mirror at offsets 172/176 and the CM7_0 period-drop diagnostic at offset 184.
 
 ## Global Constraints
 
@@ -286,6 +286,9 @@ TEST_CHECK(32U == sizeof(intercore_camera_slot_struct));
 TEST_CHECK(256U == sizeof(intercore_camera_control_struct));
 TEST_CHECK(172U == offsetof(intercore_camera_control_struct, consumer_last_sequence));
 TEST_CHECK(176U == offsetof(intercore_camera_control_struct, consumer_last_frame_age_ms));
+TEST_CHECK(184U == offsetof(intercore_camera_control_struct, producer_period_drop_count));
+TEST_CHECK(188U == offsetof(intercore_camera_control_struct, reserved));
+TEST_CHECK(68U == sizeof(shared.camera.reserved));
 TEST_CHECK(0xC00U == offsetof(intercore_shared_layout_struct, camera));
 TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, reserved));
 TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));
@@ -372,11 +375,12 @@ typedef struct
     uint8 consumer_sample_center;
     uint8 consumer_frame_valid;
     uint8 consumer_reserved;
-    uint8 reserved[72];
+    uint32 producer_period_drop_count;
+    uint8 reserved[68];
 }intercore_camera_control_struct;
 ```
 
-Insert `intercore_camera_control_struct camera;` after `health` in `intercore_shared_layout_struct`, reduce `reserved` to 4,864 bytes, and add compile-time checks for both camera structure sizes, `consumer_last_sequence` at offset 172, `consumer_last_frame_age_ms` at offset 176, camera offset `0xC00`, reserved offset `0xD00`, and total size 8,192. Do not move the existing metadata, navigation, control, events, or health offsets.
+Insert `intercore_camera_control_struct camera;` after `health` in `intercore_shared_layout_struct`, reduce the shared-layout `reserved` to 4,864 bytes, and add compile-time checks for both camera structure sizes, `consumer_last_sequence` at offset 172, `consumer_last_frame_age_ms` at offset 176, `producer_period_drop_count` at offset 184, the 68-byte camera-control reserve at offset 188, camera offset `0xC00`, shared-layout reserved offset `0xD00`, and total size 8,192. Do not move the existing metadata, navigation, control, events, or health offsets.
 
 - [ ] **Step 4: Implement the host-testable state machine**
 

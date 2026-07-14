@@ -1,75 +1,69 @@
 # Camera Handoff Task 3 Report
 
-## Outcome
+## Superseding outcome
 
-Task 3 passes. CM7_1 now acquires the newest CM7_0 camera slot, exposes the approved read-only vision boundary, sends that same held slot through the existing Seekfree Assistant WiFi-SPI API, and releases it only after the synchronous send call returns. Seekfree Assistant displayed changing 188 x 120 grayscale imagery for more than 60 seconds, and the camera-disabled versus streaming control comparison met every required safety and timing threshold.
+Task 3 passes on the corrected transport path. This report supersedes the earlier `236.192 s` / `+3296` observation and its camera-disabled comparison; those figures came from a debugger-read workflow that was not a trustworthy uninterrupted measurement and must not be used as acceptance evidence.
 
-No vision algorithm, navigation command, wheel command, servo command, motion test, or `LXY` command was added or run. Wheel motor power remained off and the all-90-degree pose remained the safe reference.
+CM7_1 now acquires the newest CM7_0-owned slot, exposes the read-only vision boundary, sends the same held slot through the existing Seekfree Assistant framing, and releases it after the synchronous send attempt returns. No vision algorithm or motion output was added. Wheel motor power remained off; no wheel, servo, motion, or `LXY` command was sent.
 
-## Implementation
+## Correct send semantics
 
-- `APP_CAMERA_WIFI_ENABLE` is enabled for the CM7_1 consumer path.
-- CM7_1 alone initializes WiFi, opens the TCP socket, selects `SEEKFREE_ASSISTANT_WIFI_SPI`, and configures one camera object for each fixed shared-memory slot.
-- Reconnect attempts are gated by `APP_CAMERA_WIFI_RETRY_MS` (5000 ms), and no frame is acquired during a blocking reconnect attempt.
-- The acquired inter-core view is converted to `camera_vision_frame_view_struct`. Processing duration is deliberately 0 us because Task 3 inserts no fake vision work and publishes no motion output.
-- A fresh frame remains `READING` through `seekfree_assistant_camera_send()` and is released afterward. Stale frames are not sent.
-- Diagnostics separate attach, WiFi, socket, stale/timeout, send-call, and release state.
+The vendor Assistant camera function returns `void`, but that does not make every return a successful send. `camera_seekfree_transport` installs the supported custom Assistant transfer callback and records the WiFi-SPI `remaining` result for both expected segments: the Assistant header and the 22,560-byte grayscale payload. A frame increments `sent_count` only when exactly two segments were requested with the expected lengths and both returned zero remaining bytes. A missing/partial header, missing/partial payload, or unexpected segment increments `send_failure_count`; release still runs so a failed network send cannot strand a slot in `READING`.
 
-## Test-first and software verification
+The automatic evidence snapshot is copied with an odd/even generation guard. Gate start is delayed five seconds after connection to exclude startup behavior, then a 60,000 ms interval is captured without debugger Break/F5 intervention. Startup and steady-state send-duration histograms are separate.
 
-The Task 3 static contract was observed RED with exactly ten new missing requirements before implementation and GREEN afterward. Final verification passed:
+## Software and build verification
 
-- camera API/ownership static contract;
-- capture-service provenance/static contract;
-- CM7 UART ownership static contract;
-- camera handoff and inter-core foundation host tests compiled with GCC C11 `-Wall -Wextra -Werror`;
-- IMU gyro numeric regression;
-- servo 300 Hz integration regression;
-- leg IK zero and IK-height regressions;
-- `git diff --check`.
+- The Task 3 contract was observed RED before implementation and GREEN afterward.
+- Camera handoff/foundation host tests compile with GCC C11 `-Wall -Wextra -Werror`; the handoff ABI asserts `producer_period_drop_count` at offset 184, reserve at offset 188, and reserve size 68.
+- Capture-service, camera API/ownership, and CM7 UART static checks pass, along with IMU numeric, servo 300 Hz, leg-zero, and IK-height regressions.
+- Fresh IAR 9.40.1 builds passed: CM0+ 0 errors/0 warnings, CM7_0 0 errors/3 unchanged `Pe550` warnings, and CM7_1 0 errors/0 warnings. The final capture-enabled CM7_0 rebuild also passed 0 errors/3 warnings before the final full-core download.
 
-Fresh IAR 9.40.1 builds passed for all cores: CM0+ 0 errors/0 warnings, CM7_0 0 errors/3 unchanged pre-existing `Pe550` warnings, and CM7_1 0 errors/0 warnings. Map review kept the camera data/control reservations disjoint, retained MT9V03X ownership on CM7_0, and placed WiFi/Assistant ownership on CM7_1 without linking an MT9V03X implementation there.
+## Formal automatic 60-second steady-state gate
 
-## Hardware Gate 3
+The valid automatic evidence block had even `generation=4` and `complete_count=1`. It came from the timestamp-correction/adapter build; the later recovery correction changed only failure-state assignment so that retry reinitializes WiFi, not the steady send path measured here.
 
-Formal window: local `2026-07-14 07:04:41.520 -07:00` to `07:08:37.712 -07:00` (236.192 s).
+| Diagnostic | Start | End | Delta |
+| --- | ---: | ---: | ---: |
+| Consumer time | 15,920 ms | 75,920 ms | 60,000 ms |
+| Captured | 5,290 | 8,292 | 3,002 (50.033 FPS) |
+| Published | 58 | 651 | 593 (9.883 FPS) |
+| Notify | 57 | 650 | 593 |
+| No-free drops | 4,995 | 4,995 | 0 |
+| Period-gate drops | 237 | 2,646 | 2,409 |
+| Acquired | 56 | 649 | 593 |
+| Valid sends | 53 | 646 | 593 |
+| Released | 56 | 649 | 593 |
+| Reconnect | 2 | 2 | 0 |
+| Invalid / timeout / stale | 0 / 2 / 2 | 0 / 2 / 2 | 0 / 0 / 0 |
+| Send failures | 1 | 1 | 0 |
 
-| Evidence | Start | End / delta |
-| --- | ---: | ---: |
-| Captured sequence | 16161 | 32842 |
-| Latest sequence | 16160 | 32841 |
-| Published count | 3155 | 6451 / +3296 |
-| Consumed count | 3154 | 6450 / +3296 |
-| Notify count | 3155 | 6451 / +3296 |
-| No-free drops | 195 | 195 / +0 |
-| Stale-ready drops | 1 | 1 / +0 |
-| Invalid / timeout | 0 / 1 | 0 / 1 |
-| Copy last/max | 82/94 us | 78/95 us |
-| Send last/max | 19/210 ms | 19/210 ms |
+Accounting closes exactly: `593 published + 0 no-free + 2409 period-drop = 3002 captured`. Acquired, valid-send, and released deltas are each 593. Slots were `FREE/FREE` at both endpoints; sequences changed from `[5289,4739]` to `[8290,4739]`. The startup histogram stayed `[53,0,0,0,0,0,1]`; the steady histogram changed from all zero to `[593,0,0,0,0,0,0]`, so all 593 steady sends completed in the `<=25 ms` bucket.
 
-Producer/consumer lag remained one frame, consumer age remained 0 ms, valid remained 1, sampled pixels changed, process last/max remained 0/0 us by design, and both slots ended `FREE`. TCP remained `Established`; hotspot RX increased by 46,539,623 bytes and TX by 389,544 bytes. Assistant displayed changing 188 x 120 imagery at approximately 9-10 FPS and about 225 kB/s. After final single-F5 recovery from the endpoint read, two consecutive viewer captures changed and the UI reported 11 FPS and 229,048 B/s while TCP was still established.
+## Disconnect recovery: failed hypothesis and accepted fix
 
-## Honest send semantics and blocking observation
+The first recovery hypothesis called the vendor `wifi_spi_socket_close()` API before reconnect. It is present, but all five observed close attempts failed at the first `wait_idle` because the module INT signal remained low; `close_failure_count=5`. Stopping/restarting Assistant therefore did not recover on this path. This attempt is `FAIL` evidence and is not accepted.
 
-The Seekfree send API returns `void`. Consequently, `sent_count` means only: a non-stale frame was acquired, the synchronous call returned, and release followed. It does not claim TCP acknowledgement or successful remote rendering. The established socket, interface byte growth, matching consumed progress, and visibly changing Assistant frames are independent end-to-end evidence.
+The accepted path marks both socket and WiFi failed when connect or transfer validation fails. After the 5 s retry gate, the existing `wifi_spi_init()` performs the module hard reset/reassociation before `wifi_spi_socket_connect()` is retried. In the formal test, stopping Assistant produced the first observed failure with acquired/sent/released `2338/2334/2338`, reconnect 3, failure 2, and slots `[READY,READY]` in the transient snapshot. After Assistant restarted, the corrected hard-reset build recovered to an established TCP session; at the stable recovery start it showed consumer time 486,387 ms, acquired/sent/released `2915/2907/2916`, reconnect 10, failure 2, timeout/stale `6/6`, and `FREE/FREE`. Across two non-atomic Live Watch reads 97,792 ms apart, valid sends increased by 967 and releases by 966, with no new send failure or reconnect. This is recovery-duration evidence only, not a closed accounting window; the automatic 60 s gate above is the only acceptance ledger.
 
-The fresh streaming-control endpoint recorded `last_send_duration_ms=18` and `max_send_duration_ms=1468`. The maximum is reported as a startup or exceptional blocking-send observation, not hidden and not treated as an acknowledgement. The formal Gate 3 window separately held at 19/210 ms. With the two-slot latest-frame/no-queue design, a long synchronous send holds one slot `READING`; intermediate camera frames may be dropped and the other slot can contain only the newest publishable frame, but no stale-frame queue can grow.
+## True capture-disabled control baseline
 
-## Control-regression comparison
+The compile-switch path is covered by the static contract, whose delivered-state assertion intentionally requires `APP_CAMERA_CAPTURE_ENABLE=1`. For the control run it was temporarily set to 0, CM7_0 rebuilt with 0 errors/7 expected disabled-path warnings, and the complete image set was downloaded. After 255.643 s of continuous running:
 
-| Metric | Camera disabled | Streaming | Threshold |
-| --- | ---: | ---: | --- |
-| Window duration | 247.870 s | 240.993 s | >= 60 s |
-| Missed ticks | 0 | 0 | delta 0 |
-| Max scheduler gap | 1 ms | 1 ms | <= baseline + 1 ms |
-| Servo rate | 300.054 Hz | 300.055 Hz | within 1% of 300 Hz |
-| IMU ages | 3/5/5 ms | 3/7/5 ms | < 30 ms |
-| Copy last/max | 79/94 us | 78/93 us | max < 1 ms |
-| Safety fault | 0 | 0 | no new fault |
-| BLDC duties | 0 / 0 | 0 / 0 | remain zero |
+- scheduler missed ticks remained 0 and maximum gap was 1 ms;
+- servo count was 76,707, or approximately 300.05 Hz;
+- producer publish, period-drop, no-free, invalid, and timeout diagnostics all remained 0;
+- IMU timestamp was 255,642 ms at a scheduler time of 255,643 ms (1 ms age);
+- safety fault and both BLDC duties remained 0; leg fault was `LEG_FAULT_NONE`.
 
-CM7_0 heartbeat advanced throughout both windows. Streaming introduced no missed tick, scheduler-gap increase, servo-rate drift, IMU-age violation, source-mask overrun, safety fault, or motor duty.
+Capture was then restored to 1; the static contract passed, and the final capture-enabled CM7_0 build/download completed successfully.
 
-## Repository and distribution boundary
+## Final capture-enabled confirmation
 
-The generated `project/iar/project_config/mt9v03x_cm0plus_capture_service.sim` sidecar was removed. The local hash-locked `.ewx` was not added to Task 3, pushed, packaged, copied, or externally distributed. This task creates only the approved local commit and performs no push or pull request.
+The final hard-reset firmware produced valid frames with producer init state 3 and `frame_valid=1`. Early live evidence showed frame count 6,579, publish count 1,250, last copy 76 us, max copy 94 us, safety fault 0, BLDC duties `0/0`, and no leg fault. Later shared counters advanced to published 6,904 and consumed 6,903; no-free was 252, stale 1, invalid 0, timeout 1, with both slot states `FREE/FREE` at the final halt.
+
+Windows showed `192.168.137.1:8086 -> 192.168.137.42:6666` as `Established` and the Assistant listener on `0.0.0.0:8086`. Two foreground Assistant captures 1.8 s apart showed 188 x 120, FPS `11 -> 9`, throughput `226,692 -> 228,140 B/s`, and differed in 47,703 encoded screenshot characters. This is independent display/traffic evidence; it is not substituted for transport-return validation.
+
+## Cleanup and distribution boundary
+
+IAR was broken and exited from debugging to `Ready`. All three generated `.sim` files under the worktree were deleted and a recursive recount returned zero. The hash-locked local `.ewx` was not pushed, packaged, copied, or externally distributed. This task makes only the approved local commit; no push or pull request is performed.

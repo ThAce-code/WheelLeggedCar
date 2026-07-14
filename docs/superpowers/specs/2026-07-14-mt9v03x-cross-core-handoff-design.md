@@ -98,7 +98,7 @@ Both CM7 cores configure the 8 KiB control plane and the 64 KiB camera data plan
 
 The protocol version advances from 1 to 2. Existing offsets through health remain unchanged. A 256-byte camera control block is inserted at offset `0xC00`; the following reserved byte array shrinks from 5,120 to 4,864 bytes so the total shared layout remains exactly 8,192 bytes. The final doorbell address remains unchanged.
 
-**Change note (post-hardware review):** the camera-control version is 2. Version 2 consumes 12 bytes of the existing camera-control reserve for a CM7_1 observation mirror; it does not move the 256-byte camera block, the following shared-layout reserve, or any pre-existing shared offset.
+**Change note (post-hardware review):** the camera-control version is 2. Version 2 consumes 16 bytes of the existing camera-control reserve for a CM7_1 observation mirror plus the CM7_0 period-drop diagnostic at offset 184; it does not move the 256-byte camera block, the following shared-layout reserve, or any pre-existing shared offset.
 
 The camera control block is exactly 256 bytes and contains:
 
@@ -152,13 +152,14 @@ typedef struct
     uint8 consumer_sample_center;
     uint8 consumer_frame_valid;
     uint8 consumer_reserved;
-    uint8 reserved[72];
+    uint32 producer_period_drop_count;
+    uint8 reserved[68];
 } intercore_camera_control_struct; /* 256 bytes */
 ```
 
 The camera magic is `0x43414D52UL` (`CAMR`), camera-control version is 2, format 1 means unsigned 8-bit grayscale, width is 188, height is 120, stride is 188, slot count is 2, and frame bytes is `0x5820`.
 
-Compile-time layout assertions cover both structure sizes, `consumer_last_sequence` at byte offset 172, `consumer_last_frame_age_ms` at byte offset 176, the camera offset `0xC00`, the following reserved offset `0xD00`, total size 8,192, and the unchanged navigation/control/event/health offsets.
+Compile-time layout assertions cover both structure sizes, `consumer_last_sequence` at byte offset 172, `consumer_last_frame_age_ms` at byte offset 176, `producer_period_drop_count` at byte offset 184, the 68-byte camera-control reserve at byte offset 188, the camera offset `0xC00`, the following shared-layout reserved offset `0xD00`, total size 8,192, and the unchanged navigation/control/event/health offsets.
 
 ## Slot Ownership and State Machine
 

@@ -449,6 +449,34 @@ uint8 intercore_camera_consumer_release_at(
                                                       consumer_ms);
 }
 
+uint8 intercore_camera_consumer_publish_observation(
+    intercore_camera_transport_struct *transport,
+    uint32 sequence,
+    uint32 frame_age_ms,
+    uint8 sample_0_0,
+    uint8 sample_center,
+    uint8 frame_valid)
+{
+    volatile intercore_camera_control_struct *control;
+
+    if((INTERCORE_CAMERA_OK !=
+        intercore_camera_transition_validate(transport, INTERCORE_ROLE_CM7_1)) ||
+       (transport->last_consumed_sequence != sequence))
+    {
+        return 0U;
+    }
+
+    control = transport->control;
+    control->consumer_last_frame_age_ms = frame_age_ms;
+    control->consumer_sample_0_0 = sample_0_0;
+    control->consumer_sample_center = sample_center;
+    control->consumer_frame_valid = frame_valid;
+    INTERCORE_CAMERA_DMB();
+    control->consumer_last_sequence = sequence;
+    INTERCORE_CAMERA_DMB();
+    return 1U;
+}
+
 uint32 intercore_camera_frame_age_ms(uint32 producer_ms, uint32 capture_ms)
 {
     uint32 age_ms;

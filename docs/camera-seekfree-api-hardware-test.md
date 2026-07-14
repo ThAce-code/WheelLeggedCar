@@ -2,6 +2,8 @@
 
 This record gates camera integration against the untouched Seekfree E9_01 reference. `PASS` means direct evidence was observed during this run or an operator confirmation is explicitly identified as such. `NOT RUN` includes unavailable hardware, tooling, or UI state; details must explain the gap. Wheel power must remain disabled throughout the reference test.
 
+> Runtime loader requirement: camera builds must be launched from active CM7_0. Its debugger loads `project/iar/project_config/mt9v03x_cm0plus_capture_service.ewx` as extra image 1 and the current CM7_1 HEX as extra image 2. Do not separately download the generic CM0+ project; doing so replaces the capture service at `0x10000000` and returns the system to the confirmed init-success/zero-frame failure. Exact provenance and address checks are in `docs/mt9v03x-capture-service-provenance.md`.
+
 ## Board and wiring
 
 | Result | Status | Evidence / observation |
@@ -219,3 +221,20 @@ Review-fix disposition remains `DONE_WITH_CONCERNS`.
 | --- | --- | --- |
 | Camera magic classification RED/GREEN | PASS | The host regression first failed because a nonzero incorrect camera magic returned not-ready without incrementing `invalid_layout_count`. After the minimal fix, `magic == 0` remains a silent startup retry, nonzero incorrect magic increments the invalid counter and fails, and correct magic with producer-epoch mismatch remains a silent not-ready retry. |
 | Focused regression and build | PASS | Camera host/static, foundation host, and `git diff --check` passed. Incremental IAR builds passed for CM7_0 with 0 errors/3 unchanged pre-existing `Pe550` warnings and CM7_1 with 0 errors/0 warnings. No hardware was run; Gate 1 remains `FAIL` and Gate 2 remains `NOT RUN`. |
+
+## MT9V03X zero-frame diagnosis and formal correction
+
+This section supersedes the earlier Task 2 `FAIL`/`NOT RUN` hardware disposition. A controlled same-M7 comparison established that a separate generic CM0+ download overwrote the reference MT9V03X capture service. The generic image produced zero frames for 118.600 seconds; restoring the source-matched CM0+ service produced 11,506 changing frames over 232.082 seconds (about 49.58 FPS). The unchanged service image is now stored as `project/iar/project_config/mt9v03x_cm0plus_capture_service.ewx`, hash-locked to SHA-256 `508CD93B33730384804E55794C3A11819E904740B3EC60519318B989DCF6A299`, and loaded only through the CM7_0 debugger configuration together with the fresh CM7_1 HEX.
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| Capture-service static contract | PASS | Exact hash, Intel HEX checksums/range/entry point, four fixed camera constants, provenance text, enabled loader slots, zero offsets, and resolved CM7_1 path all pass. No `.sim` sidecar is required. |
+| Shared consumer mirror RED/GREEN | PASS | RED reported seven absent version/layout/API/order/call-site requirements. GREEN retains a 256-byte camera control block and 8192-byte shared layout at protocol version 2, with sequence/age offsets 172/176 and sequence written last after DMB. Camera host and static tests pass. |
+| Fresh three-core build | PASS | CM0+ 0 errors/0 warnings; CM7_0 0 errors/3 unchanged `Pe550` warnings; CM7_1 0 errors/0 warnings. Fresh map timestamps were local `05:24:30.603`, `05:26:25.302`, and `05:27:52.116`. |
+| Full regression | PASS | Camera and foundation host tests, capture-service/camera/UART static checks, IMU numeric, servo 300 Hz, leg-zero, IK-height, and `git diff --check` all pass. |
+| Formal Gate 1 | PASS | `2026-07-14T11:53:08.251Z` to `11:55:11.839Z` (123.588 s): 6,075 frames, about 49.16 FPS, init OK, valid changing pixels, last/max copy 81/96 us, safety 0, duty 0/0. |
+| Formal Gate 2 | PASS | `2026-07-14T12:39:32.772Z` to `12:41:24.867Z` (112.095 s): captured 2,600→8,205; published/consumed 513→1,621; period-drop 2,087→6,584; no-free/stale/invalid/timeout all 0; slots `FREE/FREE`. Accounting closes: `5605 = 1108 + 4497 + 0 + 0`. |
+| CM7_1 shared observation | PASS | Sequence 2,596→8,204; age 0→0 ms; samples `0x29`/`0xBE`→`0x2E`/`0xBF`; valid 1→1. The fields reside in the non-cacheable shared control region and are committed only after successful release. |
+| Safety boundary | PASS | Wheel motor power remained operator-confirmed OFF. Safety fault and left/right motor duty remained 0. No motion, wheel, servo, or `LXY` command was issued; Task 3 was not entered. |
+
+**Corrected disposition: PASS — MT9V03X capture service restored and CM7_0 capture / CM7_1 latest-ready handoff verified.**

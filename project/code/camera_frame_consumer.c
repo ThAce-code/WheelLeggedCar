@@ -141,6 +141,13 @@ void camera_frame_consumer_service(void)
     if(0U != release_ok)
     {
         consumer_diag.released_count++;
+        (void)intercore_camera_consumer_publish_observation(
+                  &camera_transport,
+                  consumer_diag.last_sequence,
+                  consumer_diag.last_frame_age_ms,
+                  consumer_diag.sample_0_0,
+                  consumer_diag.sample_center,
+                  consumer_diag.frame_valid);
     }
     else
     {

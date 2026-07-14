@@ -52,11 +52,51 @@ static void fixture_publish(uint8 expected_slot, uint32 sequence)
 
 static void test_layout(void)
 {
+    TEST_CHECK(2U == INTERCORE_CAMERA_VERSION);
     TEST_CHECK(32U == sizeof(intercore_camera_slot_struct));
     TEST_CHECK(256U == sizeof(intercore_camera_control_struct));
+    TEST_CHECK(172U == offsetof(intercore_camera_control_struct,
+                                consumer_last_sequence));
+    TEST_CHECK(176U == offsetof(intercore_camera_control_struct,
+                                consumer_last_frame_age_ms));
+    TEST_CHECK(180U == offsetof(intercore_camera_control_struct,
+                                consumer_sample_0_0));
+    TEST_CHECK(181U == offsetof(intercore_camera_control_struct,
+                                consumer_sample_center));
+    TEST_CHECK(182U == offsetof(intercore_camera_control_struct,
+                                consumer_frame_valid));
+    TEST_CHECK(184U == offsetof(intercore_camera_control_struct, reserved));
+    TEST_CHECK(72U == sizeof(shared.camera.reserved));
     TEST_CHECK(0xC00U == offsetof(intercore_shared_layout_struct, camera));
     TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, reserved));
     TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));
+}
+
+static void test_consumer_observation_commits_only_after_release(void)
+{
+    intercore_camera_frame_view_struct view;
+
+    fixture_init();
+    fixture_publish(0U, 15U);
+    TEST_CHECK(INTERCORE_CAMERA_OK ==
+               intercore_camera_consumer_acquire_latest(&consumer, &view));
+    TEST_CHECK(0U == intercore_camera_consumer_publish_observation(
+                         &consumer, view.sequence, 7U, 0x21U, 0x43U, 1U));
+    TEST_CHECK(0U == shared.camera.consumer_last_sequence);
+
+    TEST_CHECK(1U == intercore_camera_consumer_release_at(&consumer, &view, 500U));
+    TEST_CHECK(1U == intercore_camera_consumer_publish_observation(
+                         &consumer, view.sequence, 7U, 0x21U, 0x43U, 1U));
+    TEST_CHECK(view.sequence == shared.camera.consumer_last_sequence);
+    TEST_CHECK(7U == shared.camera.consumer_last_frame_age_ms);
+    TEST_CHECK(0x21U == shared.camera.consumer_sample_0_0);
+    TEST_CHECK(0x43U == shared.camera.consumer_sample_center);
+    TEST_CHECK(1U == shared.camera.consumer_frame_valid);
+
+    TEST_CHECK(0U == intercore_camera_consumer_publish_observation(
+                         &consumer, view.sequence + 1U, 9U, 0x65U, 0x87U, 0U));
+    TEST_CHECK(view.sequence == shared.camera.consumer_last_sequence);
+    TEST_CHECK(7U == shared.camera.consumer_last_frame_age_ms);
 }
 
 static void test_public_abi(void)
@@ -399,6 +439,7 @@ int main(void)
     test_release_records_consume_time_only_after_matching_read();
     test_release_at_records_the_release_tick_after_time_advances();
     test_release_at_does_not_touch_time_for_a_mismatched_view();
+    test_consumer_observation_commits_only_after_release();
     test_producer_abort_recovers_same_epoch_layout_failure();
     test_old_epoch_abort_does_not_touch_new_producer_slot();
     test_producer_abort_rejects_non_writing_slot();

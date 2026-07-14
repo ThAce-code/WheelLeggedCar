@@ -73,6 +73,13 @@ uint8 intercore_camera_consumer_release_at(
     intercore_camera_transport_struct *transport,
     const intercore_camera_frame_view_struct *view,
     uint32 consumer_ms);
+uint8 intercore_camera_consumer_publish_observation(
+    intercore_camera_transport_struct *transport,
+    uint32 sequence,
+    uint32 frame_age_ms,
+    uint8 sample_0_0,
+    uint8 sample_center,
+    uint8 frame_valid);
 uint32 intercore_camera_frame_age_ms(uint32 producer_ms, uint32 capture_ms);
 
 #endif

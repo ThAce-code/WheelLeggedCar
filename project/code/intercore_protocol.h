@@ -14,7 +14,7 @@
 #define INTERCORE_CAMERA_SLOT_COUNT        (2U)
 #define INTERCORE_CAMERA_SLOT_SIZE_BYTES   (22560U)
 #define INTERCORE_CAMERA_MAGIC             (0x43414D52UL)
-#define INTERCORE_CAMERA_VERSION           (1U)
+#define INTERCORE_CAMERA_VERSION           (2U)
 #define INTERCORE_CAMERA_FORMAT_GRAY8      (1U)
 #define INTERCORE_CAMERA_WIDTH             (188U)
 #define INTERCORE_CAMERA_HEIGHT            (120U)
@@ -194,7 +194,13 @@ typedef struct
     uint32 notify_count;
     uint32 last_process_duration_us;
     uint32 max_process_duration_us;
-    uint8 reserved[84];
+    uint32 consumer_last_sequence;
+    uint32 consumer_last_frame_age_ms;
+    uint8 consumer_sample_0_0;
+    uint8 consumer_sample_center;
+    uint8 consumer_frame_valid;
+    uint8 consumer_reserved;
+    uint8 reserved[72];
 }intercore_camera_control_struct;
 
 typedef struct
@@ -221,6 +227,12 @@ INTERCORE_LAYOUT_CHECK(event_size, sizeof(intercore_event_struct) == 64U);
 INTERCORE_LAYOUT_CHECK(health_size, sizeof(intercore_health_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(camera_slot_size, sizeof(intercore_camera_slot_struct) == 32U);
 INTERCORE_LAYOUT_CHECK(camera_control_size, sizeof(intercore_camera_control_struct) == 256U);
+INTERCORE_LAYOUT_CHECK(camera_consumer_sequence_offset,
+                       offsetof(intercore_camera_control_struct,
+                                consumer_last_sequence) == 172U);
+INTERCORE_LAYOUT_CHECK(camera_consumer_observation_offset,
+                       offsetof(intercore_camera_control_struct,
+                                consumer_last_frame_age_ms) == 176U);
 INTERCORE_LAYOUT_CHECK(shared_size, sizeof(intercore_shared_layout_struct) == 8192U);
 INTERCORE_LAYOUT_CHECK(metadata_offset, offsetof(intercore_shared_layout_struct, metadata) == 0x000U);
 INTERCORE_LAYOUT_CHECK(navigation_offset, offsetof(intercore_shared_layout_struct, navigation) == 0x100U);

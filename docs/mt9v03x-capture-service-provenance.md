@@ -14,14 +14,34 @@ The file is an unchanged vendor Intel HEX image. It is 56,964 file bytes and its
 508CD93B33730384804E55794C3A11819E904740B3EC60519318B989DCF6A299
 ```
 
-It was copied byte-for-byte from the source-matched Seekfree CYT4BB7 examples supplied with the vendor library. These two authoritative sources were independently hashed and are identical:
+It was copied byte-for-byte from the source-matched Seekfree CYT4BB7 examples supplied with the vendor library. These two reference artifacts were independently hashed and are identical:
 
 ```text
 D:\smartcar\CYT4BB7_Library\Example\Motherboard_Demo\E8_camera\E8_09_mt9v03x_uart_seekfree_assistant_cross_ram_m7_1_demo\iar\project_config\cyt4bb7_cm_7_0.ewx
 D:\smartcar\CYT4BB7_Library\Example\Motherboard_Demo\E9_seekfree_assistant\E9_01_seekfree_assistant_mt9v03x_demo\iar\project_config\cyt4bb7_cm_7_0.ewx
 ```
 
-The vendor library's GPL3 licensing and permission statement remain in `libraries/LICENSE` and `libraries/doc/GPL3_permission_statement.txt`. This import adds only the exact camera-support image required by the source-matched vendor driver; it does not alter the image or expand it into unrelated firmware functionality.
+## License and distribution boundary
+
+The authoritative library-root license was read from:
+
+```text
+D:\smartcar\CYT4BB7_Library\LICENSE
+```
+
+It is the complete 35,821-byte GNU GPL version 3 text with SHA-256:
+
+```text
+0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B
+```
+
+That file is preserved byte-for-byte at `libraries/doc/GPL-3.0.txt`. The vendor permission statement remains at `libraries/doc/GPL3_permission_statement.txt`.
+
+The imported vendor `.ewx` is included only for the current local research and hardware-verification workflow. The supplied reference package does not include the Corresponding Source or a build recipe for this `.ewx`, so this repository does not claim that the binary's redistribution conditions have been satisfied.
+
+Before any push or external distribution that includes this vendor `.ewx`, obtain from Seekfree the applicable Corresponding Source, a valid written offer, or additional written authorization/license, and the project owner must confirm the resulting compliance and distribution scope. This artifact-specific record does not assign a license to the repository as a whole.
+
+This import adds only the exact camera-support image required by the source-matched vendor driver; it does not alter the image or expand it into unrelated firmware functionality.
 
 ## Address contract
 

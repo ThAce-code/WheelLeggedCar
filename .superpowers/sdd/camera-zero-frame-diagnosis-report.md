@@ -187,3 +187,11 @@ The accounting closes exactly: cumulative `8205 = 1621 + 6584 + 0 + 0`, and over
 ### Disposition
 
 **PASS — MT9V03X zero-frame root cause fixed and CM7_0 capture / CM7_1 latest-ready handoff verified.** The generic CM0+ overwrite was the causal fault. The imported, hash-locked capture service plus the formal CM7_0 loader workflow restores continuous capture and clean cross-core accounting. Task 3 was not entered. Wheel motor power remained operator-confirmed OFF, and no motion, wheel, servo, or `LXY` command was issued.
+
+## Independent-review documentation and loader-test correction
+
+No hardware was rerun for this documentation/test correction. The EWD contract now uses XML parsing rather than raw-text matching: each of the seven required option names must occur exactly once, contain exactly one state, and match the approved path/use/offset value. Both parsed image paths must resolve to existing files. In-memory negative self-tests reject swapped image slots, either nonzero offset, and `OCDownloadExtraImage=0`; separate temporary-file mutations were observed to exit 1 for all four cases before the authoritative EWD passed. The test and loader do not reference or require an IAR `.sim` sidecar.
+
+The complete 35,821-byte GPLv3 text was copied byte-for-byte from `D:\smartcar\CYT4BB7_Library\LICENSE` to `libraries/doc/GPL-3.0.txt`; both hash to `0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B`. Provenance now limits the vendor `.ewx` to current local research, records that the supplied reference lacks Corresponding Source/build instructions for the binary, and requires Seekfree source/written-offer/additional-authorization material plus project-owner confirmation before any push or external distribution. It makes no repository-wide license claim.
+
+The approved handoff design and implementation plan now match camera-control version 2: mirror fields consume the former reserve, `consumer_last_sequence`/age remain at offsets 172/176, trailing reserve is 72 bytes, and observation publication is permitted only after successful release with data fields → DMB → sequence → DMB. Capture static, camera static, both host tests, and `git diff --check` are the required software regression gate for this correction.

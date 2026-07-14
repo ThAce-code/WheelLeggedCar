@@ -98,6 +98,8 @@ Both CM7 cores configure the 8 KiB control plane and the 64 KiB camera data plan
 
 The protocol version advances from 1 to 2. Existing offsets through health remain unchanged. A 256-byte camera control block is inserted at offset `0xC00`; the following reserved byte array shrinks from 5,120 to 4,864 bytes so the total shared layout remains exactly 8,192 bytes. The final doorbell address remains unchanged.
 
+**Change note (post-hardware review):** the camera-control version is 2. Version 2 consumes 12 bytes of the existing camera-control reserve for a CM7_1 observation mirror; it does not move the 256-byte camera block, the following shared-layout reserve, or any pre-existing shared offset.
+
 The camera control block is exactly 256 bytes and contains:
 
 ```c
@@ -144,13 +146,19 @@ typedef struct
     uint32 notify_count;
     uint32 last_process_duration_us;
     uint32 max_process_duration_us;
-    uint8 reserved[84];
+    uint32 consumer_last_sequence;
+    uint32 consumer_last_frame_age_ms;
+    uint8 consumer_sample_0_0;
+    uint8 consumer_sample_center;
+    uint8 consumer_frame_valid;
+    uint8 consumer_reserved;
+    uint8 reserved[72];
 } intercore_camera_control_struct; /* 256 bytes */
 ```
 
-The camera magic is `0x43414D52UL` (`CAMR`), camera-control version is 1, format 1 means unsigned 8-bit grayscale, width is 188, height is 120, stride is 188, slot count is 2, and frame bytes is `0x5820`.
+The camera magic is `0x43414D52UL` (`CAMR`), camera-control version is 2, format 1 means unsigned 8-bit grayscale, width is 188, height is 120, stride is 188, slot count is 2, and frame bytes is `0x5820`.
 
-Compile-time layout assertions cover both structure sizes, the camera offset `0xC00`, the following reserved offset `0xD00`, total size 8,192, and the unchanged navigation/control/event/health offsets.
+Compile-time layout assertions cover both structure sizes, `consumer_last_sequence` at byte offset 172, `consumer_last_frame_age_ms` at byte offset 176, the camera offset `0xC00`, the following reserved offset `0xD00`, total size 8,192, and the unchanged navigation/control/event/health offsets.
 
 ## Slot Ownership and State Machine
 
@@ -176,6 +184,20 @@ CM7_1 examines all `READY` slots and chooses the highest sequence. If both slots
 This is a latest-ready policy, not a FIFO. At most one slot is being read and one complete newer slot is waiting. Capture events that arrive while both slots are occupied are dropped and counted.
 
 All pixel writes and metadata writes complete before CM7_0 publishes `READY` with a data memory barrier. CM7_1 uses a data memory barrier after observing `READY` and before reading pixels. CM7_1 finishes all reads before publishing `FREE` with a data memory barrier.
+
+CM7_1 publishes the shared observation only after a successful release. The associated fields are written first and `consumer_last_sequence` is the final commit marker:
+
+```c
+control->consumer_last_frame_age_ms = frame_age_ms;
+control->consumer_sample_0_0 = sample_0_0;
+control->consumer_sample_center = sample_center;
+control->consumer_frame_valid = frame_valid;
+INTERCORE_CAMERA_DMB();
+control->consumer_last_sequence = sequence;
+INTERCORE_CAMERA_DMB();
+```
+
+A debugger or future reader accepts the observation only by treating the sequence as the commit marker; it must not interpret partially updated sample fields before that sequence publication.
 
 ## CM7_0 Capture Producer
 

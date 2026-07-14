@@ -8,6 +8,8 @@
 
 **Tech Stack:** Embedded C, CYT4BB/Traveo II dual Cortex-M7, IAR Embedded Workbench 9.40.1, Seekfree MT9V03X/WiFi-SPI/Assistant APIs, host GCC C11 tests, PowerShell static tests.
 
+**Change note (post-hardware review):** the camera-control version is 2. The approved ABI keeps the camera control at 256 bytes and the shared layout at 8,192 bytes, while consuming 12 bytes of the former camera reserve for a sequence-last CM7_1 observation mirror at offsets 172/176.
+
 ## Global Constraints
 
 - Follow `docs/superpowers/specs/2026-07-14-mt9v03x-cross-core-handoff-design.md` exactly.
@@ -34,7 +36,7 @@ The implementation uses these names consistently across all tasks:
 #define INTERCORE_CAMERA_SLOT_COUNT          (2U)
 #define INTERCORE_CAMERA_SLOT_SIZE_BYTES     (22560U)
 #define INTERCORE_CAMERA_MAGIC               (0x43414D52UL)
-#define INTERCORE_CAMERA_VERSION             (1U)
+#define INTERCORE_CAMERA_VERSION             (2U)
 #define INTERCORE_CAMERA_FORMAT_GRAY8        (1U)
 #define INTERCORE_CAMERA_WIDTH               (188U)
 #define INTERCORE_CAMERA_HEIGHT              (120U)
@@ -112,6 +114,13 @@ intercore_camera_result_enum intercore_camera_consumer_acquire_latest(
 uint8 intercore_camera_consumer_release(
     intercore_camera_transport_struct *transport,
     const intercore_camera_frame_view_struct *view);
+uint8 intercore_camera_consumer_publish_observation(
+    intercore_camera_transport_struct *transport,
+    uint32 sequence,
+    uint32 frame_age_ms,
+    uint8 sample_0_0,
+    uint8 sample_center,
+    uint8 frame_valid);
 ```
 
 ---
@@ -275,6 +284,8 @@ Also assert:
 ```c
 TEST_CHECK(32U == sizeof(intercore_camera_slot_struct));
 TEST_CHECK(256U == sizeof(intercore_camera_control_struct));
+TEST_CHECK(172U == offsetof(intercore_camera_control_struct, consumer_last_sequence));
+TEST_CHECK(176U == offsetof(intercore_camera_control_struct, consumer_last_frame_age_ms));
 TEST_CHECK(0xC00U == offsetof(intercore_shared_layout_struct, camera));
 TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, reserved));
 TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));
@@ -306,7 +317,7 @@ In `intercore_protocol.h`:
 #define INTERCORE_CAMERA_SLOT_COUNT             (2U)
 #define INTERCORE_CAMERA_SLOT_SIZE_BYTES        (22560U)
 #define INTERCORE_CAMERA_MAGIC                  (0x43414D52UL)
-#define INTERCORE_CAMERA_VERSION                (1U)
+#define INTERCORE_CAMERA_VERSION                (2U)
 #define INTERCORE_CAMERA_FORMAT_GRAY8           (1U)
 #define INTERCORE_CAMERA_WIDTH                  (188U)
 #define INTERCORE_CAMERA_HEIGHT                 (120U)
@@ -355,11 +366,17 @@ typedef struct
     uint32 notify_count;
     uint32 last_process_duration_us;
     uint32 max_process_duration_us;
-    uint8 reserved[84];
+    uint32 consumer_last_sequence;
+    uint32 consumer_last_frame_age_ms;
+    uint8 consumer_sample_0_0;
+    uint8 consumer_sample_center;
+    uint8 consumer_frame_valid;
+    uint8 consumer_reserved;
+    uint8 reserved[72];
 }intercore_camera_control_struct;
 ```
 
-Insert `intercore_camera_control_struct camera;` after `health` in `intercore_shared_layout_struct`, reduce `reserved` to 4,864 bytes, and add compile-time checks for both camera structure sizes, camera offset `0xC00`, reserved offset `0xD00`, and total size 8,192. Do not move the existing metadata, navigation, control, events, or health offsets.
+Insert `intercore_camera_control_struct camera;` after `health` in `intercore_shared_layout_struct`, reduce `reserved` to 4,864 bytes, and add compile-time checks for both camera structure sizes, `consumer_last_sequence` at offset 172, `consumer_last_frame_age_ms` at offset 176, camera offset `0xC00`, reserved offset `0xD00`, and total size 8,192. Do not move the existing metadata, navigation, control, events, or health offsets.
 
 - [ ] **Step 4: Implement the host-testable state machine**
 
@@ -378,6 +395,18 @@ Create `intercore_camera.h/.c`. The producer chooses only `FREE`; the consumer c
 `intercore_camera_producer_record_capture()` increments `captured_count`, advances `capture_sequence` with the same wrap rule as the existing transport (zero maps to 1), and records `last_capture_ms`. Claim does not change the sequence. Publish copies the current `capture_sequence` into the chosen slot.
 
 Producer initialization clears only `shared->camera`, writes version/format/dimensions/stride/slot count/frame bytes/boot epoch, sets both states to `FREE`, executes a DMB, and writes `INTERCORE_CAMERA_MAGIC` last. Consumer attach validates every field and the shared metadata epoch before setting `attached`; on a CM7_1 restart it changes stale `READING` states to `FREE` but leaves `WRITING` and `READY` unchanged.
+
+Publish the CM7_1 shared observation only after a successful release. Require `transport->last_consumed_sequence == sequence`, write the associated fields first, and use the sequence as the final commit marker:
+
+```c
+control->consumer_last_frame_age_ms = frame_age_ms;
+control->consumer_sample_0_0 = sample_0_0;
+control->consumer_sample_center = sample_center;
+control->consumer_frame_valid = frame_valid;
+INTERCORE_CAMERA_DMB();
+control->consumer_last_sequence = sequence;
+INTERCORE_CAMERA_DMB();
+```
 
 The claim/publish boundary must be explicit:
 

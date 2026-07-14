@@ -238,3 +238,12 @@ This section supersedes the earlier Task 2 `FAIL`/`NOT RUN` hardware disposition
 | Safety boundary | PASS | Wheel motor power remained operator-confirmed OFF. Safety fault and left/right motor duty remained 0. No motion, wheel, servo, or `LXY` command was issued; Task 3 was not entered. |
 
 **Corrected disposition: PASS — MT9V03X capture service restored and CM7_0 capture / CM7_1 latest-ready handoff verified.**
+
+### Independent-review static/provenance correction
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| EWD XML binding RED/GREEN | PASS | The loader test now parses XML and requires exactly one option/state for each Path1/Use1/Offset1/Path2/Use2/Offset2/ExtraImage setting. Temporary mutations for swapped slots, Offset1=1, Offset2=1, and ExtraImage=0 each exited 1 with the expected option-specific failure; the authoritative EWD then passed. Both parsed files must exist, and no `.sim` file is referenced or required. |
+| GPLv3 source record | PASS | `libraries/doc/GPL-3.0.txt` is the byte-identical 35,821-byte copy of `D:\smartcar\CYT4BB7_Library\LICENSE`; SHA-256 is `0B383D5A63DA644F628D99C33976EA6487ED89AAA59F0B3257992DEAC1171E6B`. The artifact provenance limits the `.ewx` to current local research and records the source/written-offer/authorization plus project-owner gate before push or external distribution without assigning a whole-repository license. |
+| Approved ABI documents | PASS | The handoff design and implementation plan now state camera-control version 2, mirror fields with a 72-byte trailing reserve, offsets 172/176, and successful-release-only data → DMB → sequence → DMB publication. |
+| Hardware scope | NOT RERUN | This review correction changed static validation, licensing/provenance documentation, and approved design/plan text only. The prior formal Gate 1/Gate 2 hardware evidence remains unchanged; Task 3 was not entered. |

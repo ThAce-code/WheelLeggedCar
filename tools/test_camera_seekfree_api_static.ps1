@@ -154,6 +154,21 @@ Assert-Match $intercoreProtocol '(?s)uint32\s+max_process_duration_us\s*;\s*uint
 Assert-Match $intercoreProtocol 'INTERCORE_LAYOUT_CHECK\s*\(\s*camera_consumer_sequence_offset\s*,\s*offsetof\s*\(\s*intercore_camera_control_struct\s*,\s*consumer_last_sequence\s*\)\s*==\s*172U\s*\)' 'consumer sequence offset check is missing'
 Assert-Match $intercoreProtocol 'INTERCORE_LAYOUT_CHECK\s*\(\s*camera_consumer_observation_offset\s*,\s*offsetof\s*\(\s*intercore_camera_control_struct\s*,\s*consumer_last_frame_age_ms\s*\)\s*==\s*176U\s*\)' 'consumer observation offset check is missing'
 
+$handoffSpec = Read-RepoFile 'docs\superpowers\specs\2026-07-14-mt9v03x-cross-core-handoff-design.md'
+$handoffPlan = Read-RepoFile 'docs\superpowers\plans\2026-07-14-mt9v03x-cross-core-handoff.md'
+foreach($approvedDocument in @(
+    @{ Name = 'approved handoff spec'; Text = $handoffSpec },
+    @{ Name = 'approved handoff plan'; Text = $handoffPlan }
+))
+{
+    Assert-Match $approvedDocument.Text '(?i)camera-control version (?:is|equals) 2\b' "$($approvedDocument.Name) does not identify camera-control version 2"
+    Assert-Match $approvedDocument.Text '(?s)uint32\s+consumer_last_sequence\s*;\s*uint32\s+consumer_last_frame_age_ms\s*;\s*uint8\s+consumer_sample_0_0\s*;\s*uint8\s+consumer_sample_center\s*;\s*uint8\s+consumer_frame_valid\s*;\s*uint8\s+consumer_reserved\s*;\s*uint8\s+reserved\s*\[\s*72\s*\]\s*;' "$($approvedDocument.Name) does not contain the approved version-2 consumer mirror layout"
+    Assert-Match $approvedDocument.Text '(?s)consumer_last_sequence.*?172.*?consumer_last_frame_age_ms.*?176' "$($approvedDocument.Name) does not lock the consumer mirror offsets to 172/176"
+    Assert-Match $approvedDocument.Text '(?i)only after (?:a )?successful release' "$($approvedDocument.Name) does not constrain mirror publication to successful release"
+    Assert-Match $approvedDocument.Text '(?s)consumer_last_frame_age_ms.*?consumer_sample_0_0.*?consumer_sample_center.*?consumer_frame_valid.*?DMB.*?consumer_last_sequence.*?DMB' "$($approvedDocument.Name) does not specify the sequence-last DMB commit order"
+    Assert-Match $approvedDocument.Text '(?i)change note' "$($approvedDocument.Name) omits the version-2 change note"
+}
+
 $intercoreCameraSource = Read-RepoFile 'project\code\intercore_camera.c'
 Assert-Match $intercoreCameraSource '(?s)if\s*\(\s*INTERCORE_CAMERA_MAGIC\s*!=\s*control->magic\s*\)\s*\{\s*return\s+0U\s*;\s*\}\s*INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;' 'camera control validation does not acquire after observing magic'
 Assert-Match $intercoreCameraSource '(?s)control->slot\[slot_index\]\.sequence\s*=\s*control->capture_sequence\s*;.*?INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;\s*control->slot\[slot_index\]\.state\s*=\s*INTERCORE_CAMERA_SLOT_READY\s*;\s*INTERCORE_CAMERA_DMB\s*\(\s*\)\s*;' 'camera publish does not order fields before READY with DMB barriers'

@@ -2,8 +2,8 @@
 
 > **Status: SUPERSEDED — DO NOT EXECUTE.** The approved design now reuses the
 > source-matched Seekfree MT9V03X API and validates E9_01 before any core or
-> memory adaptation. Replace this plan after reviewing
-> `docs/superpowers/specs/2026-07-13-mt9v03x-seekfree-debug-view-design.md`.
+> memory adaptation. Execute
+> `docs/superpowers/plans/2026-07-13-mt9v03x-seekfree-api-display.md` instead.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

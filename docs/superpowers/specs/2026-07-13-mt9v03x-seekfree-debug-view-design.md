@@ -28,7 +28,8 @@ The authoritative references are:
 
 The existing implementation plan
 `2026-07-13-mt9v03x-seekfree-raw-display.md` predates this decision and must not
-be executed. A replacement plan will follow this revised design.
+be executed. Its replacement is
+`docs/superpowers/plans/2026-07-13-mt9v03x-seekfree-api-display.md`.
 
 ## 2. Scope
 

@@ -25,7 +25,7 @@ Board / camera / WiFi module identifiers:
 
 - Board: not identified from the available UI
 - Camera: MT9V03X inferred from the loaded, untouched reference and live symbols; module marking not observed
-- WiFi module:
+- WiFi module: Seekfree WiFi-SPI V2, firmware `V2.0.0`, MAC `9C:13:9E:C6:4D:1C`
 - Debug probe: CMSIS-DAP (IAR debug log)
 - Continuity instrument: not available
 
@@ -59,9 +59,27 @@ Reference flow: `SEEKFREE_ASSISTANT_DEBUG_UART`.
 
 ## WiFi result
 
+Gate B used an isolated copy of the authoritative E9_01 reference at
+`D:\smartcar\bringup\camera_wifi_spi_gate_b_20260713\E9_01_seekfree_assistant_mt9v03x_demo`.
+The authoritative reference remained read-only. The copied application retained the E9_01 camera initialization, one
+`image_copy`, `memcpy`, camera/boundary configuration, and Assistant camera/boundary send calls. Only the transport
+initialization/interface selection and a no-queue 100 ms send gate were added. Temporary volatile stage markers were
+also added to the copied WiFi-SPI library to locate an initial association timeout; they did not alter command flow or
+return values.
+
 | Result | Status | Evidence / observation |
 | --- | --- | --- |
-| WiFi-SPI path exercised | NOT RUN | Outside Gate A unless explicitly tested later. |
+| Isolated copy used; authoritative E9_01 unchanged | PASS | Authoritative `user/main_cm7_0.c` SHA-256 remained `8D2A8208217EA5500F2C455F941E08F4EAAE6FE29E9738E78C859ACC160C8E97` after Gate B. No authoritative or robot source was edited. |
+| Copied CM7_0 WiFi-SPI build | PASS | IAR Embedded Workbench 9.40.1 reported `Build succeeded`, 0 errors and 0 warnings. |
+| Hotspot and Assistant endpoint | PASS | Windows hotspot SSID `SEEKFREE`, WPA2 password `SEEKFREE123`, band fixed to 2.4 GHz. Seekfree Assistant V2.0.0.6 beta used Network / TCP Server, bind `0.0.0.0`, port `8086`. Firmware used remote `192.168.137.1:8086` and local port `6666`. |
+| WiFi-SPI identity and association | PASS | Module firmware `V2.0.0`, MAC `9C:13:9E:C6:4D:1C`; Windows reported one hotspot client at `192.168.137.206`. With hotspot band `Auto`, identity reads succeeded but `WIFI_SPI_SET_WIFI_INFORMATION` timed out after its write. Changing only the hotspot band to 2.4 GHz made the same image associate successfully. |
+| `wifi_spi_init()` | PASS | Live Watch `wifi_init_result = 0`; diagnostic command completed with stage/reply `0x80` and return state `0`. |
+| `wifi_spi_socket_connect()` | PASS | Live Watch `wifi_socket_result = 0`. Windows held `192.168.137.206:6666 -> 192.168.137.1:8086` in `Established`, owned by the Assistant process, while `0.0.0.0:8086` remained `Listen`. |
+| Existing Assistant packet reused over WiFi-SPI | PASS | Application selected `SEEKFREE_ASSISTANT_WIFI_SPI` and continued to call the existing `seekfree_assistant_camera_boundary_send()` and `seekfree_assistant_camera_send()` APIs; it did not call `wifi_spi_send_buffer()` directly or change Assistant framing. |
+| One-copy, no-queue 100 ms gate | PASS | Send was attempted only after `mt9v03x_finish_flag`, only when the timer reached at least 100 ms, and the same single `image_copy` was refreshed immediately before the synchronous Assistant sends. No frame queue was introduced. |
+| Assistant shows changing 188 x 120 grayscale frames for at least 60 seconds | PASS | From Go at local `2026-07-13 21:21:41 -07:00` through the measured window ending `21:26:14.752` (at least 273 seconds), Assistant continuously showed 188 x 120 imagery. Two foreground captures 3 seconds apart visibly changed from a near-horizontal dark edge to a curved high-contrast object; encoded screenshots differed in 84,228 characters. |
+| Effective display rate and throughput | PASS | Assistant reported 6-7 FPS and 170,060-179,808 bytes/s. In an exact 10.175-second Live Watch window, `wifi_display_send_count` rose `2026 -> 2092` (+66, 6.49 FPS) and the most recent interval remained 139 ms. Independently, the hotspot adapter received 1,444,170 bytes in 10.104 seconds: 142,926 bytes/s (1.09 Mbit/s). The configured 100 ms gate therefore capped the requested rate, while synchronous transport overhead reduced the observed rate below the nominal 10 FPS. |
+| 60-second stability, stalls, and protocol errors | PASS | Send count continued increasing past 2,000 with no disconnect, protocol error, or stopped display. Init/socket results stayed `0`; diagnostic reply/stage stayed successful (`0x80`) and return state stayed `0`. Synchronous sending did visibly limit the loop to about 139 ms / 6-7 FPS, so this is transport-reuse evidence only and not a robot real-time-safety claim. |
 
 ## CM7_1 portability
 
@@ -93,6 +111,7 @@ Reference flow: `SEEKFREE_ASSISTANT_DEBUG_UART`.
 | Camera initialization timing recorded | NOT RUN | Initialization completed, but elapsed initialization time was not measured. |
 | Live Watch camera-buffer observation held for 60 seconds | PASS | UTC `2026-07-14T02:43:05.588Z` to `2026-07-14T02:44:23.976Z` (78.388 seconds). |
 | UART Assistant image observation held for 60 seconds | PASS | UTC `2026-07-14T03:09:20.250Z` to `2026-07-14T03:10:35.250Z` (75.000 seconds), continuously connected on COM6 with 188 x 120 live imagery and approximately 11.4 kB/s receive rate. |
+| WiFi-SPI Assistant image observation held for 60 seconds | PASS | Local `2026-07-13 21:21:41 -07:00` to at least `2026-07-13 21:26:14.752 -07:00` (at least 273 seconds), continuously connected over TCP with changing 188 x 120 imagery. A 10.175-second counter window measured 6.49 FPS; Assistant reported 6-7 FPS and approximately 170-180 kB/s. |
 | Integrated scheduler/control timing impact checked | NOT RUN | Outside Gate A. |
 
 ## Final disposition
@@ -100,4 +119,5 @@ Reference flow: `SEEKFREE_ASSISTANT_DEBUG_UART`.
 | Gate | Status | Disposition |
 | --- | --- | --- |
 | Gate A — untouched E9_01 supplied-project build plus 60-second debug-UART camera proof | PASS | Both supplied E9_01 projects build with 0 errors/0 warnings, the untouched CM7_0 reference downloads and runs, Assistant displays changing 188 x 120 imagery for 75.000 seconds, the operator-confirmed hand/object movement changes the scene and both watched samples, wheel motor power was operator-confirmed OFF, and camera wiring was operator-confirmed against the planned pin map. Individual continuity-meter measurements and the conditional all-90-degree leg-pose observation remain accurately `NOT RUN` and are not claimed. |
-| Overall camera integration evidence | NOT RUN | Gate A reference proof is PASS. WiFi-SPI transport, CM7_1 portability, and integrated three-core gates remain outside Task 1 and are still `NOT RUN`. |
+| Gate B — existing Assistant camera packet over WiFi-SPI in an isolated E9_01 copy | PASS | The copied CM7_0 project built with 0 errors/0 warnings; WiFi init and TCP socket connect succeeded on a 2.4 GHz Windows hotspot; Assistant displayed changing 188 x 120 frames continuously for at least 273 seconds; and the 100 ms no-queue gate delivered 6-7 FPS at about 170-180 kB/s without disconnect or protocol error. The measured 139 ms synchronous interval is recorded as a capture-loop stall/real-time risk, not hidden as a nominal 10 FPS result. |
+| Overall camera integration evidence | NOT RUN | Gates A and B reference proofs are PASS. CM7_1 portability and integrated three-core robot gates remain `NOT RUN`; no robot real-time-safety claim is made. |

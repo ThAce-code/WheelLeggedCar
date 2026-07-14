@@ -212,7 +212,25 @@ define region WORK_FLASH                        = mem:[from _base_WORK_FLASH    
 define region SFLASH                            = mem:[from _base_SFLASH                size _size_SFLASH               ];
 define region SFLASH_ALT                        = mem:[from _base_SFLASH_ALT            size _size_SFLASH_ALT           ];
 define region SELF_DTCM                         = mem:[from _base_SELF_DTCM             size _size_SELF_DTCM            ];
-define region SRAM                              = mem:[from _base_SRAM                  size _size_SRAM                 ];
+if(isdefinedsymbol(_CORE_cm0plus_))
+{
+    // MT9V03X exposes two 16-bit absolute objects at 0x28006BF0 and 0x28006BF2.
+    define region SRAM                          = mem:[from _base_SRAM                  to 0x28006BEF                   ]
+                                                | mem:[from 0x28006BF4                  to (_base_SRAM + _size_SRAM - 1)];
+    define region SRAM_HEAP_STACK               = mem:[from 0x28006BF4                  to (_base_SRAM + _size_SRAM - 1)];
+}
+else if(isdefinedsymbol(_CORE_cm7_0_))
+{
+    // MT9V03X owns 0x5820 bytes at 0x28026024 for its capture scratch image.
+    define region SRAM                          = mem:[from _base_SRAM                  to 0x28026023                   ]
+                                                | mem:[from 0x2802B844                  to (_base_SRAM + _size_SRAM - 1)];
+    define region SRAM_HEAP_STACK               = mem:[from 0x2802B844                  to (_base_SRAM + _size_SRAM - 1)];
+}
+else
+{
+    define region SRAM                          = mem:[from _base_SRAM                  size _size_SRAM                 ];
+    define region SRAM_HEAP_STACK               = mem:[from _base_SRAM                  size _size_SRAM                 ];
+}
 define region SMIF_MEM                          = mem:[from _base_SMIF_MEMMAP           size _size_SMIF_MEMMAP          ];
 define region ITCM                              = mem:[from _base_ITCM                  size _size_ITCM                 ];
 define region DTCM                              = mem:[from _base_DTCM                  size _size_DTCM                 ];
@@ -279,7 +297,7 @@ else if(isdefinedsymbol(_LINK_sram_))
 }
 
 place in          SRAM  { readwrite };
-place at end   of SRAM  { block HEAP_STACK };
+place at end   of SRAM_HEAP_STACK { block HEAP_STACK };
 
 //============================================================
 // Symbols for use by application

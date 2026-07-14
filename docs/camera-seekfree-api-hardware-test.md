@@ -94,9 +94,12 @@ authoritative camera library remained unchanged.
 
 | Result | Status | Evidence / observation |
 | --- | --- | --- |
-| Integrated robot CM0+ build | NOT RUN | Outside Gate A. |
-| Integrated robot CM7_0 build | NOT RUN | Outside Gate A. |
-| Integrated robot CM7_1 build | NOT RUN | Outside Gate A. |
+| Source-matched MT9V03X and Assistant files | PASS | Imported only `zf_device_mt9v03x.c/.h` and `seekfree_assistant.c/.h` from the approved E9 library. SHA-256 values are respectively `33C9B8C1D5641CB48933B4E6796788BB247C813909B4A3F16D963A6B40D7E7E0`, `0C489FABA1851C861E33B44E222D7D72B331EEC851B09F93DC694A20FA17DED2`, `6C6BABD379FAFCCBB64F4DE27A8E837EC3C73EF4E7ECD169656CF80B0C13A28B`, and `FA6FC8DD75323AF03A49FB48BBA63029AD2CB36C1C8484F4B9596835EADEBBB5`, matching the approved hashes enforced by `tools/test_camera_seekfree_api_static.ps1`. Existing Assistant interface, WiFi-SPI, and device-config files were not replaced. |
+| Hash-locked source checkout and whitespace policy | PASS | Repository `core.autocrlf=true`, while the approved upstream Assistant bytes include trailing whitespace. `.gitattributes` therefore limits `-text -whitespace` to exactly the four hash-locked source paths: checkout cannot translate line endings, and `git diff --check` does not require altering approved upstream bytes. The static test verifies all four exact attribute rows. |
+| Static provenance, ownership, pin, API, and linker contract | PASS | `powershell -ExecutionPolicy Bypass -File tools/test_camera_seekfree_api_static.ps1` reported `PASS`. The test was first observed RED before the four imports, again RED before the contiguous heap/stack linker correction, and again RED before the CM7_1 linker retained the three fixed symbols. |
+| Integrated robot CM0+ build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 0 warnings. Map: `project/iar/Debug_m0_plus/List/cyt4bb7_cm_0_plus.map`. |
+| Integrated robot CM7_0 build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 3 pre-existing `Pe550` warnings for unused `control_leg_height_cmd`, `control_leg_pitch_cmd`, and `control_leg_roll_cmd`. Map: `project/iar/Debug_m7_0/List/cyt4bb7_cm_7_0.map`. |
+| Integrated robot CM7_1 build | PASS | IAR ARM compiler 9.40.1.364, full `-build Debug`: 0 errors, 0 warnings. The linker command records `--keep mt9v03x_h_num --keep mt9v03x_w_num --keep mt9v03x_image_temp`, so the unused-at-Task-3 absolute objects remain visible for map verification. Map: `project/iar/Debug_m7_1/List/cyt4bb7_cm_7_1.map`. |
 
 ## Map ranges
 
@@ -105,7 +108,14 @@ authoritative camera library remained unchanged.
 | Reference CM0+ map memory ranges reviewed | NOT RUN | No CM0+ project/map is supplied by E9_01. |
 | Reference CM7_0 map memory ranges reviewed | NOT RUN | Map generated at `iar/Debug_m7_0/List/cyt4bb7_cm_7_0.map`; ranges were not part of Gate A and were not reviewed. |
 | Reference CM7_1 map memory ranges reviewed | NOT RUN | Map generated at `iar/Debug_m7_1/List/cyt4bb7_cm_7_1.map`; ranges were not part of Gate A and were not reviewed. |
-| Integrated three-core map ranges checked for overlap | NOT RUN | Outside Gate A. |
+| `mt9v03x_h_num` fixed placement | PASS | Integrated CM7_1 map lists `.noinit` and symbol `mt9v03x_h_num` at `0x28006BF0`, size `0x2`; exclusive end `0x28006BF2`. |
+| `mt9v03x_w_num` fixed placement | PASS | Integrated CM7_1 map lists `.noinit` and symbol `mt9v03x_w_num` at `0x28006BF2`, size `0x2`; exclusive end `0x28006BF4`. |
+| `mt9v03x_image_temp` fixed placement | PASS | Integrated CM7_1 map lists `.noinit` and symbol `mt9v03x_image_temp` at `0x28026024`, size `0x5820`; exclusive end `0x2802B844` (inclusive last byte `0x2802B843`). |
+| CM0+ ordinary SRAM excludes camera absolute words | PASS | CM0+ map placement summary restricts ordinary read-write placement to `0x28000800-0x28006BEF` union `0x28006BF4-0x2801FFFF`; ordinary allocation cannot occupy `0x28006BF0-0x28006BF3`. Heap/stack is placed at the end of the contiguous post-hole range. |
+| CM7_0 ordinary SRAM excludes camera scratch image | PASS | CM7_0 map placement summary restricts ordinary read-write placement to `0x28020000-0x28026023` union `0x2802B844-0x2807FFFF`; ordinary allocation cannot occupy `0x28026024-0x2802B843`. Heap/stack is placed at the end of the contiguous post-hole range. |
+| Shared SRAM remains `0x28080000-0x28081FFF` | PASS | All three integrated maps export `__intercore_shared_sram_base = 0x28080000` and `__intercore_shared_sram_size = 0x2000`. |
+| CM7_1 ordinary SRAM begins at `0x28082000` | PASS | Integrated CM7_1 placement summary is `0x28082000-0x280BFFFF`; the first initialized data block begins at `0x28082000`. |
+| Integrated three-core map ranges checked for overlap | PASS | All three full links succeeded with the two ordinary-SRAM holes enforced. The integrated CM7_1 map places the three retained absolute sections only in those holes, while CM0+/CM7_0 maps exclude them and preserve the existing shared/CM7_1 boundary. |
 
 ## Timing
 

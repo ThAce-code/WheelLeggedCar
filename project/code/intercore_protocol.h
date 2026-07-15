@@ -3,11 +3,12 @@
 
 #include <stddef.h>
 #include "zf_common_typedef.h"
+#include "perception_types.h"
 
 #define INTERCORE_SHARED_BASE_ADDRESS      (0x28080000UL)
 #define INTERCORE_SHARED_SIZE_BYTES        (8192U)
 #define INTERCORE_PROTOCOL_MAGIC           (0x574C4349UL)
-#define INTERCORE_PROTOCOL_VERSION         (2U)
+#define INTERCORE_PROTOCOL_VERSION         (3U)
 #define INTERCORE_NAVIGATION_MAX_VALID_MS  (200U)
 #define INTERCORE_CAMERA_DATA_BASE_ADDRESS (0x28060000UL)
 #define INTERCORE_CAMERA_DATA_SIZE_BYTES   (65536U)
@@ -19,11 +20,17 @@
 #define INTERCORE_CAMERA_WIDTH             (188U)
 #define INTERCORE_CAMERA_HEIGHT            (120U)
 #define INTERCORE_CAMERA_STRIDE            (188U)
+#define INTERCORE_PERCEPTION_MAGIC         (0x50524350UL)
+#define INTERCORE_PERCEPTION_VERSION       (1U)
+#define INTERCORE_PERCEPTION_SLOT_COUNT    (2U)
+#define INTERCORE_PERCEPTION_REGION_SIZE   (4864U)
 
 typedef enum
 {
     INTERCORE_RECORD_NAVIGATION = 1,
-    INTERCORE_RECORD_CONTROL_STATUS = 2
+    INTERCORE_RECORD_CONTROL_STATUS = 2,
+    INTERCORE_RECORD_PERCEPTION_POSE = 3,
+    INTERCORE_RECORD_PERCEPTION_SNAPSHOT = 4
 }intercore_record_type_enum;
 
 typedef enum
@@ -206,13 +213,44 @@ typedef struct
 
 typedef struct
 {
+    intercore_header_struct header;
+    perception_pose_snapshot_struct payload;
+}intercore_perception_pose_slot_struct;
+
+typedef struct
+{
+    intercore_header_struct header;
+    perception_snapshot_struct payload;
+}intercore_perception_snapshot_slot_struct;
+
+typedef struct
+{
+    uint32 magic;
+    uint16 version;
+    uint16 slot_count;
+    uint32 producer_boot_epoch;
+    uint32 pose_active_index;
+    uint32 pose_sequence;
+    uint32 perception_active_index;
+    uint32 perception_sequence;
+    intercore_perception_pose_slot_struct pose[INTERCORE_PERCEPTION_SLOT_COUNT];
+    intercore_perception_snapshot_slot_struct perception[INTERCORE_PERCEPTION_SLOT_COUNT];
+    uint8 reserved[INTERCORE_PERCEPTION_REGION_SIZE - 28U -
+                   sizeof(intercore_perception_pose_slot_struct) *
+                       INTERCORE_PERCEPTION_SLOT_COUNT -
+                   sizeof(intercore_perception_snapshot_slot_struct) *
+                       INTERCORE_PERCEPTION_SLOT_COUNT];
+}intercore_perception_control_struct;
+
+typedef struct
+{
     intercore_metadata_struct metadata;
     intercore_navigation_slot_struct navigation[2];
     intercore_control_slot_struct control[2];
     intercore_event_struct events[16];
     intercore_health_struct health;
     intercore_camera_control_struct camera;
-    uint8 reserved[4864];
+    intercore_perception_control_struct perception;
 }intercore_shared_layout_struct;
 
 #define INTERCORE_LAYOUT_CHECK(name, condition) \
@@ -228,6 +266,13 @@ INTERCORE_LAYOUT_CHECK(event_size, sizeof(intercore_event_struct) == 64U);
 INTERCORE_LAYOUT_CHECK(health_size, sizeof(intercore_health_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(camera_slot_size, sizeof(intercore_camera_slot_struct) == 32U);
 INTERCORE_LAYOUT_CHECK(camera_control_size, sizeof(intercore_camera_control_struct) == 256U);
+INTERCORE_LAYOUT_CHECK(perception_pose_slot_size,
+                       sizeof(intercore_perception_pose_slot_struct) == 68U);
+INTERCORE_LAYOUT_CHECK(perception_snapshot_slot_size,
+                       sizeof(intercore_perception_snapshot_slot_struct) == 1008U);
+INTERCORE_LAYOUT_CHECK(perception_control_size,
+                       sizeof(intercore_perception_control_struct) ==
+                           INTERCORE_PERCEPTION_REGION_SIZE);
 INTERCORE_LAYOUT_CHECK(camera_consumer_sequence_offset,
                        offsetof(intercore_camera_control_struct,
                                 consumer_last_sequence) == 172U);
@@ -244,7 +289,7 @@ INTERCORE_LAYOUT_CHECK(control_offset, offsetof(intercore_shared_layout_struct, 
 INTERCORE_LAYOUT_CHECK(events_offset, offsetof(intercore_shared_layout_struct, events) == 0x700U);
 INTERCORE_LAYOUT_CHECK(health_offset, offsetof(intercore_shared_layout_struct, health) == 0xB00U);
 INTERCORE_LAYOUT_CHECK(camera_offset, offsetof(intercore_shared_layout_struct, camera) == 0xC00U);
-INTERCORE_LAYOUT_CHECK(reserved_offset, offsetof(intercore_shared_layout_struct, reserved) == 0xD00U);
+INTERCORE_LAYOUT_CHECK(perception_offset, offsetof(intercore_shared_layout_struct, perception) == 0xD00U);
 
 uint32 intercore_crc32(const uint8 *data, uint32 size);
 void intercore_record_prepare(intercore_header_struct *header,

@@ -1271,6 +1271,8 @@
         <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_transport.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_transport.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_notify.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_notify.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.c</name></file>

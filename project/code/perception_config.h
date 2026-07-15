@@ -6,7 +6,7 @@
 #ifndef _perception_config_h_
 #define _perception_config_h_
 
-#include "zf_common_headfile.h"
+#include "zf_common_typedef.h"
 
 #define PERCEPTION_IMAGE_WIDTH                 (188U)
 #define PERCEPTION_IMAGE_HEIGHT                (120U)

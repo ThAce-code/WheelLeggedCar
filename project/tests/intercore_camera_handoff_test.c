@@ -70,7 +70,7 @@ static void test_layout(void)
     TEST_CHECK(188U == offsetof(intercore_camera_control_struct, reserved));
     TEST_CHECK(68U == sizeof(shared.camera.reserved));
     TEST_CHECK(0xC00U == offsetof(intercore_shared_layout_struct, camera));
-    TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, reserved));
+    TEST_CHECK(0xD00U == offsetof(intercore_shared_layout_struct, perception));
     TEST_CHECK(8192U == sizeof(intercore_shared_layout_struct));
 }
 

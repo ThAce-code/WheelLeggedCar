@@ -292,3 +292,30 @@ This section supersedes the earlier Task 3 `236.192 s` / `+3296` debugger-read w
 ### Task 3 disposition
 
 **PASS.** The corrected adapter validates actual WiFi-SPI transfer completion, the automatic 60 s gate closes all capture/drop and acquire/send/release identities, the hard-reset path recovers from Assistant disconnect, and the true capture-disabled baseline preserves control timing and safety. IAR was exited from debugging to `Ready`; all three generated `.sim` files were deleted and a recursive recount returned zero. The hash-locked `.ewx` remains local-only and was not pushed, packaged, or externally distributed.
+
+## Display-rate tuning after hotspot recovery
+
+The Windows hotspot interruption was restored without changing the camera wiring.
+The 50 ms image-publication build recovered automatically and the Assistant again
+showed changing 188 x 120 imagery at 17 FPS and 397,176 bytes/s. The next tuning
+step changed only `APP_CAMERA_DISPLAY_PERIOD_MS` from 50 ms to 40 ms; no motor,
+servo, pin, capture, or transport code was changed.
+
+| Result | Status | Evidence / observation |
+| --- | --- | --- |
+| 40 ms static RED/GREEN | PASS | The static contract was changed to require 40 ms and first failed because the delivered configuration was still 50 ms. After the one-line configuration change, `tools/test_camera_seekfree_api_static.ps1` passed. |
+| CM7_0 build | PASS | Fresh command-line IAR Debug build completed with 0 errors and the same 3 pre-existing `Pe550` unused-control-command warnings. |
+| CM7_1 build | PASS | Fresh command-line IAR Debug build completed with 0 errors and 0 warnings. |
+| Download/start | PASS | CM7_0 was explicitly made Active before `Download and Debug`; the CM7_0 configuration loaded the fresh three-core image set, reset the target, stopped at CM7_0 `main()`, and then ran. |
+| Initial 40 ms display result | PASS | Assistant UI Automation reported width 188, height 120, FPS 25, and 569,460 bytes/s. The TCP client remained present and the image continued changing. |
+| 26 s display sample | PASS WITH LIMITATION | Six samples from local `19:31:17` through `19:31:43` reported FPS `26, 23, 19, 22, 26, 16` and throughput `444180, 514604, 548864, 599672, 583992, 503724` bytes/s. Mean FPS was 22.0 and mean throughput was 532,506 bytes/s; no sampled point was zero or disconnected, but the instantaneous rate was not a stable 25 FPS. |
+| 19.8 min transport ledger | PASS WITH EXPECTED DROPS | At producer heartbeat 1,187,696 ms, capture/publish/consume counts were 59,199/24,932/24,922. Period drops were 25,757, no-free drops were 8,510, and stale-ready drops were 10. The identities `59199 = 24932 + 25757 + 8510` and `24932 = 24922 + 10` close exactly; both slots were `FREE`, invalid-layout count was 0, and no queue accumulated. This is 49.84 captured FPS and 20.99 published FPS. The 62 timeout events occurred during the observed hotspot interruption and recovered without a target reset. |
+| Post-tuning control safety | PASS | At the same 1,187.696 s endpoint, scheduler missed ticks were 0, maximum scheduler gap was 1 ms, IMU age was 6 ms, safety fault was 0, both wheel duties were 0, servo tick count was 356,375 (300.05 Hz), and maximum camera-copy/source-mask duration was 98 us. Wheel motor power remained off and no motion, servo, or `LXY` command was issued. |
+| 20 ms / nominal 50 FPS step | NOT RUN | The 40 ms hardware result already saturates the two-slot synchronous-send path at about 21 published FPS and records no-free drops. A 20 ms producer gate would request 1,128,000 payload bytes/s before Assistant framing, about twice the measured link throughput. It is therefore a capacity inference, not a hardware result: lowering only the gate would increase counted drops without evidence of a higher visible rate. |
+
+**Tuning disposition: keep 40 ms.** It requests 25 FPS, gives approximately 21 FPS
+long-term publication rate, and produced a 22 FPS mean in the 26-second Assistant
+UI sample with 25 FPS peaks. It preserves the two-slot latest-frame architecture.
+Future higher-rate work should first reduce or decouple the synchronous WiFi-SPI
+send time; lowering only the producer period is not expected to improve the
+visible frame rate.

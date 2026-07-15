@@ -4,7 +4,7 @@
 
 **Goal:** Capture MT9V03X frames on CM7_0, hand complete latest-ready frames through a non-cacheable two-slot data plane, and process/display them from CM7_1 without disturbing the existing control loops.
 
-**Architecture:** Keep the existing 8 KiB inter-core region as a versioned control plane and carve a separate 64 KiB non-cacheable image plane at `0x28060000`. CM7_0 is the sole camera producer and may publish into a `FREE` slot at most every 100 ms; CM7_1 selects the newest `READY` slot, holds it as `READING` through future processing and synchronous WiFi sending, then releases it. Slot states and sequence numbers are authoritative; IPC notification is only a one-way hint.
+**Architecture:** Keep the existing 8 KiB inter-core region as a versioned control plane and carve a separate 64 KiB non-cacheable image plane at `0x28060000`. CM7_0 is the sole camera producer and may publish into a `FREE` slot no faster than the configured display period (40 ms in the final post-acceptance tuning); CM7_1 selects the newest `READY` slot, holds it as `READING` through future processing and synchronous WiFi sending, then releases it. Slot states and sequence numbers are authoritative; IPC notification is only a one-way hint.
 
 **Tech Stack:** Embedded C, CYT4BB/Traveo II dual Cortex-M7, IAR Embedded Workbench 9.40.1, Seekfree MT9V03X/WiFi-SPI/Assistant APIs, host GCC C11 tests, PowerShell static tests.
 
@@ -643,7 +643,7 @@ producer uses Cy_SysInt_DisableIRQ(tcpwm_0_interrupts_59_IRQn)
 producer uses Cy_SysInt_EnableIRQ(tcpwm_0_interrupts_59_IRQn)
 producer never calls NVIC_DisableIRQ(CPUIntIdx3_IRQn) or a global interrupt disable
 producer copies exactly MT9V03X_IMAGE_SIZE bytes into a claimed shared slot
-producer publishes no faster than APP_CAMERA_DISPLAY_PERIOD_MS=100U
+producer publishes no faster than APP_CAMERA_DISPLAY_PERIOD_MS=40U
 consumer contains no camera init, camera driver flag, WiFi, or Assistant call
 no camera copy, WiFi, or Assistant work appears in any ISR
 ```
@@ -938,12 +938,28 @@ Use `git add -u` only for the two deleted `camera_debug_app` files if their expl
 - Modify: `project/code/camera_frame_consumer.h`
 - Modify: `project/code/camera_frame_consumer.c`
 - Modify: `project/code/camera_debug_config.h`
+- Create: `project/code/camera_seekfree_transport.h`
+- Create: `project/code/camera_seekfree_transport.c`
+- Modify: `project/code/intercore_protocol.h`
+- Modify: `project/iar/project_config/cyt4bb7_cm_7_1.ewp`
+- Modify: `project/tests/intercore_camera_handoff_test.c`
 - Modify: `tools/test_camera_seekfree_api_static.ps1`
+- Create: `tools/test_camera_seekfree_transport_host.c`
+- Create: `tools/test_camera_seekfree_transport_host.ps1`
 - Modify: `docs/camera-seekfree-api-hardware-test.md`
 
 **Interfaces:**
 - Consumes: Task 2 acquired-frame view and existing E9 Assistant/WiFi-SPI APIs.
-- Produces: a CM7_1 consumer that exposes the acquired view boundary, sends the same held slot at approximately 10 FPS, and records honest processing/send diagnostics. It does not implement a fake vision algorithm.
+- Produces: a CM7_1 consumer that exposes the acquired view boundary, sends the same held slot at the rate supported by the configured producer gate and synchronous WiFi-SPI path, and records honest processing/send diagnostics. It does not implement a fake vision algorithm.
+
+Implementation correction approved during Task 3 evidence hardening: the vendor
+`seekfree_assistant_camera_send()` API returns `void`, so the built-in
+`SEEKFREE_ASSISTANT_WIFI_SPI` callback hides partial-transfer status. Keep the
+existing Assistant camera framing and packet order, but select the supported
+`SEEKFREE_ASSISTANT_CUSTOM` callback and route it through one project adapter.
+Only that adapter may call `wifi_spi_send_buffer()`; it must not call the read
+API, change packetization, add a queue, compress, retransmit, or define a custom
+network protocol.
 
 - [ ] **Step 1: Add failing static transport assertions**
 
@@ -952,11 +968,13 @@ Require:
 ```text
 APP_CAMERA_WIFI_ENABLE is 1U
 CM7_1 initializes WiFi from config macros and connects TCP explicitly
-Assistant selects SEEKFREE_ASSISTANT_WIFI_SPI
+Assistant selects SEEKFREE_ASSISTANT_CUSTOM and installs the single observable adapter
 two Assistant camera objects are configured, one for each fixed slot pointer
 the acquired slot remains READING through seekfree_assistant_camera_send
 release occurs only after the send call returns
-no direct application call to wifi_spi_send_buffer/read_buffer
+only camera_seekfree_transport may call wifi_spi_send_buffer, exactly once in source
+no application call to wifi_spi_read_buffer
+sent_count increments only after complete expected header and payload transfers
 reconnect attempts are separated by at least APP_CAMERA_WIFI_RETRY_MS
 no WiFi or Assistant call is reachable from an ISR or CM7_0
 ```
@@ -978,7 +996,7 @@ typedef struct
     uint16 height;
     uint16 stride;
     uint32 frame_bytes;
-    volatile uint8 *pixels;
+    const volatile uint8 *pixels;
 } camera_vision_frame_view_struct;
 ```
 
@@ -996,7 +1014,7 @@ wifi_spi_socket_connect("TCP",
                         APP_CAMERA_WIFI_TARGET_IP,
                         APP_CAMERA_WIFI_TARGET_PORT,
                         APP_CAMERA_WIFI_LOCAL_PORT);
-seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIFI_SPI);
+camera_seekfree_transport_install();
 ```
 
 Configure two camera objects once, using:
@@ -1023,14 +1041,26 @@ After acquiring the newest frame and recording the vision boundary:
 
 ```c
 send_start_ms = camera_frame_consumer_now_ms();
+camera_seekfree_transport_begin(sizeof(camera_information[view.slot_index].config),
+                                view.frame_bytes);
 seekfree_assistant_camera_send(&camera_information[view.slot_index]);
+send_ok = camera_seekfree_transport_frame_complete();
 send_duration_ms = camera_frame_consumer_now_ms() - send_start_ms;
 consumer_diag.last_send_duration_ms = send_duration_ms;
 consumer_diag.max_send_duration_ms =
     (consumer_diag.max_send_duration_ms < send_duration_ms) ?
     send_duration_ms : consumer_diag.max_send_duration_ms;
-consumer_diag.sent_count++;
-consumer_diag.last_sent_sequence = view.sequence;
+if(0U != send_ok)
+{
+    consumer_diag.sent_count++;
+    consumer_diag.last_sent_sequence = view.sequence;
+}
+else
+{
+    consumer_diag.send_failure_count++;
+    consumer_diag.socket_state = CAMERA_CONSUMER_LINK_FAILED;
+    consumer_diag.wifi_state = CAMERA_CONSUMER_LINK_FAILED;
+}
 camera_transport.control->last_send_duration_ms = send_duration_ms;
 camera_transport.control->max_send_duration_ms =
     (camera_transport.control->max_send_duration_ms < send_duration_ms) ?
@@ -1039,11 +1069,19 @@ camera_transport.control->max_send_duration_ms =
 consumer_diag.released_count++;
 ```
 
-The send API returns `void`; do not create a frame-success result. Connection/init failures remain separate states.
+The camera API still returns `void`; success comes only from the adapter observing
+the two existing Assistant callback segments and both WiFi-SPI remaining-byte
+results. This does not create a new packet result or protocol. Release the held
+slot after every synchronous attempt, including failure, so no slot remains
+`READING`. A transfer failure marks the WiFi link failed so the bounded retry
+path hard-resets/reassociates the module before reconnecting.
 
 - [ ] **Step 5: Run static, host, and existing regressions**
 
-Run the full command set from Task 2 Step 5 and require all PASS. Confirm static search finds no CM7_0 WiFi/Assistant call and no direct application `wifi_spi_send_buffer()` call.
+Run the full command set from Task 2 Step 5 plus the adapter host test and require
+all PASS. Confirm static search finds no CM7_0 WiFi/Assistant call, no application
+`wifi_spi_read_buffer()` call, and exactly one `wifi_spi_send_buffer()` choke point
+inside `camera_seekfree_transport.c`.
 
 - [ ] **Step 6: Fresh-build all cores and recheck maps**
 
@@ -1087,8 +1125,8 @@ Acceptance:
 
 ```text
 changing image for >= 60 s
-effective send/display rate approximately 10 FPS
-every producer publication start interval >= 100 ms
+effective send/display rate approximately 20-25 FPS at the final 40 ms tuning
+every producer publication start interval >= 40 ms
 frame age <= 200 ms
 no invalid state/layout/epoch errors
 no slot overwrite while READING
@@ -1124,6 +1162,22 @@ git commit -m "Stream cross-core camera frames on CM7_1"
 ```
 
 ---
+
+## Post-acceptance display-rate tuning amendment
+
+The original Task 3 acceptance ran at 100 ms and remains the historical baseline.
+After that gate passed, the user explicitly authorized increasing FPS while the
+control path remained healthy. The final delivered configuration changes only
+`APP_CAMERA_DISPLAY_PERIOD_MS` to 40 ms; the latest-frame, two-slot, no-queue
+architecture is unchanged.
+
+The 19.8-minute hardware endpoint closed both accounting identities, returned
+both slots to `FREE`, and measured about 20.99 published FPS. Scheduler missed
+ticks remained 0, maximum gap was 1 ms, IMU age was 6 ms, servo ticks measured
+300.05 Hz, safety fault and wheel duties remained 0, and maximum camera-copy
+mask duration was 98 us. A 20 ms setting was not run on hardware because the
+40 ms result already recorded synchronous-send no-free drops; any claim about
+50 FPS is therefore a capacity inference only.
 
 ### Task 4: Perform final clean verification and handoff
 

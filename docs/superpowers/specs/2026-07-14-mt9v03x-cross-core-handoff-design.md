@@ -41,7 +41,8 @@ CM7_0 camera callback
    |  unchanged driver copy into mt9v03x_image
    v
 CM7_0 producer service after app_run_once()
-   |  at most one publication opportunity per 100 ms
+   |  at most one publication opportunity per configured display period
+   |  final post-acceptance tuning value: 40 ms
    v
 64 KiB non-cacheable two-slot camera data plane
    |
@@ -178,7 +179,7 @@ The transitions deliberately have a single writer:
 
 This removes the need for a cross-core compare-and-swap in the first implementation.
 
-CM7_0 selects a `FREE` slot only when a complete source frame is available and at least 100 ms has elapsed since the previous publication start. If neither slot is free, it increments `no_free_drop_count` and returns immediately. It never waits.
+CM7_0 selects a `FREE` slot only when a complete source frame is available and at least `APP_CAMERA_DISPLAY_PERIOD_MS` has elapsed since the previous publication start. The initial Gate 3 acceptance value was 100 ms; after that gate passed, the user-authorized display-rate tuning set the delivered value to 40 ms. If neither slot is free, it increments `no_free_drop_count` and returns immediately. It never waits.
 
 CM7_1 examines all `READY` slots and chooses the highest sequence. If both slots are ready, it releases the older slot without processing and increments `stale_ready_drop_count`. It marks the selected slot `READING`, executes the consumer pipeline, and releases it only after every pointer user has returned.
 
@@ -243,7 +244,7 @@ WiFi initialization and reconnect attempts occur only on CM7_1, no faster than o
 - P06_5 bus-current ADC initialization and conversion remain compiled out, with derived bus-current values forced to benign zero.
 - Servo PWM remains active only for the previously validated all-90-degree reference pose.
 - CM7_0 performs no WiFi or Assistant work.
-- CM7_0 performs the additional 22,560-byte handoff copy only in its main loop and no faster than 10 times per second.
+- CM7_0 performs the additional 22,560-byte handoff copy only in its main loop and no faster than the configured 40 ms publication gate (25 opportunities per second).
 - CM7_1 processing or WiFi stalls cannot block CM7_0 control; they can only occupy slots and increase camera drop counters.
 - No wheel motion or `LXY` command is executed during these gates.
 
@@ -282,11 +283,30 @@ Run both cores for at least 60 seconds. Require increasing publication and consu
 
 ### Hardware Gate 3: WiFi display
 
-Run the existing Assistant TCP framing over WiFi-SPI for at least 60 seconds. Require changing 188 x 120 imagery, approximately 10 FPS with every publication start at least 100 ms after the previous start, frame age at most 200 ms, recorded send duration, no growing queue, and stable TCP connection.
+Run the existing Assistant TCP framing over WiFi-SPI for at least 60 seconds. The initial acceptance baseline requires changing 188 x 120 imagery at approximately 10 FPS with every publication start at least 100 ms after the previous start, frame age at most 200 ms, recorded send duration, no growing queue, and stable TCP connection.
+
+After that baseline passes, display-rate tuning may reduce only
+`APP_CAMERA_DISPLAY_PERIOD_MS`. The delivered post-acceptance value is 40 ms:
+nominally 25 publication opportunities per second, with actual visible and
+published rate allowed to be lower when synchronous WiFi-SPI holds both slots.
+Acceptance at this tuned value requires a closed capture/drop and
+publish/consume ledger, both slots returning to `FREE`, no growing queue, and the
+same control-regression thresholds. Counted `no_free_drop_count` events are an
+expected latest-frame backpressure result, not permission to overwrite a slot.
+
+The Assistant camera API returns `void`, so Task 3 may use the supported
+`SEEKFREE_ASSISTANT_CUSTOM` transfer callback solely as an observable adapter
+around `wifi_spi_send_buffer()`. The adapter must preserve the vendor Assistant
+header and payload exactly, be the only application-side send-buffer choke point,
+reject partial/missing/unexpected segments, and never add custom packetization,
+compression, retransmission, or a frame queue. A failed transfer still releases
+the held frame slot and forces the bounded recovery path to reinitialize the
+WiFi-SPI module before reconnecting.
 
 ### Control-regression gate
 
-Compare a 60-second pre-camera baseline with a 60-second streaming window. Require:
+Compare a true 60-second capture-disabled baseline with a 60-second final
+capture-enabled streaming window using the same control metrics. Require:
 
 - no new safety fault;
 - IMU age remains below the existing 30 ms stale limit;

@@ -222,7 +222,7 @@ Assert-Match $appConfig '(?m)^\s*#define\s+APP_CAMERA_DEBUG_ONLY\s+\(\s*1U\s*\)'
 
 $cameraDebugConfig = Read-RepoFile 'project\code\camera_debug_config.h'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_WIFI_ENABLE\s+\(\s*1U\s*\)' 'APP_CAMERA_WIFI_ENABLE is not enabled for the CM7_1 display gate'
-Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_DISPLAY_PERIOD_MS\s+\(\s*100U\s*\)' 'camera snapshot period is not 100 ms'
+Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_DISPLAY_PERIOD_MS\s+\(\s*40U\s*\)' 'camera snapshot period is not 40 ms'
 Assert-Match $cameraDebugConfig '(?m)^\s*#define\s+APP_CAMERA_STALE_TIMEOUT_MS\s+\(\s*200U\s*\)' 'camera stale timeout is not 200 ms'
 $retryMatch = [Regex]::Match($cameraDebugConfig, '(?m)^\s*#define\s+APP_CAMERA_WIFI_RETRY_MS\s+\(\s*(\d+)U\s*\)')
 if((-not $retryMatch.Success) -or ([uint32]$retryMatch.Groups[1].Value -lt 5000))
@@ -237,7 +237,7 @@ Assert-Match $cameraProducer 'Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_
 Assert-Match $cameraProducer 'Cy_SysInt_EnableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)' 'camera producer does not re-enable the TCPWM59 system interrupt source'
 Assert-Match $cameraProducer 'memcpy\s*\(\s*\(\s*void\s*\*\s*\)\s*slot_pixels\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)' 'camera producer does not copy exactly MT9V03X_IMAGE_SIZE bytes into the claimed slot'
 Assert-Match $cameraProducer '(?s)camera_capture_producer_service\s*\([^)]*\)\s*\{.*?Cy_SysInt_DisableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)\s*;.*?memcpy\s*\(\s*\(\s*void\s*\*\s*\)\s*slot_pixels\s*,\s*mt9v03x_image\s*\[\s*0\s*\]\s*,\s*MT9V03X_IMAGE_SIZE\s*\)\s*;\s*camera_transport\.control->producer_heartbeat_ms\s*=\s*now_ms\s*;\s*publish_ok\s*=\s*intercore_camera_producer_publish\s*\(.*?\)\s*;.*?Cy_SysInt_EnableIRQ\s*\(\s*tcpwm_0_interrupts_59_IRQn\s*\)\s*;.*?if\s*\(\s*0U\s*==\s*publish_ok\s*\).*?intercore_camera_producer_abort\s*\(\s*&camera_transport\s*,\s*slot_index\s*\)' 'producer critical path is not ordered Disable -> memcpy -> producer clock catch-up -> publish -> Enable -> conditional abort'
-Assert-Match $cameraProducer 'APP_CAMERA_DISPLAY_PERIOD_MS\s*<=\s*\(\s*now_ms\s*-\s*producer_diag\.last_publish_ms\s*\)' 'camera producer does not enforce the 100 ms latest-frame publication period'
+Assert-Match $cameraProducer 'APP_CAMERA_DISPLAY_PERIOD_MS\s*<=\s*\(\s*now_ms\s*-\s*producer_diag\.last_publish_ms\s*\)' 'camera producer does not enforce the configured latest-frame publication period'
 Assert-NoMatch $cameraProducer '(?i)\bNVIC_DisableIRQ\s*\(\s*CPUIntIdx3_IRQn\s*\)|\b(?:__disable_irq|Cy_SysLib_EnterCriticalSection)\s*\(' 'camera producer masks the aggregate CPU IRQ or globally disables interrupts'
 Assert-NoMatch $cameraProducer '(?i)\b(?:Cy_TCPWM_ClearInterrupt|Cy_TCPWM_Counter_ClearInterrupt|NVIC_ClearPendingIRQ)\s*\(' 'camera producer clears pending camera or aggregate interrupt state'
 Assert-NoMatch $cameraProducer '(?i)\b(?:wifi_spi_|seekfree_assistant_)\w*\s*\(' 'WiFi or Assistant work is reachable from the CM7_0 producer'

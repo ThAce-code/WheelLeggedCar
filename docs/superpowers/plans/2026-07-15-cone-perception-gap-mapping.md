@@ -214,13 +214,13 @@ typedef struct
 {
     uint32 sequence;
     uint32 timestamp_us;
-    float32 position_x_m;
-    float32 position_y_m;
-    float32 yaw_rad;
-    float32 roll_rad;
-    float32 pitch_rad;
-    float32 speed_mps;
-    float32 camera_height_m;
+    float position_x_m;
+    float position_y_m;
+    float yaw_rad;
+    float roll_rad;
+    float pitch_rad;
+    float speed_mps;
+    float camera_height_m;
     uint16 validity_flags;
     uint16 reserved;
     uint32 crc32;
@@ -232,13 +232,13 @@ typedef struct
     uint16 left_cone_id;
     uint16 right_cone_id;
     uint16 validity_flags;
-    float32 center_x_m;
-    float32 center_y_m;
-    float32 heading_rad;
-    float32 approach_x_m;
-    float32 approach_y_m;
-    float32 exit_x_m;
-    float32 exit_y_m;
+    float center_x_m;
+    float center_y_m;
+    float heading_rad;
+    float approach_x_m;
+    float approach_y_m;
+    float exit_x_m;
+    float exit_y_m;
 } perception_gap_target_struct;
 ```
 
@@ -465,7 +465,7 @@ Require the following interfaces and reject full-frame undistortion buffers:
 
 ```c
 uint8 perception_calibration_validate(void);
-uint8 perception_calibration_ray(float32 raw_u, float32 raw_v, float32 ray_camera[3]);
+uint8 perception_calibration_ray(float raw_u, float raw_v, float ray_camera[3]);
 uint8 perception_roi_build_horizon(const perception_pose_snapshot_struct *pose, int16 horizon_y[PERCEPTION_IMAGE_WIDTH]);
 void perception_roi_build(uint32 frame_sequence, const int16 horizon_y[PERCEPTION_IMAGE_WIDTH], const perception_track_window_struct *windows, uint8 window_count, perception_roi_struct *roi);
 uint8 perception_project_candidate(const perception_candidate_struct *candidate, const perception_pose_snapshot_struct *pose, perception_ground_observation_struct *observation);

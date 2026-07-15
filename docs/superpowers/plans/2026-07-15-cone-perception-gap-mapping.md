@@ -4,7 +4,7 @@
 
 **Goal:** 在 CYT4BB7 双核固件上实现 MT9V03X `188x120 @ 50 FPS` 锥桶检测、地面投影、静态跟踪、`N-1` 间隙地图和安全目标快照，并用逐飞助手保存的 BMP、离线回放及分阶段硬件试验证明实时性和正确性。
 
-**Architecture:** CM7_1 独占相机、检测、投影、跟踪和间隙状态机；CM7_0 发布 IMU/轮速/腿高融合位姿并消费只读感知目标。算法先在 Python 参考实现中冻结几何与判定，再移植为无动态内存的定点/有限浮点 C 模块。双核只经 8 KB 无初始化双缓冲共享区交换带序号、时间戳和 CRC 的结构化快照，WiFi-SPI 仅用于可丢帧调试。
+**Architecture:** 复用 `7a58d6f1` 的硬件验证链路：CM7_0 采集 MT9V03X 并经 64 KB 双槽帧平面发布，CM7_1 取得最新帧后执行检测、投影、跟踪和间隙状态机；CM7_0 发布 IMU/轮速/腿高融合位姿并消费只读感知目标。算法先在 Python 参考实现中冻结几何与判定，再移植为无动态内存的定点/有限浮点 C 模块。结构化快照扩展既有 8 KB `intercore_shared_layout`，不新增链接段；WiFi-SPI 仅用于可丢帧调试。
 
 **Tech Stack:** Embedded C (IAR EWARM 9.40.1, CYT4BB7/Traveo II), PowerShell static checks, Python 3 `unittest` + NumPy + OpenCV for calibration/reference replay, MT9V03X grayscale global-shutter camera, SeekFree WiFi-SPI assistant.
 
@@ -35,22 +35,22 @@
 | `tools/test_perception_integration_static.ps1` | 容量、接口、无动态内存、IAR 成员和安全边界静态检查 |
 | `project/code/perception_config.h` | 容量、频率、门限、评分权重和超时的唯一固件定义 |
 | `project/code/perception_types.h` | 不含指针的跨模块/跨核数据结构和枚举 |
-| `project/code/perception_crc.h/.c` | 共享快照 CRC32 |
-| `project/code/perception_shared.h/.c` | 位姿/感知快照双缓冲发布和一致读取 |
+| `project/code/perception_intercore.h/.c` | 扩展既有跨核 ABI 的位姿/感知快照、CRC 与一致读取 |
 | `project/code/perception_calibration.h/.c` | 标定常量、单点去畸变、相机射线 |
 | `project/code/perception_roi.h/.c` | IMU 地平线曲线、发现区和跟踪窗 |
 | `project/code/perception_detector.h/.c` | 一次顺序遍历、行程连通、截面特征和打分 |
 | `project/code/perception_projection.h/.c` | 底部中心像素到地面坐标及协方差 |
 | `project/code/perception_tracker.h/.c` | 数据关联、确认/丢失、地图合并和固定 ID |
 | `project/code/perception_gap.h/.c` | 纵向排序、`N-1` 间隙、返程目标和状态机 |
-| `project/code/perception_camera.h/.c` | MT9V03X 帧适配、VSYNC 时间戳、双缓冲和曝光质量 |
+| `project/code/camera_capture_producer.h/.c` | CM7_0 已验证采集/发布服务，不重写 |
+| `project/code/camera_frame_consumer.h/.c` | CM7_1 最新帧消费、感知回调与可丢弃调试显示 |
 | `project/code/perception_app.h/.c` | CM7_1 感知流水线和时间预算管理 |
 | `project/code/perception_client.h/.c` | CM7_0 位姿发布、目标消费、超时和安全门禁 |
 | `project/user/main_cm7_1.c` | CM7_1 初始化与非阻塞循环 |
 | `project/user/cm7_1_isr.c` | 相机/时间戳 ISR 的最小转发入口 |
 | `project/code/app.c`, `project/code/app_scheduler.c` | CM7_0 周期调用与任务状态接入 |
 | `project/code/app_config.h` | CM7_0 感知超时和任务门限 |
-| `project/iar/icf/linker_directives_tviibh.icf` | 预留 8 KB `.perception_shared` 区域 |
+| `project/code/intercore_protocol.h/.c` | 版本化共享 ABI 和 8 KB 布局静态检查 |
 | `project/iar/project_config/cyt4bb7_cm_7_0.ewp` | 加入共享/客户端源文件 |
 | `project/iar/project_config/cyt4bb7_cm_7_1.ewp` | 加入完整感知源文件和 MT9V03X 依赖 |
 | `docs/cone-perception-hardware-test.md` | 可重复的静态、开环和场地验收记录模板 |
@@ -398,54 +398,46 @@ git add tools/perception/reference_tracker.py tools/perception/tests/test_refere
 git commit -m "Add cone map and gap reference model"
 ```
 
-### Task 6: Add shared memory, CRC, and linker reservation
+### Task 6: Extend the existing cross-core ABI for perception snapshots
 
 **Files:**
-- Create: `project/code/perception_crc.h`
-- Create: `project/code/perception_crc.c`
-- Create: `project/code/perception_shared.h`
-- Create: `project/code/perception_shared.c`
-- Modify: `project/iar/icf/linker_directives_tviibh.icf`
+- Create: `project/code/perception_intercore.h`
+- Create: `project/code/perception_intercore.c`
+- Modify: `project/code/intercore_protocol.h`
+- Modify: `project/code/intercore_transport.h`
+- Modify: `project/code/intercore_transport.c`
 - Modify: `tools/test_perception_integration_static.ps1`
 
-- [ ] **Step 1: Extend static tests for an exact 8 KB no-init section**
+- [ ] **Step 1: Extend static tests for the existing 8 KB ABI**
 
-Require `.perception_shared`, `0x2000`, `do not initialize`, two slots per direction, CRC before publish, and a memory barrier. Reject raw image arrays and pointer fields from the shared container.
+Require `INTERCORE_SHARED_SIZE_BYTES == 8192U`, two slots per direction, CRC before publish, a memory barrier, a version bump and no pointer/raw-image field in the control layout. The existing camera control offset and size must remain unchanged.
 
 Run the static script and confirm it fails only the new shared-memory checks.
 
-- [ ] **Step 2: Implement CRC32 and double-buffer protocol**
+- [ ] **Step 2: Implement perception records inside the ABI reserve**
 
-Use polynomial `0xEDB88320`, initial/final xor `0xFFFFFFFF`. Expose:
+Use the existing intercore record CRC convention and add explicit CM7_0 pose-publish/CM7_1 perception-publish APIs in `perception_intercore`. The new records occupy documented bytes in `intercore_shared_layout.reserved`; they do not create another absolute address or linker section. Expose:
 
 ```c
-void perception_shared_owner_init(void);
-uint8 perception_shared_publish_pose(const perception_pose_snapshot_struct *snapshot);
-uint8 perception_shared_read_pose(perception_pose_snapshot_struct *snapshot);
-uint8 perception_shared_publish_perception(const perception_snapshot_struct *snapshot);
-uint8 perception_shared_read_perception(perception_snapshot_struct *snapshot);
+uint8 perception_intercore_publish_pose(const perception_pose_snapshot_struct *snapshot);
+uint8 perception_intercore_read_pose(perception_pose_snapshot_struct *snapshot);
+uint8 perception_intercore_publish_perception(const perception_snapshot_struct *snapshot);
+uint8 perception_intercore_read_perception(perception_snapshot_struct *snapshot);
 ```
 
-Writer sequence: copy to inactive slot with `crc32=0`, compute CRC, write CRC, execute `__DMB()`, publish slot index and sequence. Reader sequence: read publication word, copy slot, `__DMB()`, reread publication word, then accept only if unchanged, monotonic and CRC-valid. CM7_0 alone initializes the owner header at boot; CM7_1 waits for the magic/schema before publishing.
+Writer sequence: copy to inactive slot with `crc32=0`, compute CRC, write CRC, execute `__DMB()`, publish slot index and sequence. Reader sequence: read publication word, copy slot, `__DMB()`, reread publication word, then accept only if unchanged, monotonic and CRC-valid. CM7_0 remains the existing layout owner; CM7_1 attaches to the matching magic/schema before publishing.
 
-- [ ] **Step 3: Reserve the linker section without overlapping CM7_1 SRAM**
+- [ ] **Step 3: Preserve camera layout compatibility**
 
-Define a shared reserve of `0x2000`, reduce `_size_SRAM_CM7_1` by that amount, define `SRAM_PERCEPTION_SHARED` at the old top of CM7_1 SRAM, and add:
-
-```text
-do not initialize { section .perception_shared };
-place at start of SRAM_PERCEPTION_SHARED { section .perception_shared };
-```
-
-Place one `__root` shared container in this section. Add compile-time size checks that the container is `<= 8192` and both snapshot structs are 4-byte aligned.
+Keep `INTERCORE_CAMERA_*` constants, `intercore_camera_control_struct` size/offset and the 64 KB camera data plane unchanged. Add compile-time offset/size checks for the new records and prove the whole shared layout remains exactly 8192 bytes.
 
 - [ ] **Step 4: Run static checks and commit**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/test_perception_integration_static.ps1
 git diff --check
-git add project/code/perception_crc.h project/code/perception_crc.c project/code/perception_shared.h project/code/perception_shared.c project/iar/icf/linker_directives_tviibh.icf tools/test_perception_integration_static.ps1
-git commit -m "Add perception shared snapshot transport"
+git add project/code/perception_intercore.h project/code/perception_intercore.c project/code/intercore_protocol.h project/code/intercore_transport.h project/code/intercore_transport.c tools/test_perception_integration_static.ps1
+git commit -m "Extend intercore ABI for perception"
 ```
 
 ### Task 7: Port calibration, horizon, ROI, and projection to firmware
@@ -534,35 +526,32 @@ git add project/code/perception_detector.* project/code/perception_tracker.* pro
 git commit -m "Add bounded cone perception pipeline"
 ```
 
-### Task 9: Integrate MT9V03X acquisition and non-blocking debug output on CM7_1
+### Task 9: Integrate perception into the existing CM7_1 frame consumer
 
 **Files:**
-- Create: `project/code/perception_camera.h`
-- Create: `project/code/perception_camera.c`
 - Create: `project/code/perception_app.h`
 - Create: `project/code/perception_app.c`
+- Modify: `project/code/camera_frame_consumer.h`
+- Modify: `project/code/camera_frame_consumer.c`
 - Modify: `project/user/main_cm7_1.c`
 - Modify: `project/user/cm7_1_isr.c`
 - Modify: `project/iar/project_config/cyt4bb7_cm_7_1.ewp`
 - Modify: `tools/test_perception_integration_static.ps1`
 
-- [ ] **Step 1: Import and identify the exact working camera symbols**
+- [ ] **Step 1: Use the proven camera handoff boundary**
 
-Copy the already hardware-proven MT9V03X driver/configuration used for the live `188x120 @ 50 FPS` image into the branch through the existing SeekFree library integration; do not reimplement MIPI timing. Record the actual init function, frame-ready flag, image symbol, VSYNC hook and WiFi-SPI image-send API at the top of `perception_camera.c`. The adapter must fail compilation if width or height is not 188×120.
+Keep `camera_capture_producer` and the MT9V03X driver untouched. Consume `camera_vision_frame_view_struct` from `camera_frame_consumer`; require `188x120`, a monotonic sequence and the CM7_0 `capture_ms` timestamp. Do not reimplement MIPI timing or allocate an additional full-frame buffer.
 
-- [ ] **Step 2: Define a narrow camera adapter and failing static checks**
+- [ ] **Step 2: Define a bounded perception callback and failing static checks**
 
 Expose:
 
 ```c
-uint8 perception_camera_init(void);
-uint8 perception_camera_try_acquire(perception_frame_struct *frame);
-void perception_camera_release(uint32 frame_sequence);
-void perception_camera_vsync_isr(uint32 timestamp_us);
-void perception_camera_debug_step(void);
+uint8 perception_app_init(void);
+void perception_app_process_frame(const camera_vision_frame_view_struct *frame);
 ```
 
-`try_acquire` returns immediately when no complete frame exists. ISR only timestamps and swaps producer index; it does not detect cones or send WiFi data. Two static 22,560-byte image buffers are owned only by CM7_1. Debug output uses a one-frame mailbox; a new debug request overwrites/drops an old pending request and increments `debug_drop_count`.
+The consumer acquires and releases one latest frame through the existing dual-slot protocol. The callback never runs in an ISR, never sends WiFi data, and cannot retain the frame pointer after return. WiFi debug output remains independently droppable.
 
 - [ ] **Step 3: Implement image quality and exposure diagnostics**
 
@@ -570,9 +559,9 @@ Sample every fourth pixel to compute p05, p50, p95 and clipped-dark/clipped-brig
 
 - [ ] **Step 4: Integrate the CM7_1 pipeline**
 
-`perception_app_step()` performs at most one bounded unit per call: acquire pose, acquire frame, build ROI, detect, project, track, update map at 20 Hz, publish snapshot, or service one debug chunk. Measure DWT cycles for every frame. After three consecutive frames above 20 ms, disable global discovery and debug streaming until ten consecutive frames are below 15 ms; tracking windows remain active.
+`perception_app_process_frame()` performs bounded work only on the frame supplied by the consumer: acquire pose, build ROI, detect, project, track, update map at 20 Hz and publish a snapshot. Measure DWT cycles for every frame. After three consecutive frames above 20 ms, disable global discovery and debug streaming until ten consecutive frames are below 15 ms; tracking windows remain active.
 
-`main_cm7_1.c` initializes clocks, timing, shared reader, camera and app, then repeatedly calls `perception_app_step()` without blocking delays.
+`main_cm7_1.c` continues to call `camera_frame_consumer_service()` without blocking delays; that service invokes the bounded perception callback before it releases the frame.
 
 - [ ] **Step 5: Add every new source/header to the CM7_1 IAR project**
 
@@ -593,8 +582,8 @@ Flash CM7_1 with motors disabled. Observe 10 minutes: camera remains 50 FPS, no 
 - [ ] **Step 7: Commit CM7_1 acquisition integration**
 
 ```powershell
-git add project/code/perception_camera.* project/code/perception_app.* project/user/main_cm7_1.c project/user/cm7_1_isr.c project/iar/project_config/cyt4bb7_cm_7_1.ewp tools/test_perception_integration_static.ps1
-git commit -m "Integrate MT9V03X perception on CM7_1"
+git add project/code/perception_app.* project/code/camera_frame_consumer.* project/iar/project_config/cyt4bb7_cm_7_1.ewp tools/test_perception_integration_static.ps1
+git commit -m "Integrate perception with camera frame consumer"
 ```
 
 ### Task 10: Integrate CM7_0 pose publication and safe target consumption

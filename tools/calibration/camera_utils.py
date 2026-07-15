@@ -228,6 +228,7 @@ def undistort_points(
     points_2d: np.ndarray,            # (N, 2) distorted pixel coords
     camera_matrix: np.ndarray,        # (3, 3)
     dist_coeffs: np.ndarray,          # (k1,k2,p1,p2[,k3...])
+    model: str = "standard",
 ) -> np.ndarray:
     """Undistort a set of image points using the camera calibration.
 
@@ -237,7 +238,17 @@ def undistort_points(
     then extract points, because that creates a resampling mismatch.
     """
     pts = points_2d.reshape(-1, 1, 2).astype(np.float64)
-    undistorted = cv2.undistortPoints(pts, camera_matrix, dist_coeffs, P=camera_matrix)
+    matrix = np.asarray(camera_matrix, dtype=np.float64).reshape(3, 3)
+    distortion = np.asarray(dist_coeffs, dtype=np.float64).reshape(-1)
+    if model == "fisheye":
+        if distortion.size != 4:
+            raise ValueError("fisheye distortion requires exactly four coefficients")
+        undistorted = cv2.fisheye.undistortPoints(
+            pts, matrix, distortion.reshape(4, 1), P=matrix)
+    elif model == "standard":
+        undistorted = cv2.undistortPoints(pts, matrix, distortion, P=matrix)
+    else:
+        raise ValueError("model must be standard or fisheye")
     return undistorted.reshape(-1, 2)
 
 

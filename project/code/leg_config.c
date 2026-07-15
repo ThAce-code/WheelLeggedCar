@@ -14,11 +14,11 @@ static const leg_config_struct leg_config_default =
         {3,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f, -1.0f, -1.0f}
     },
     {
-        .l1_mm = 90.0f,   /* driven link (temp for calib) */
-        .l2_mm = 60.0f,   /* passive link (temp for calib) */
-        .l3_mm = 60.0f,   /* passive link (temp for calib) */
-        .l4_mm = 90.0f,   /* driven link (temp for calib) */
-        .l5_mm = 38.0f,   /* base spacing (measured) */
+        .l1_mm = 60.0f,   /* driven link (SolidWorks measured) */
+        .l2_mm = 90.0f,   /* passive link (SolidWorks measured) */
+        .l3_mm = 90.0f,   /* passive link (SolidWorks measured) */
+        .l4_mm = 60.0f,   /* driven link (SolidWorks measured) */
+        .l5_mm = 37.0f,   /* servo-axis spacing (SolidWorks measured) */
         .x_min_mm = -35.0f,
         .x_max_mm = 35.0f,
         .y_min_mm = 35.0f,

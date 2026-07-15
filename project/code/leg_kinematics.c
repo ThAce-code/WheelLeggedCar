@@ -60,6 +60,18 @@ static float leg_kinematics_wrapped_distance(float first_rad, float second_rad)
     return delta;
 }
 
+static float leg_kinematics_wrapped_delta(float target_rad, float reference_rad)
+{
+    float delta;
+
+    delta = leg_kinematics_wrap_positive(target_rad - reference_rad);
+    if(LEG_KINEMATICS_PI < delta)
+    {
+        delta -= LEG_KINEMATICS_TWO_PI;
+    }
+    return delta;
+}
+
 static float leg_kinematics_rad_to_deg(float angle_rad)
 {
     return angle_rad * 180.0f / LEG_KINEMATICS_PI;
@@ -101,7 +113,11 @@ static uint8 leg_kinematics_map_one(uint8 servo_index,
         return APP_FALSE;
     }
 
-    value = cfg->neutral_deg + (cfg->direction * (target_deg - reference_deg)) + cfg->ik_offset_deg;
+    value = cfg->neutral_deg +
+            (cfg->direction * leg_kinematics_rad_to_deg(
+                leg_kinematics_wrapped_delta(target_deg * LEG_KINEMATICS_PI / 180.0f,
+                                             reference_deg * LEG_KINEMATICS_PI / 180.0f))) +
+            cfg->ik_offset_deg;
     if(APP_FALSE == leg_kinematics_servo_valid(servo_index, value))
     {
         return APP_FALSE;
@@ -170,7 +186,6 @@ static uint8 leg_kinematics_solve_angle_candidates(float a,
 static uint8 leg_kinematics_select_angle(float plus_rad,
                                          float minus_rad,
                                          leg_ik_branch_enum branch,
-                                         uint8 servo_index,
                                          const leg_ik_result_struct *previous,
                                          uint8 joint_index,
                                          float *selected_rad)
@@ -198,8 +213,9 @@ static uint8 leg_kinematics_select_angle(float plus_rad,
         second_rad = plus_rad;
     }
 
-    first_valid = leg_kinematics_servo_valid(servo_index, leg_kinematics_rad_to_deg(first_rad));
-    second_valid = leg_kinematics_servo_valid(servo_index, leg_kinematics_rad_to_deg(second_rad));
+    /* Linkage angles are geometric coordinates, not servo command angles. */
+    first_valid = leg_kinematics_is_finite(first_rad);
+    second_valid = leg_kinematics_is_finite(second_rad);
     if((APP_FALSE == first_valid) && (APP_FALSE == second_valid))
     {
         return APP_FALSE;
@@ -281,8 +297,6 @@ uint8 leg_kinematics_solve(uint8 right_side,
 {
     const leg_kinematics_config_struct *cfg;
     const leg_height_profile_struct *profile;
-    uint8 servo_a;
-    uint8 servo_b;
     float x;
     float y;
     float a;
@@ -357,21 +371,10 @@ uint8 leg_kinematics_solve(uint8 right_side,
         return APP_FALSE;
     }
 
-    if(APP_TRUE == right_side)
-    {
-        servo_a = LEG_SERVO_FR;
-        servo_b = LEG_SERVO_RR;
-    }
-    else
-    {
-        servo_a = LEG_SERVO_FL;
-        servo_b = LEG_SERVO_RL;
-    }
-
     if((APP_FALSE == leg_kinematics_select_angle(alpha_plus_rad, alpha_minus_rad,
-                                                  alpha_branch, servo_a, previous, 0U, &alpha_rad)) ||
+                                                  alpha_branch, previous, 0U, &alpha_rad)) ||
        (APP_FALSE == leg_kinematics_select_angle(beta_plus_rad, beta_minus_rad,
-                                                  beta_branch, servo_b, previous, 1U, &beta_rad)))
+                                                  beta_branch, previous, 1U, &beta_rad)))
     {
         return APP_FALSE;
     }

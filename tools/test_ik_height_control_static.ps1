@@ -46,6 +46,8 @@ Assert-Contains "project/code/leg_config.h" "leg_kinematics_config_struct" "Miss
 Assert-Contains "project/code/leg_config.h" "leg_height_profile_struct" "Missing height profile struct."
 Assert-Contains "project/code/leg_config.h" "LEG_IK_BRANCH_PLUS" "Missing IK branch enum."
 Assert-Contains "project/code/leg_config.h" "l1_mm" "Missing configured link length L1."
+Assert-Contains "project/code/leg_config.c" "l1_mm = 60\.0f[\s\S]*l2_mm = 90\.0f[\s\S]*l3_mm = 90\.0f[\s\S]*l4_mm = 60\.0f[\s\S]*l5_mm = 37\.0f" "Five-bar geometry must match the measured 60 mm driven links, 90 mm passive links, and 37 mm servo-axis spacing."
+Assert-Contains "tools/fit_leg_ik_calibration.py" "l1_mm: float = 60\.0[\s\S]*l2_mm: float = 90\.0[\s\S]*l3_mm: float = 90\.0[\s\S]*l4_mm: float = 60\.0[\s\S]*l5_mm: float = 37\.0" "Calibration fitter defaults must match the firmware five-bar geometry."
 Assert-Contains "project/code/leg_config.h" "default_height_mm" "Missing default height config."
 Assert-Contains "project/code/leg_config.h" "max_height_accel_mm_s2" "Missing maximum height acceleration config."
 Assert-Contains "project/code/leg_config.h" "max_height_jerk_mm_s3" "Missing maximum height jerk config."

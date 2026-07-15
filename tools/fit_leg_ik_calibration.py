@@ -29,11 +29,11 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 @dataclass(frozen=True)
 class KinematicsConfig:
-    l1_mm: float = 90.0
-    l2_mm: float = 60.0
-    l3_mm: float = 60.0
-    l4_mm: float = 90.0
-    l5_mm: float = 38.0
+    l1_mm: float = 60.0
+    l2_mm: float = 90.0
+    l3_mm: float = 90.0
+    l4_mm: float = 60.0
+    l5_mm: float = 37.0
     x_min_mm: float = -35.0
     x_max_mm: float = 35.0
     y_min_mm: float = 35.0

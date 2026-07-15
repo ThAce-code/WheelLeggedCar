@@ -478,16 +478,32 @@ static int check_side(uint8 right_side)
 int main(void)
 {
     leg_ik_result_struct result = {0};
-    float off_center_y_mm = sqrtf(2576.0f);
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    const float off_center_x_mm = -20.0f;
+    float degenerate_offset_mm;
+    float off_center_y_mm;
+    float forward_x_mm;
+    float forward_y_mm;
+    if(0 == cfg)
+    {
+        return 1;
+    }
+    degenerate_offset_mm = off_center_x_mm - cfg->l5_mm + cfg->l4_mm;
+    off_center_y_mm = sqrtf((cfg->l3_mm * cfg->l3_mm) -
+                            (degenerate_offset_mm * degenerate_offset_mm));
     if((0 != check_side(APP_FALSE)) || (0 != check_side(APP_TRUE)))
     {
         return 1;
     }
-    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, -20.0f, off_center_y_mm, 0, &result)) ||
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, off_center_x_mm, off_center_y_mm, 0, &result)) ||
        (APP_TRUE != result.valid) ||
        (0.20f >= result.singularity_margin) ||
-       (1.0f < fabsf(result.servo_deg[0] - 151.9f)) ||
-       (1.0f < fabsf(result.servo_deg[1] - 97.7f)))
+       (!isfinite(result.servo_deg[0])) ||
+       (!isfinite(result.servo_deg[1])) ||
+       (APP_TRUE != leg_kinematics_forward(APP_FALSE, result.servo_deg[0], result.servo_deg[1],
+                                           &forward_x_mm, &forward_y_mm)) ||
+       (0.5f < fabsf(forward_x_mm - off_center_x_mm)) ||
+       (0.5f < fabsf(forward_y_mm - off_center_y_mm)))
     {
         printf("Off-center denominator-degenerate IK point rejected or incorrect: %.3f, %.3f, margin %.3f\\n",
                result.servo_deg[0], result.servo_deg[1], result.singularity_margin);

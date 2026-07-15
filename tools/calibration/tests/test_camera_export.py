@@ -108,6 +108,26 @@ class TestMt9v03xCalibrationExport(unittest.TestCase):
         self.assertEqual(selector(0.80, 0.78), "standard")
         self.assertEqual(selector(0.80, 0.74), "fisheye")
 
+    def test_fisheye_calibration_skips_an_incomplete_opencv_backend(self) -> None:
+        class IncompleteFisheye:
+            CALIB_FIX_SKEW = 0
+
+        original_fisheye = camera_calibrate.cv2.fisheye
+        camera_calibrate.cv2.fisheye = IncompleteFisheye()
+        try:
+            matrix, distortion, rms, per_view = (
+                camera_calibrate.calibrate_fisheye_from_frames(
+                    [np.zeros((54, 3), dtype=np.float32)] * 3,
+                    [np.zeros((54, 2), dtype=np.float32)] * 3,
+                    (188, 120)))
+        finally:
+            camera_calibrate.cv2.fisheye = original_fisheye
+
+        self.assertIsNone(matrix)
+        self.assertIsNone(distortion)
+        self.assertTrue(np.isnan(rms))
+        self.assertEqual([], per_view)
+
     def test_export_header_contains_resolution_crc_and_fixed_point_coefficients(self) -> None:
         exporter = getattr(camera_calibrate, "export_c_header", None)
         self.assertTrue(callable(exporter), "export_c_header must be available")

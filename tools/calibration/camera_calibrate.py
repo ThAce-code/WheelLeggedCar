@@ -641,14 +641,21 @@ def calibrate_fisheye_from_frames(
     if len(objpoints_all) < 3:
         return None, None, float("nan"), []
 
+    fisheye = getattr(cv2, "fisheye", None)
+    required_members = ("CALIB_RECOMPUTE_EXTRINSIC", "CALIB_FIX_SKEW",
+                        "calibrate", "projectPoints")
+    if fisheye is None or any(not hasattr(fisheye, member)
+                              for member in required_members):
+        return None, None, float("nan"), []
+
     object_points = [np.asarray(points, dtype=np.float64).reshape(1, -1, 3)
                      for points in objpoints_all]
     image_points = [np.asarray(points, dtype=np.float64).reshape(1, -1, 2)
                     for points in imgpoints_all]
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1e-6)
-    flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW
+    flags = fisheye.CALIB_RECOMPUTE_EXTRINSIC + fisheye.CALIB_FIX_SKEW
     try:
-        rmse, matrix, dist, rvecs, tvecs = cv2.fisheye.calibrate(
+        rmse, matrix, dist, rvecs, tvecs = fisheye.calibrate(
             object_points, image_points, image_size, None, None,
             flags=flags, criteria=criteria)
     except cv2.error:
@@ -657,7 +664,7 @@ def calibrate_fisheye_from_frames(
     per_view: List[float] = []
     for object_points_one, image_points_one, rvec, tvec in zip(
             object_points, image_points, rvecs, tvecs):
-        projected, _ = cv2.fisheye.projectPoints(
+        projected, _ = fisheye.projectPoints(
             object_points_one, rvec, tvec, matrix, dist)
         observed_xy = image_points_one.reshape(-1, 2)
         projected_xy = projected.reshape(-1, 2)

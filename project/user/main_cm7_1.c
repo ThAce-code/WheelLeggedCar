@@ -38,6 +38,7 @@
 #include "intercore_memory.h"
 #include "sensor_gnss.h"
 #include "intercore_transport.h"
+#include "single_gap_app.h"
 
 static intercore_transport_struct gnss_transport;
 static uint8 gnss_transport_attached;
@@ -64,6 +65,7 @@ int main(void)
 
     pit_ms_init(PIT_CH2, 1);
     (void)camera_frame_consumer_init();
+    (void)single_gap_app_init();
     gnss_transport_attached = 0U;
     if(0U == sensor_gnss_init())
     {
@@ -76,6 +78,7 @@ int main(void)
         intercore_gnss_payload_struct payload = {0};
         uint32 now_ms;
 
+        single_gap_app_service(camera_frame_consumer_now_ms());
         camera_frame_consumer_service();
         now_ms = camera_frame_consumer_now_ms();
         if(0U == gnss_transport_attached)

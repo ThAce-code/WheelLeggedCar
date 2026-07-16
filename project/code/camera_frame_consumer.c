@@ -27,6 +27,7 @@ static uint8 consumer_notify_initialized;
 static uint8 camera_information_initialized;
 static uint32 socket_connected_ms;
 static uint8 camera_gate_evidence_started;
+static camera_frame_handler_fn camera_frame_handler;
 static seekfree_assistant_camera_struct camera_information[INTERCORE_CAMERA_SLOT_COUNT];
 camera_frame_consumer_diag_struct consumer_diag;
 volatile camera_gate_snapshot_struct camera_gate_snapshot;
@@ -223,6 +224,7 @@ uint8 camera_frame_consumer_init(void)
     consumer_ms = 0U;
     socket_connected_ms = 0U;
     camera_gate_evidence_started = 0U;
+    camera_frame_handler = NULL;
     camera_information_initialized = 0U;
     camera_frame_consumer_configure_assistant();
     consumer_notify_initialized = intercore_notify_init(INTERCORE_ROLE_CM7_1);
@@ -239,6 +241,11 @@ uint8 camera_frame_consumer_init(void)
     return ((uint8)CAMERA_CONSUMER_INIT_OK == consumer_diag.init_state) ? 0U : 1U;
 }
 
+void camera_frame_consumer_set_handler(camera_frame_handler_fn handler)
+{
+    camera_frame_handler = handler;
+}
+
 void camera_frame_consumer_tick_1ms(void)
 {
     consumer_ms++;
@@ -249,6 +256,7 @@ uint32 camera_frame_consumer_now_ms(void)
     return consumer_ms;
 }
 
+#if APP_CAMERA_WIFI_ENABLE
 static void camera_frame_consumer_record_send_duration(
     camera_send_duration_histogram_struct *histogram,
     uint32 duration_ms)
@@ -261,14 +269,19 @@ static void camera_frame_consumer_record_send_duration(
     else if(duration_ms <= 1000U) { histogram->le_1000_ms++; }
     else                          { histogram->gt_1000_ms++; }
 }
+#endif
 
 void camera_frame_consumer_service(void)
 {
     uint8 release_ok;
+#if APP_CAMERA_WIFI_ENABLE
     uint8 send_ok;
+#endif
     uint32 producer_now_ms;
+#if APP_CAMERA_WIFI_ENABLE
     uint32 send_duration_ms;
     uint32 send_start_ms;
+#endif
     camera_vision_frame_view_struct vision_view;
     intercore_camera_frame_view_struct view;
     intercore_camera_result_enum result;
@@ -288,7 +301,6 @@ void camera_frame_consumer_service(void)
     if((uint8)CAMERA_CONSUMER_LINK_CONNECTED != consumer_diag.socket_state)
     {
         camera_frame_consumer_try_network();
-        return;
     }
 
     camera_transport.control->consumer_heartbeat_ms = camera_frame_consumer_now_ms();
@@ -345,44 +357,53 @@ void camera_frame_consumer_service(void)
         consumer_diag.sample_center =
             vision_view.pixels[(60U * vision_view.stride) + 94U];
         consumer_diag.frame_valid = 1U;
-        send_start_ms = camera_frame_consumer_now_ms();
-        camera_seekfree_transport_begin(
-            (uint32)sizeof(camera_information[vision_view.slot_index].config),
-            vision_view.frame_bytes);
-        seekfree_assistant_camera_send(&camera_information[vision_view.slot_index]);
-        send_ok = camera_seekfree_transport_frame_complete();
-        send_duration_ms = camera_frame_consumer_now_ms() - send_start_ms;
-        consumer_diag.last_send_duration_ms = send_duration_ms;
-        consumer_diag.max_send_duration_ms =
-            (consumer_diag.max_send_duration_ms < send_duration_ms) ?
-            send_duration_ms : consumer_diag.max_send_duration_ms;
-        if((send_start_ms - socket_connected_ms) < APP_CAMERA_SEND_STARTUP_MS)
+        if(NULL != camera_frame_handler)
         {
-            camera_frame_consumer_record_send_duration(
-                &consumer_diag.startup_send_histogram, send_duration_ms);
+            camera_frame_handler(&vision_view);
         }
-        else
+#if APP_CAMERA_WIFI_ENABLE
+        if((uint8)CAMERA_CONSUMER_LINK_CONNECTED == consumer_diag.socket_state)
         {
-            camera_frame_consumer_record_send_duration(
-                &consumer_diag.steady_send_histogram, send_duration_ms);
+            send_start_ms = camera_frame_consumer_now_ms();
+            camera_seekfree_transport_begin(
+                (uint32)sizeof(camera_information[vision_view.slot_index].config),
+                vision_view.frame_bytes);
+            seekfree_assistant_camera_send(&camera_information[vision_view.slot_index]);
+            send_ok = camera_seekfree_transport_frame_complete();
+            send_duration_ms = camera_frame_consumer_now_ms() - send_start_ms;
+            consumer_diag.last_send_duration_ms = send_duration_ms;
+            consumer_diag.max_send_duration_ms =
+                (consumer_diag.max_send_duration_ms < send_duration_ms) ?
+                send_duration_ms : consumer_diag.max_send_duration_ms;
+            if((send_start_ms - socket_connected_ms) < APP_CAMERA_SEND_STARTUP_MS)
+            {
+                camera_frame_consumer_record_send_duration(
+                    &consumer_diag.startup_send_histogram, send_duration_ms);
+            }
+            else
+            {
+                camera_frame_consumer_record_send_duration(
+                    &consumer_diag.steady_send_histogram, send_duration_ms);
+            }
+            if(0U != send_ok)
+            {
+                consumer_diag.sent_count++;
+                consumer_diag.last_sent_sequence = vision_view.sequence;
+            }
+            else
+            {
+                consumer_diag.send_failure_count++;
+                consumer_diag.socket_state = (uint8)CAMERA_CONSUMER_LINK_FAILED;
+                consumer_diag.wifi_state = (uint8)CAMERA_CONSUMER_LINK_FAILED;
+                consumer_diag.init_state = (uint8)CAMERA_CONSUMER_INIT_SOCKET_FAILED;
+                consumer_diag.last_reconnect_ms = camera_frame_consumer_now_ms();
+            }
+            camera_transport.control->last_send_duration_ms = send_duration_ms;
+            camera_transport.control->max_send_duration_ms =
+                (camera_transport.control->max_send_duration_ms < send_duration_ms) ?
+                send_duration_ms : camera_transport.control->max_send_duration_ms;
         }
-        if(0U != send_ok)
-        {
-            consumer_diag.sent_count++;
-            consumer_diag.last_sent_sequence = vision_view.sequence;
-        }
-        else
-        {
-            consumer_diag.send_failure_count++;
-            consumer_diag.socket_state = (uint8)CAMERA_CONSUMER_LINK_FAILED;
-            consumer_diag.wifi_state = (uint8)CAMERA_CONSUMER_LINK_FAILED;
-            consumer_diag.init_state = (uint8)CAMERA_CONSUMER_INIT_SOCKET_FAILED;
-            consumer_diag.last_reconnect_ms = camera_frame_consumer_now_ms();
-        }
-        camera_transport.control->last_send_duration_ms = send_duration_ms;
-        camera_transport.control->max_send_duration_ms =
-            (camera_transport.control->max_send_duration_ms < send_duration_ms) ?
-            send_duration_ms : camera_transport.control->max_send_duration_ms;
+#endif
     }
 
     release_ok = intercore_camera_consumer_release_at(

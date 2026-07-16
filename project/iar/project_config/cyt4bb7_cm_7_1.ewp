@@ -1125,6 +1125,18 @@
         <file><name>$PROJ_DIR$\..\..\code\camera_seekfree_transport.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\camera_seekfree_transport.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\camera_debug_config.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_app.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_app.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_config.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_types.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_detector.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_detector.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_controller.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_controller.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety_port.h</name></file>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>

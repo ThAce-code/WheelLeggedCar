@@ -38,6 +38,8 @@ typedef struct
     const volatile uint8 *pixels;
 } camera_vision_frame_view_struct;
 
+typedef void (*camera_frame_handler_fn)(const camera_vision_frame_view_struct *frame);
+
 typedef struct
 {
     uint32 le_25_ms;
@@ -118,6 +120,7 @@ extern volatile camera_gate_snapshot_struct camera_gate_snapshot;
 extern volatile camera_gate_evidence_struct camera_gate_evidence;
 
 uint8 camera_frame_consumer_init(void);
+void camera_frame_consumer_set_handler(camera_frame_handler_fn handler);
 void camera_frame_consumer_tick_1ms(void);
 void camera_frame_consumer_service(void);
 uint32 camera_frame_consumer_now_ms(void);

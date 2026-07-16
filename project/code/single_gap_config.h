@@ -6,8 +6,12 @@
 #ifndef _single_gap_config_h_
 #define _single_gap_config_h_
 
+#ifndef SINGLE_GAP_ENABLE
 #define SINGLE_GAP_ENABLE                    (0U)
+#endif
+#ifndef SINGLE_GAP_MOTION_ENABLE
 #define SINGLE_GAP_MOTION_ENABLE             (0U)
+#endif
 #define SINGLE_GAP_IMAGE_WIDTH               (188U)
 #define SINGLE_GAP_IMAGE_HEIGHT              (120U)
 #define SINGLE_GAP_MAX_RUNS                  (96U)
@@ -35,7 +39,9 @@
 #define SINGLE_GAP_MAX_SPEED_MPS               (0.30f)
 #define SINGLE_GAP_FORWARD_LIMIT_RPM           (60.0f)
 #define SINGLE_GAP_TOF_STOP_MM                 (350U)
+#ifndef SINGLE_GAP_WHEEL_CIRCUMFERENCE_MM
 #define SINGLE_GAP_WHEEL_CIRCUMFERENCE_MM      (0U)
+#endif
 #define SINGLE_GAP_NAV_VALID_MS                (100U)
 
 #if (SINGLE_GAP_MOTION_ENABLE && !SINGLE_GAP_ENABLE)

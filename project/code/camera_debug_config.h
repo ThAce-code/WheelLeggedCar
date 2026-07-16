@@ -6,8 +6,15 @@
 #ifndef _camera_debug_config_h_
 #define _camera_debug_config_h_
 
+#include "single_gap_config.h"
+
 #ifndef APP_CAMERA_WIFI_ENABLE
 #define APP_CAMERA_WIFI_ENABLE          (1U)
+#endif
+
+#if SINGLE_GAP_MOTION_ENABLE
+#undef APP_CAMERA_WIFI_ENABLE
+#define APP_CAMERA_WIFI_ENABLE          (0U)
 #endif
 
 #ifndef APP_CAMERA_CAPTURE_ENABLE

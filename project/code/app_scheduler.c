@@ -16,6 +16,10 @@
 #include "host_command.h"
 #include "intercore_control.h"
 #include "motion_command_router.h"
+#include "single_gap_config.h"
+#if (SINGLE_GAP_ENABLE == 1U)
+#include "single_gap_pose_source.h"
+#endif
 
 static volatile uint32 app_tick_ms = 0;
 static volatile uint8 app_scheduler_pending = APP_FALSE;
@@ -146,6 +150,10 @@ void app_scheduler_run_pending(void)
     {
         actuator_motor_update(now_ms);
     }
+
+#if (SINGLE_GAP_ENABLE == 1U)
+    single_gap_pose_source_update(now_ms);
+#endif
 
     if(APP_TRUE == app_task_elapsed(now_ms, &telemetry_last_ms, APP_TELEMETRY_PERIOD_MS))
     {

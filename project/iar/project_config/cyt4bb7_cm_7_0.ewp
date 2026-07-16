@@ -1287,6 +1287,8 @@
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router.h</name></file>
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.c</name></file>
         <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_pose_source.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_pose_source.h</name></file>
     </group>
     <group>
         <name>doc</name>

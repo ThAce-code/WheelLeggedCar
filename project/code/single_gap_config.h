@@ -17,6 +17,7 @@
 #define SINGLE_GAP_ROI_BOTTOM_PX             (107U)
 #define SINGLE_GAP_CONTROL_PERIOD_MS          (40U)
 #define SINGLE_GAP_TOF_PERIOD_MS              (50U)
+#define SINGLE_GAP_POSE_PERIOD_MS             (50U)
 #define SINGLE_GAP_SENSOR_STALE_MS            (100U)
 #define SINGLE_GAP_ACQUIRE_WINDOW_FRAMES      (7U)
 #define SINGLE_GAP_ACQUIRE_HITS               (5U)

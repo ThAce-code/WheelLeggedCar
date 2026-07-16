@@ -61,6 +61,7 @@ function Reject-Pattern
 }
 
 Require-Pattern 'project/code/single_gap_config.h' 'SINGLE_GAP_CONTROL_PERIOD_MS\s+\(40U\)'
+Require-Pattern 'project/code/single_gap_config.h' 'SINGLE_GAP_POSE_PERIOD_MS\s+\(50U\)'
 Require-Pattern 'project/code/single_gap_config.h' 'SINGLE_GAP_TOF_STOP_MM\s+\(350U\)'
 Require-Pattern 'project/code/single_gap_config.h' 'SINGLE_GAP_SENSOR_STALE_MS\s+\(100U\)'
 Require-Pattern 'project/code/single_gap_config.h' 'SINGLE_GAP_MOTION_ENABLE\s+\(0U\)'
@@ -83,6 +84,12 @@ Require-TextPattern 'project/user/main_cm7_0.c' '(?s)#if\s*\(SINGLE_GAP_ENABLE\s
 Require-TextPattern 'project/code/single_gap_detector.h' '(?s)uint8\s+single_gap_detector_process\s*\(\s*const\s+uint8\s*\*pixels\s*,\s*uint16\s+width\s*,\s*uint16\s+height\s*,\s*uint16\s+stride\s*,\s*uint32\s+sequence\s*,\s*uint32\s+capture_ms\s*,\s*single_gap_observation_struct\s*\*observation\s*\)'
 Require-Pattern 'project/code/single_gap_types.h' 'uint32\s+last_observation_sequence\s*;'
 Require-TextPattern 'project/code/single_gap_controller.h' '(?s)void\s+single_gap_controller_update\s*\(\s*single_gap_controller_struct\s*\*controller\s*,\s*const\s+single_gap_observation_struct\s*\*observation\s*,\s*const\s+single_gap_tof_snapshot_struct\s*\*tof\s*,\s*float\s+odometry_m\s*,\s*uint8\s+odometry_valid\s*,\s*float\s+forward_rpm\s*,\s*uint32\s+now_ms\s*,\s*single_gap_output_struct\s*\*output\s*\)'
+Require-Pattern 'project/code/single_gap_pose_source.h' 'uint8\s+single_gap_pose_source_init\s*\(void\)'
+Require-Pattern 'project/code/single_gap_pose_source.h' 'void\s+single_gap_pose_source_update\s*\(uint32\s+now_ms\)'
+Require-Pattern 'project/code/app.c' 'single_gap_pose_source_init\s*\(\)'
+Require-Pattern 'project/code/app_scheduler.c' 'single_gap_pose_source_update\s*\(now_ms\)'
+Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_0.ewp' 'single_gap_pose_source\.c'
+Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_0.ewp' 'single_gap_pose_source\.h'
 Reject-Pattern 'project/code/single_gap_*.c' '\b(malloc|calloc|realloc|free)\s*\('
 
 Write-Output 'single-gap static contracts: PASS'

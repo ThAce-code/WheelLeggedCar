@@ -26,6 +26,14 @@ $isr = Get-Content -Raw -LiteralPath $isrPath
 Assert-True ($isr -match 'gnss_uart_callback\(\)') 'UART2 ISR no longer feeds GNSS bytes'
 Assert-True ($isr -notmatch 'gnss_data_parse\(\)') 'GNSS parsing incorrectly runs in ISR'
 
+$main = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'project\user\main_cm7_1.c')
+$ewp = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'project\iar\project_config\cyt4bb7_cm_7_1.ewp')
+Assert-True ($main -match 'sensor_gnss_service') 'CM7_1 main loop does not service GNSS'
+Assert-True ($main -match 'intercore_transport_cm7_1_attach') 'CM7_1 never attaches the GNSS publisher'
+Assert-True ($main -match 'gnss_transport_attached\s*=\s*0U') 'GNSS publisher has no retry state'
+Assert-True ($ewp -match 'code\\sensor_gnss\.c') 'CM7_1 IAR project omits sensor_gnss.c'
+Assert-True ($ewp -match 'code\\local_position\.c') 'CM7_1 IAR project omits local_position.c'
+
 if(0 -ne $failures.Count)
 {
     $failures | ForEach-Object { "FAIL: $_" }

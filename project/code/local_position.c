@@ -21,7 +21,8 @@ void local_position_reset(void)
 
 uint8 local_position_set_origin(double latitude_deg, double longitude_deg)
 {
-    if((latitude_deg < -90.0) || (latitude_deg > 90.0) ||
+    if((!isfinite(latitude_deg)) || (!isfinite(longitude_deg)) ||
+       (latitude_deg < -90.0) || (latitude_deg > 90.0) ||
        (longitude_deg < -180.0) || (longitude_deg > 180.0))
     {
         return 0U;
@@ -45,7 +46,10 @@ uint8 local_position_project(double latitude_deg, double longitude_deg,
     double latitude_rad;
     double longitude_rad;
 
-    if((0U == origin_valid) || (NULL == east_m) || (NULL == north_m))
+    if((0U == origin_valid) || (NULL == east_m) || (NULL == north_m) ||
+       (!isfinite(latitude_deg)) || (!isfinite(longitude_deg)) ||
+       (latitude_deg < -90.0) || (latitude_deg > 90.0) ||
+       (longitude_deg < -180.0) || (longitude_deg > 180.0))
     {
         return 0U;
     }

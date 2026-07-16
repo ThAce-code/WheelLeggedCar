@@ -29,6 +29,21 @@ int main(void)
     local_position_project(30.0, 120.00001, &east_m, &north_m);
     CHECK_NEAR(east_m, 0.96298, 0.01);
 
+    if(0U != local_position_set_origin(NAN, 120.0)) failures++;
+    if(0U != local_position_set_origin(30.0, INFINITY)) failures++;
+    if(0U != local_position_set_origin(-91.0, 120.0)) failures++;
+    if(0U != local_position_set_origin(30.0, 181.0)) failures++;
+
+    if(0U == local_position_set_origin(-30.0, -120.0)) failures++;
+    if(0U != local_position_project(NAN, -120.0, &east_m, &north_m)) failures++;
+    if(0U != local_position_project(-30.0, -INFINITY, &east_m, &north_m)) failures++;
+    if(0U != local_position_project(-91.0, -120.0, &east_m, &north_m)) failures++;
+    if(0U != local_position_project(-30.0, -181.0, &east_m, &north_m)) failures++;
+    if(0U == local_position_project(-29.999991, -119.999990,
+                                    &east_m, &north_m)) failures++;
+    if(east_m <= 0.0F) failures++;
+    if(north_m <= 0.0F) failures++;
+
     if(0U != failures)
     {
         return 1;

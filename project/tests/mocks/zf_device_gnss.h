@@ -28,6 +28,8 @@ typedef struct
     float hdop;
     uint32 rmc_sequence;
     uint32 gga_sequence;
+    uint32 rmc_utc_ms;
+    uint32 gga_utc_ms;
     uint16 latitude_degree;
     uint16 latitude_cent;
     uint16 latitude_second;

@@ -85,6 +85,8 @@ typedef struct
     float       hdop;
     uint32      rmc_sequence;
     uint32      gga_sequence;
+    uint32      rmc_utc_ms;
+    uint32      gga_utc_ms;
     
     uint16      latitude_degree;                                                // ¶È
     uint16      latitude_cent;                                                  // ·Ö
@@ -125,5 +127,9 @@ double      get_two_points_azimuth      (double lat1, double lon1, double lat2, 
 uint8       gnss_data_parse             (void);
 void        gnss_uart_callback          (void);
 void        gnss_init                   (gps_device_enum gps_device);
+
+#if defined(GNSS_HOST_TEST)
+uint8       gnss_host_parse_sentence    (const char *sentence, uint32 length, gnss_info_struct *parsed);
+#endif
 
 #endif

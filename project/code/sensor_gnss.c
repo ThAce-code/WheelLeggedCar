@@ -3,7 +3,11 @@
 #include "local_position.h"
 #include "zf_device_gnss.h"
 
+#include <math.h>
 #include <string.h>
+
+#define SENSOR_GNSS_UTC_DAY_MS      (86400000U)
+#define SENSOR_GNSS_UTC_HALF_DAY_MS (43200000U)
 
 static gnss_snapshot_struct latest;
 static uint32 publish_sequence;
@@ -20,9 +24,26 @@ static uint16 origin_sample_count;
 static double origin_latitude_sum;
 static double origin_longitude_sum;
 
+static uint8 coordinates_are_valid(double latitude, double longitude)
+{
+    return (isfinite(latitude) && isfinite(longitude) &&
+            (-90.0 <= latitude) && (90.0 >= latitude) &&
+            (-180.0 <= longitude) && (180.0 >= longitude)) ? 1U : 0U;
+}
+
+static uint8 rmc_epoch_is_older(uint32 rmc_utc_ms, uint32 gga_utc_ms)
+{
+    uint32 forward_ms = (gga_utc_ms + SENSOR_GNSS_UTC_DAY_MS - rmc_utc_ms) %
+                        SENSOR_GNSS_UTC_DAY_MS;
+
+    return ((0U != forward_ms) && (SENSOR_GNSS_UTC_HALF_DAY_MS > forward_ms)) ?
+        1U : 0U;
+}
+
 static uint8 sample_is_usable(void)
 {
     return ((0U != gnss.state) && (0U != gnss.fix_quality) &&
+            (0U != coordinates_are_valid(gnss.latitude, gnss.longitude)) &&
             (SENSOR_GNSS_MIN_SATELLITES <= gnss.satellite_used) &&
             (0.0F < gnss.hdop) &&
             (SENSOR_GNSS_MAX_HDOP >= gnss.hdop)) ? 1U : 0U;
@@ -111,6 +132,19 @@ void sensor_gnss_service(uint32 now_ms)
         return;
     }
 
+    if(gnss.rmc_utc_ms != gnss.gga_utc_ms)
+    {
+        if(0U != rmc_epoch_is_older(gnss.rmc_utc_ms, gnss.gga_utc_ms))
+        {
+            last_consumed_rmc_sequence = gnss.rmc_sequence;
+        }
+        else
+        {
+            last_consumed_gga_sequence = gnss.gga_sequence;
+        }
+        return;
+    }
+
     last_consumed_rmc_sequence = gnss.rmc_sequence;
     last_consumed_gga_sequence = gnss.gga_sequence;
 
@@ -135,8 +169,16 @@ void sensor_gnss_service(uint32 now_ms)
 
     latest.sequence = ++publish_sequence;
     latest.timestamp_ms = now_ms;
-    latest.latitude_deg = gnss.latitude;
-    latest.longitude_deg = gnss.longitude;
+    if(0U != coordinates_are_valid(gnss.latitude, gnss.longitude))
+    {
+        latest.latitude_deg = gnss.latitude;
+        latest.longitude_deg = gnss.longitude;
+    }
+    else
+    {
+        latest.latitude_deg = 0.0;
+        latest.longitude_deg = 0.0;
+    }
     latest.speed_mps = gnss.speed / 3.6F;
     latest.course_deg = gnss.direction;
     latest.hdop = gnss.hdop;

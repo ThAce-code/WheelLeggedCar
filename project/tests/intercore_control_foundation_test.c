@@ -7,6 +7,7 @@
 #include "intercore_notify_port.h"
 #include "motion_command_router.h"
 #include "intercore_control.h"
+#include "gnss_types.h"
 
 static uint32 test_failure_count = 0U;
 static intercore_shared_layout_struct shared __attribute__((aligned(32)));
@@ -478,12 +479,12 @@ static void test_intercore_control_caches_gnss_and_clears_on_epoch_change(void)
     intercore_gnss_payload_struct sent = {0};
     intercore_gnss_payload_struct received = {0};
     intercore_gnss_payload_struct received_again = {0};
-    uint32 source_ms = 0U;
+    uint32 received_ms = 0U;
 
     memset(&shared, 0, sizeof(shared));
     TEST_CHECK(1U == intercore_control_init());
-    TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, &source_ms));
-    TEST_CHECK(0U == intercore_control_get_latest_gnss(NULL, &source_ms));
+    TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, &received_ms));
+    TEST_CHECK(0U == intercore_control_get_latest_gnss(NULL, &received_ms));
     TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, NULL));
     TEST_CHECK(1U == intercore_transport_cm7_1_attach(&sender, &shared));
 
@@ -500,16 +501,18 @@ static void test_intercore_control_caches_gnss_and_clears_on_epoch_change(void)
     sent.fix_quality = 2U;
     sent.origin_valid = 1U;
 
-    TEST_CHECK(1U == intercore_transport_publish_gnss(&sender, &sent, 150U));
-    intercore_control_update(175U);
-    TEST_CHECK(1U == intercore_control_get_latest_gnss(&received, &source_ms));
+    TEST_CHECK(1U == intercore_transport_publish_gnss(&sender, &sent, 9000U));
+    intercore_control_update(150U);
+    TEST_CHECK(1U == intercore_control_get_latest_gnss(&received, &received_ms));
     TEST_CHECK(0 == memcmp(&sent, &received, sizeof(sent)));
-    TEST_CHECK(150U == source_ms);
+    TEST_CHECK(150U == received_ms);
+    TEST_CHECK(25U == (175U - received_ms));
+    TEST_CHECK(GNSS_SNAPSHOT_MAX_AGE_MS >= (175U - received_ms));
 
     received.local_x_m = 999.0f;
-    TEST_CHECK(1U == intercore_control_get_latest_gnss(&received_again, &source_ms));
+    TEST_CHECK(1U == intercore_control_get_latest_gnss(&received_again, &received_ms));
     TEST_CHECK(0 == memcmp(&sent, &received_again, sizeof(sent)));
-    TEST_CHECK(0U == intercore_control_get_latest_gnss(NULL, &source_ms));
+    TEST_CHECK(0U == intercore_control_get_latest_gnss(NULL, &received_ms));
     TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, NULL));
 
     /* Navigation consumes the epoch change before GNSS observes no new data. */
@@ -517,7 +520,7 @@ static void test_intercore_control_caches_gnss_and_clears_on_epoch_change(void)
     shared.metadata.gnss_sequence = 0U;
     intercore_control_update(200U);
     TEST_CHECK(1U == shared.health.boot_epoch_change_count);
-    TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, &source_ms));
+    TEST_CHECK(0U == intercore_control_get_latest_gnss(&received, &received_ms));
 }
 
 int main(void)

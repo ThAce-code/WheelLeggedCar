@@ -40,6 +40,8 @@ Assert-True ($config -match 'APP_TELEMETRY_PROFILE_GNSS') 'GNSS telemetry profil
 Assert-True ($config -match 'APP_TELEMETRY_PERIOD_MS\s+\(20U\)') 'GNSS telemetry is not 50 Hz'
 Assert-True ($telemetry -match 'static\s+float\s+vofa_data\[20\]') 'GNSS profile is not fixed at 20 floats'
 Assert-True ($telemetry -match 'gps_age_ms') 'GNSS profile omits data age'
+Assert-True ($telemetry -match 'gps_age_ms\s*=\s*now_ms\s*-\s*gps_received_ms') 'GNSS age does not use the CM7_0 receive clock'
+Assert-True ($telemetry -match 'GNSS_SNAPSHOT_MAX_AGE_MS\s*>=\s*gps_age_ms') 'GNSS validity omits the shared age limit'
 Assert-True ($telemetry -notmatch 'GNGGA|GNRMC|\$GN') 'raw NMEA appears in JustFloat telemetry'
 
 if(0 -ne $failures.Count)

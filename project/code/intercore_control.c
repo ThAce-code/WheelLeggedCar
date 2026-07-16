@@ -17,7 +17,7 @@ static volatile intercore_shared_layout_struct *intercore_shared;
 static uint32 intercore_last_source_sequence[4U];
 static uint32 intercore_rejected_count;
 static intercore_gnss_payload_struct intercore_latest_gnss;
-static uint32 intercore_latest_gnss_source_ms;
+static uint32 intercore_latest_gnss_received_ms;
 static uint8 intercore_latest_gnss_available;
 
 static uint8 intercore_is_finite(float value)
@@ -118,7 +118,7 @@ uint8 intercore_control_init(void)
     intercore_last_source_sequence[3U] = 0U;
     intercore_rejected_count = 0U;
     intercore_latest_gnss = (intercore_gnss_payload_struct){0};
-    intercore_latest_gnss_source_ms = 0U;
+    intercore_latest_gnss_received_ms = 0U;
     intercore_latest_gnss_available = 0U;
     return 1U;
 }
@@ -161,7 +161,7 @@ void intercore_control_update(uint32 now_ms)
     if(INTERCORE_TRANSPORT_OK == gnss_result)
     {
         intercore_latest_gnss = gnss_payload;
-        intercore_latest_gnss_source_ms = gnss_source_ms;
+        intercore_latest_gnss_received_ms = now_ms;
         intercore_latest_gnss_available = 1U;
     }
     else if(INTERCORE_TRANSPORT_EPOCH_CHANGED == gnss_result)
@@ -171,14 +171,14 @@ void intercore_control_update(uint32 now_ms)
 }
 
 uint8 intercore_control_get_latest_gnss(intercore_gnss_payload_struct *payload,
-                                        uint32 *source_ms)
+                                        uint32 *received_ms)
 {
-    if((NULL == payload) || (NULL == source_ms) ||
+    if((NULL == payload) || (NULL == received_ms) ||
        (0U == intercore_latest_gnss_available))
     {
         return 0U;
     }
     *payload = intercore_latest_gnss;
-    *source_ms = intercore_latest_gnss_source_ms;
+    *received_ms = intercore_latest_gnss_received_ms;
     return 1U;
 }

@@ -43,7 +43,7 @@ void telemetry_update(uint32 now_ms)
     const motor_rpm_loop_diag_struct *rpm_diag;
 #if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
     intercore_gnss_payload_struct gps = {0};
-    uint32 gps_source_ms = 0U;
+    uint32 gps_received_ms = 0U;
     uint32 gps_age_ms = 0xFFFFFFFFUL;
     uint8 gps_available;
 #elif APP_TELEMETRY_BALANCE_ENABLE
@@ -62,10 +62,10 @@ void telemetry_update(uint32 now_ms)
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
 
 #if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
-    gps_available = intercore_control_get_latest_gnss(&gps, &gps_source_ms);
+    gps_available = intercore_control_get_latest_gnss(&gps, &gps_received_ms);
     if(0U != gps_available)
     {
-        gps_age_ms = now_ms - gps_source_ms;
+        gps_age_ms = now_ms - gps_received_ms;
     }
 
     vofa_data[0]  = (float)now_ms;

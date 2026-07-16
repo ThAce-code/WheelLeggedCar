@@ -81,6 +81,8 @@ typedef struct
     gps_time_struct    time;                                                    // 时间
     
     uint8       state;                                                          // 有效状态  1：定位有效  0：定位无效
+    uint8       fix_quality;
+    float       hdop;
     
     uint16      latitude_degree;                                                // 度
     uint16      latitude_cent;                                                  // 分
@@ -113,7 +115,7 @@ typedef enum
 }gps_state_enum;
 
 extern gnss_info_struct gnss;
-extern uint8            gnss_flag;
+extern volatile uint8   gnss_flag;
 
 
 double      get_two_points_distance     (double lat1, double lng1, double lat2, double lng2);

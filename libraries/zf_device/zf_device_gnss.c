@@ -49,11 +49,13 @@
 #include "zf_driver_delay.h"
 #include "zf_driver_uart.h"
 
+#include <string.h>
+
 #include "zf_device_gnss.h"
 
 #define GNSS_BUFFER_SIZE    ( 128 )
 
-uint8                       gnss_flag = 0;                                  // 1：采集完成等待处理数据 0：没有采集完成
+volatile uint8              gnss_flag = 0U;                                  // 1：采集完成等待处理数据 0：没有采集完成
 gnss_info_struct            gnss;                                           // GPS解析之后的数据
     
 static  uint8               gnss_state = 0;                                 // 1：GPS初始化完成
@@ -294,6 +296,7 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
 static uint8 gps_gngga_parse (char *line, gnss_info_struct *gnss)
 {
     uint8 state = 0;
+    uint8 fix_quality = 0;
     char *buf = line;
     uint8 return_state = 0;
 
@@ -301,11 +304,15 @@ static uint8 gps_gngga_parse (char *line, gnss_info_struct *gnss)
 
     if(',' != state)
     {
+        fix_quality = (uint8)get_int_number(&buf[get_parameter_index(6, buf)]);
+        gnss->fix_quality = fix_quality;
         gnss->satellite_used = (uint8)get_int_number(&buf[get_parameter_index(7, buf)]);
-        gnss->height         = get_float_number(&buf[get_parameter_index(9, buf)]) + get_float_number(&buf[get_parameter_index(11, buf)]);  // 高度 = 海拔高度 + 地球椭球面相对大地水准面的高度 
-        return_state = 1;
+        gnss->hdop = get_float_number(&buf[get_parameter_index(8, buf)]);
+        gnss->height = get_float_number(&buf[get_parameter_index(9, buf)]) +
+                        get_float_number(&buf[get_parameter_index(11, buf)]);
+        return_state = (0U != fix_quality) ? 1U : 0U;
     }
-    
+
     return return_state;
 }
 
@@ -406,11 +413,11 @@ double get_two_points_azimuth (double latitude1, double longitude1, double latit
 //-------------------------------------------------------------------------------------------------------------------
 uint8 gnss_data_parse (void)
 {
-    uint8 return_state = 0;
+    uint8 return_state = 0U;
     uint8 check_buffer[5] = {'0', 'x', 0x00, 0x00, 0x00};
-    uint8 bbc_xor_origin = 0;
-    uint8 bbc_xor_calculation = 0;
-    uint32 data_len = 0;
+    uint8 bbc_xor_origin = 0U;
+    uint8 bbc_xor_calculation = 0U;
+    uint32 data_len = 0U;
 
     do
     {
@@ -419,67 +426,65 @@ uint8 gnss_data_parse (void)
             gnss_rmc_state = GPS_STATE_PARSING;
             strncpy((char *)&check_buffer[2], strchr((const char *)gps_rmc_buffer, '*') + 1, 2);
             bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            for(bbc_xor_calculation = gps_rmc_buffer[1], data_len = 2; '*' != gps_rmc_buffer[data_len]; data_len ++)
+            for(bbc_xor_calculation = gps_rmc_buffer[1], data_len = 2U;
+                '*' != gps_rmc_buffer[data_len]; data_len++)
             {
                 bbc_xor_calculation ^= gps_rmc_buffer[data_len];
             }
             if(bbc_xor_calculation != bbc_xor_origin)
             {
-                // 数据校验失败
-                return_state = 1;
-                break;
+                return_state = 1U;
             }
-            
-            gps_gnrmc_parse((char *)gps_rmc_buffer, &gnss);
+            else
+            {
+                gps_gnrmc_parse((char *)gps_rmc_buffer, &gnss);
+            }
         }
         gnss_rmc_state = GPS_STATE_RECEIVING;
-        
+
         if(GPS_STATE_RECEIVED == gnss_gga_state)
         {
             gnss_gga_state = GPS_STATE_PARSING;
             strncpy((char *)&check_buffer[2], strchr((const char *)gps_gga_buffer, '*') + 1, 2);
             bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            
-            for(bbc_xor_calculation = gps_gga_buffer[1], data_len = 2; '*' != gps_gga_buffer[data_len]; data_len ++)
+            for(bbc_xor_calculation = gps_gga_buffer[1], data_len = 2U;
+                '*' != gps_gga_buffer[data_len]; data_len++)
             {
                 bbc_xor_calculation ^= gps_gga_buffer[data_len];
             }
             if(bbc_xor_calculation != bbc_xor_origin)
             {
-                // 数据校验失败
-                return_state = 1;
-                break;
+                return_state = 1U;
             }
-            
-            gps_gngga_parse((char *)gps_gga_buffer, &gnss);
+            else
+            {
+                gps_gngga_parse((char *)gps_gga_buffer, &gnss);
+            }
         }
         gnss_gga_state = GPS_STATE_RECEIVING;
-        
+
         if(GPS_STATE_RECEIVED == gnss_ths_state)
         {
             gnss_ths_state = GPS_STATE_PARSING;
             strncpy((char *)&check_buffer[2], strchr((const char *)gps_ths_buffer, '*') + 1, 2);
             bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            
-            for(bbc_xor_calculation = gps_ths_buffer[1], data_len = 2; '*' != gps_ths_buffer[data_len]; data_len ++)
+            for(bbc_xor_calculation = gps_ths_buffer[1], data_len = 2U;
+                '*' != gps_ths_buffer[data_len]; data_len++)
             {
                 bbc_xor_calculation ^= gps_ths_buffer[data_len];
             }
             if(bbc_xor_calculation != bbc_xor_origin)
             {
-                // 数据校验失败
-                return_state = 1;
+                return_state = 1U;
                 break;
             }
-            
             gps_gnths_parse((char *)gps_ths_buffer, &gnss);
         }
         gnss_ths_state = GPS_STATE_RECEIVING;
-        
     }while(0);
+
     return return_state;
 }
-
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     GPS串口回调函数
@@ -569,6 +574,9 @@ void gnss_init (gps_device_enum gps_device)
     const uint8 close_gst[]     = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x08, 0x00, 0x02, 0x1F};
     const uint8 close_txt[]     = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x40, 0x00, 0x3A, 0x8F};
     const uint8 close_txt_ant[] = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x20, 0x00, 0x1A, 0x4F};
+
+    memset(&gnss, 0, sizeof(gnss));
+    gnss_flag = 0U;
     
     if((TAU1201 == gps_device) || (GN42A == gps_device))
     {

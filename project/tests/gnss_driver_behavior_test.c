@@ -92,7 +92,7 @@ uint8 gnss_host_parse_sentence(const char *sentence, uint32 length,
 static unsigned failures;
 
 #define CHECK(condition) do { if(!(condition)) { \
-    printf("FAIL:%s:%d: %s\n", __func__, __LINE__, #condition); failures++; \
+    printf("FAIL:%s:%d: %s\n", __func__, __LINE__, #condition); fflush(stdout); failures++; \
 } }while(0)
 
 #define CHECK_NEAR(actual, expected, tolerance) do { \
@@ -121,6 +121,44 @@ static uint32 make_sentence(const char *body, char *sentence, uint32 capacity)
     return body_length + 5U;
 }
 
+static uint8 production_parse(const char *body)
+{
+    char sentence[128];
+    uint32 length = make_sentence(body, sentence, sizeof(sentence));
+    uint8 *buffer;
+    uint32 *captured_length;
+    uint8 *truncated;
+    gps_state_enum *state;
+
+    if(0 == strncmp(&sentence[3], "RMC", 3))
+    {
+        buffer = gps_rmc_buffer;
+        captured_length = &gps_rmc_length;
+        truncated = &gps_rmc_truncated;
+        state = &gnss_rmc_state;
+    }
+    else if(0 == strncmp(&sentence[3], "GGA", 3))
+    {
+        buffer = gps_gga_buffer;
+        captured_length = &gps_gga_length;
+        truncated = &gps_gga_truncated;
+        state = &gnss_gga_state;
+    }
+    else
+    {
+        buffer = gps_ths_buffer;
+        captured_length = &gps_ths_length;
+        truncated = &gps_ths_truncated;
+        state = &gnss_ths_state;
+    }
+    memset(buffer, 0, GNSS_BUFFER_SIZE);
+    memcpy(buffer, sentence, length);
+    *captured_length = length;
+    *truncated = 0U;
+    *state = GPS_STATE_RECEIVED;
+    return gnss_data_parse();
+}
+
 static void test_rmc_signs_fractional_utc_and_invalid_fields(void)
 {
     char sentence[128];
@@ -134,6 +172,16 @@ static void test_rmc_signs_fractional_utc_and_invalid_fields(void)
     CHECK_NEAR(parsed.latitude, -48.1173, 0.0000001);
     CHECK_NEAR(parsed.longitude, -11.5166666667, 0.0000001);
     CHECK(45319250U == parsed.rmc_utc_ms);
+
+    length = make_sentence("$GNRMC,123519.250,A,4807.038,N,01131.000,E,0.0,0.0,230394,,,A",
+                           sentence, sizeof(sentence));
+    CHECK(0U != gnss_host_parse_sentence(sentence, length, &parsed));
+    CHECK_NEAR(parsed.latitude, 48.1173, 0.0000001);
+    CHECK_NEAR(parsed.longitude, 11.5166666667, 0.0000001);
+
+    length = make_sentence("$GNRMC,123519.250,A,4807.038,N,01131.000,E,123456789012345678901234567890,0.0,230394,,,A",
+                           sentence, sizeof(sentence));
+    CHECK(0U == gnss_host_parse_sentence(sentence, length, &parsed));
 
     length = make_sentence("$GNRMC,123519.251,A,4807.038,X,01131.000,E,0.0,0.0,230394,,,A",
                            sentence, sizeof(sentence));
@@ -188,11 +236,48 @@ static void test_bounded_checksum_rejections(void)
     CHECK(0U == gnss_host_parse_sentence(sentence, 128U, &parsed));
 }
 
+static void test_production_parse_is_transactional_on_semantic_failure(void)
+{
+    gnss_info_struct before;
+
+    memset(&gnss, 0x5A, sizeof(gnss));
+    before = gnss;
+    CHECK(0U != production_parse(
+        "$GNRMC,123519.250,A,4807.038,N,01131.000,E,0.0,0.0,23X394,,,A"));
+    CHECK(0 == memcmp(&before, &gnss, sizeof(gnss)));
+
+    before = gnss;
+    CHECK(0U != production_parse(
+        "$GNRMC,123519.250,A,123456789012345678901234567890,N,01131.000,E,0.0,0.0,230394,,,A"));
+    CHECK(0 == memcmp(&before, &gnss, sizeof(gnss)));
+
+    before = gnss;
+    CHECK(0U != production_parse(
+        "$GNGGA,123519.250,4807.038,N,01131.000,E,1,08,123456789012345678901234567890,545.4,M,46.9,M,,"));
+    CHECK(0 == memcmp(&before, &gnss, sizeof(gnss)));
+}
+
+static void test_production_no_fix_gga_clears_quality(void)
+{
+    memset(&gnss, 0, sizeof(gnss));
+    CHECK(0U == production_parse(
+        "$GNGGA,123519.250,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,"));
+    CHECK(1U == gnss.fix_quality);
+    CHECK(8U == gnss.satellite_used);
+    CHECK(0U == production_parse(
+        "$GNGGA,123520.250,,,,,0,00,99.9,0.0,M,0.0,M,,"));
+    CHECK(0U == gnss.fix_quality);
+    CHECK(0U == gnss.satellite_used);
+    CHECK_NEAR(gnss.hdop, 99.9, 0.001);
+}
+
 int main(void)
 {
     test_rmc_signs_fractional_utc_and_invalid_fields();
     test_gga_fractional_utc();
     test_bounded_checksum_rejections();
+    test_production_parse_is_transactional_on_semantic_failure();
+    test_production_no_fix_gga_clears_quality();
 
     if(0U != failures)
     {

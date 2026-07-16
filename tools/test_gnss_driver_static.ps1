@@ -13,14 +13,59 @@ function Assert-Match([string]$Text, [string]$Pattern, [string]$Message)
     }
 }
 
+function Assert-NotMatch([string]$Text, [string]$Pattern, [string]$Message)
+{
+    if($Text -match $Pattern)
+    {
+        $script:failures.Add($Message)
+    }
+}
+
+function Get-CFunction([string]$Text, [string]$Name)
+{
+    $signature = [regex]::Match($Text, "(?m)^\s*(?:static\s+)?(?:uint8|void)\s+$Name\s*\([^)]*\)\s*\{")
+    if(-not $signature.Success)
+    {
+        $script:failures.Add("source lacks $Name function")
+        return ''
+    }
+
+    $depth = 0
+    for($index = $signature.Index; $index -lt $Text.Length; $index++)
+    {
+        if('{' -eq $Text[$index])
+        {
+            $depth++
+        }
+        elseif('}' -eq $Text[$index])
+        {
+            $depth--
+            if(0 -eq $depth)
+            {
+                return $Text.Substring($signature.Index, $index - $signature.Index + 1)
+            }
+        }
+    }
+
+    $script:failures.Add("source has unterminated $Name function")
+    return ''
+}
+
+$ggaParser = Get-CFunction $source 'gps_gngga_parse'
+$dataParser = Get-CFunction $source 'gnss_data_parse'
+
 Assert-Match $header 'uint8\s+fix_quality\s*;' 'gnss_info_struct lacks GGA fix_quality'
 Assert-Match $header 'float\s+hdop\s*;' 'gnss_info_struct lacks GGA hdop'
 Assert-Match $header 'extern\s+volatile\s+uint8\s+gnss_flag\s*;' 'gnss_flag is not volatile across ISR/main'
-Assert-Match $source 'get_parameter_index\(6,\s*buf\)' 'GGA field 6 Fix Quality is not parsed'
-Assert-Match $source 'get_parameter_index\(8,\s*buf\)' 'GGA field 8 HDOP is not parsed'
+Assert-Match $ggaParser 'char\s+\*buf\s*=\s*line\s*;\s*fix_quality\s*=\s*\(uint8\)get_int_number\(&buf\[get_parameter_index\(6,\s*buf\)\]\)\s*;' 'GGA quality fields are not parsed unconditionally before latitude-dependent logic'
+Assert-Match $ggaParser 'gnss->fix_quality\s*=\s*fix_quality\s*;' 'GGA field 6 Fix Quality is not assigned by gps_gngga_parse'
+Assert-Match $ggaParser 'gnss->satellite_used\s*=\s*\(uint8\)get_int_number\(\s*&buf\[get_parameter_index\(7,\s*buf\)\]\)\s*;' 'GGA field 7 satellite count is not assigned by gps_gngga_parse'
+Assert-Match $ggaParser 'gnss->hdop\s*=\s*get_float_number\(&buf\[get_parameter_index\(8,\s*buf\)\]\)\s*;' 'GGA field 8 HDOP is not assigned by gps_gngga_parse'
+Assert-NotMatch $ggaParser 'get_parameter_index\(2,\s*buf\)' 'GGA latitude gate can retain stale quality fields on an empty-latitude no-fix sentence'
+Assert-Match $ggaParser 'return\s*\(0U\s*!=\s*fix_quality\)\s*\?\s*1U\s*:\s*0U\s*;' 'GGA parser result is not derived from the newly parsed fix quality'
 Assert-Match $source 'memset\(&gnss,\s*0,\s*sizeof\(gnss\)\)' 'gnss public state is not reset at init'
-Assert-Match $source 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gnrmc_parse' 'bad RMC checksum can leave parsing stuck'
-Assert-Match $source 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gngga_parse' 'bad GGA checksum can leave parsing stuck'
+Assert-Match $dataParser 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gnrmc_parse' 'bad RMC checksum can leave parsing stuck'
+Assert-Match $dataParser 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gngga_parse\(\(char\s*\*\)gps_gga_buffer,\s*&gnss\)' 'checksum-valid GGA is not wired to gps_gngga_parse with the GGA buffer and public state'
 
 if(0 -ne $failures.Count)
 {

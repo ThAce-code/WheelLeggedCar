@@ -295,25 +295,17 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
 //-------------------------------------------------------------------------------------------------------------------
 static uint8 gps_gngga_parse (char *line, gnss_info_struct *gnss)
 {
-    uint8 state = 0;
-    uint8 fix_quality = 0;
+    uint8 fix_quality;
     char *buf = line;
-    uint8 return_state = 0;
 
-    state = buf[get_parameter_index(2, buf)];
+    fix_quality = (uint8)get_int_number(&buf[get_parameter_index(6, buf)]);
+    gnss->fix_quality = fix_quality;
+    gnss->satellite_used = (uint8)get_int_number(&buf[get_parameter_index(7, buf)]);
+    gnss->hdop = get_float_number(&buf[get_parameter_index(8, buf)]);
+    gnss->height = get_float_number(&buf[get_parameter_index(9, buf)]) +
+                    get_float_number(&buf[get_parameter_index(11, buf)]);
 
-    if(',' != state)
-    {
-        fix_quality = (uint8)get_int_number(&buf[get_parameter_index(6, buf)]);
-        gnss->fix_quality = fix_quality;
-        gnss->satellite_used = (uint8)get_int_number(&buf[get_parameter_index(7, buf)]);
-        gnss->hdop = get_float_number(&buf[get_parameter_index(8, buf)]);
-        gnss->height = get_float_number(&buf[get_parameter_index(9, buf)]) +
-                        get_float_number(&buf[get_parameter_index(11, buf)]);
-        return_state = (0U != fix_quality) ? 1U : 0U;
-    }
-
-    return return_state;
+    return (0U != fix_quality) ? 1U : 0U;
 }
 
 //-------------------------------------------------------------------------------------------------------------------

@@ -23,7 +23,7 @@ function Assert-NotMatch([string]$Text, [string]$Pattern, [string]$Message)
 
 function Get-CFunction([string]$Text, [string]$Name)
 {
-    $signature = [regex]::Match($Text, "(?m)^\s*(?:static\s+)?(?:uint8|void)\s+$Name\s*\([^)]*\)\s*\{")
+    $signature = [regex]::Match($Text, "(?m)^\s*(?:static\s+)?(?:uint8|uint32|void)\s+$Name\s*\([^)]*\)\s*\{")
     if(-not $signature.Success)
     {
         $script:failures.Add("source lacks $Name function")
@@ -53,9 +53,12 @@ function Get-CFunction([string]$Text, [string]$Name)
 
 $ggaParser = Get-CFunction $source 'gps_gngga_parse'
 $dataParser = Get-CFunction $source 'gnss_data_parse'
+$sequenceHelper = Get-CFunction $source 'gnss_next_sequence'
 
 Assert-Match $header 'uint8\s+fix_quality\s*;' 'gnss_info_struct lacks GGA fix_quality'
 Assert-Match $header 'float\s+hdop\s*;' 'gnss_info_struct lacks GGA hdop'
+Assert-Match $header 'uint32\s+rmc_sequence\s*;' 'gnss_info_struct lacks the RMC parse sequence'
+Assert-Match $header 'uint32\s+gga_sequence\s*;' 'gnss_info_struct lacks the GGA parse sequence'
 Assert-Match $header 'extern\s+volatile\s+uint8\s+gnss_flag\s*;' 'gnss_flag is not volatile across ISR/main'
 Assert-Match $ggaParser 'char\s+\*buf\s*=\s*line\s*;\s*fix_quality\s*=\s*\(uint8\)get_int_number\(&buf\[get_parameter_index\(6,\s*buf\)\]\)\s*;' 'GGA quality fields are not parsed unconditionally before latitude-dependent logic'
 Assert-Match $ggaParser 'gnss->fix_quality\s*=\s*fix_quality\s*;' 'GGA field 6 Fix Quality is not assigned by gps_gngga_parse'
@@ -66,6 +69,9 @@ Assert-Match $ggaParser 'return\s*\(0U\s*!=\s*fix_quality\)\s*\?\s*1U\s*:\s*0U\s
 Assert-Match $source 'memset\(&gnss,\s*0,\s*sizeof\(gnss\)\)' 'gnss public state is not reset at init'
 Assert-Match $dataParser 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gnrmc_parse' 'bad RMC checksum can leave parsing stuck'
 Assert-Match $dataParser 'return_state\s*=\s*1U?\s*;\s*\}\s*else\s*\{\s*gps_gngga_parse\(\(char\s*\*\)gps_gga_buffer,\s*&gnss\)' 'checksum-valid GGA is not wired to gps_gngga_parse with the GGA buffer and public state'
+Assert-Match $sequenceHelper 'sequence\+\+\s*;\s*return\s+\(0U\s*!=\s*sequence\)\s*\?\s*sequence\s*:\s*1U\s*;' 'GNSS parse sequence does not skip zero on wrap'
+Assert-Match $dataParser 'gps_gnrmc_parse\([^;]+;\s*gnss\.rmc_sequence\s*=\s*gnss_next_sequence\(gnss\.rmc_sequence\)\s*;' 'checksum-valid RMC does not advance its parse sequence'
+Assert-Match $dataParser 'gps_gngga_parse\([^;]+;\s*gnss\.gga_sequence\s*=\s*gnss_next_sequence\(gnss\.gga_sequence\)\s*;' 'checksum-valid GGA does not advance its parse sequence'
 
 if(0 -ne $failures.Count)
 {

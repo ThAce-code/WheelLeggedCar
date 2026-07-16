@@ -83,6 +83,8 @@ typedef struct
     uint8       state;                                                          // 有效状态  1：定位有效  0：定位无效
     uint8       fix_quality;
     float       hdop;
+    uint32      rmc_sequence;
+    uint32      gga_sequence;
     
     uint16      latitude_degree;                                                // 度
     uint16      latitude_cent;                                                  // 分

@@ -403,6 +403,12 @@ double get_two_points_azimuth (double latitude1, double longitude1, double latit
 // 使用示例     gps_data_parse();
 // 备注信息     
 //-------------------------------------------------------------------------------------------------------------------
+static uint32 gnss_next_sequence (uint32 sequence)
+{
+    sequence++;
+    return (0U != sequence) ? sequence : 1U;
+}
+
 uint8 gnss_data_parse (void)
 {
     uint8 return_state = 0U;
@@ -430,6 +436,7 @@ uint8 gnss_data_parse (void)
             else
             {
                 gps_gnrmc_parse((char *)gps_rmc_buffer, &gnss);
+                gnss.rmc_sequence = gnss_next_sequence(gnss.rmc_sequence);
             }
         }
         gnss_rmc_state = GPS_STATE_RECEIVING;
@@ -451,6 +458,7 @@ uint8 gnss_data_parse (void)
             else
             {
                 gps_gngga_parse((char *)gps_gga_buffer, &gnss);
+                gnss.gga_sequence = gnss_next_sequence(gnss.gga_sequence);
             }
         }
         gnss_gga_state = GPS_STATE_RECEIVING;

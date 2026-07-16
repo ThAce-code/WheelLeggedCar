@@ -69,7 +69,13 @@ typedef struct
     cy_en_intr_t                uart_irqn;
 }uart_config_struct;
 
+#if CY_CORE_CM7_1
+void (*uart_isr_func[7])() = {0, uart1_isr, uart2_isr, uart3_isr, uart4_isr, 0, 0};
+#elif CY_CORE_CM7_0
 void (*uart_isr_func[7])() = {uart0_isr, uart1_isr, uart2_isr, uart3_isr, uart4_isr, uart5_isr, uart6_isr};
+#else
+void (*uart_isr_func[7])() = {uart0_isr, uart1_isr, uart2_isr, uart3_isr, uart4_isr, 0, 0};
+#endif
 cy_stc_scb_uart_context_t  uart_context[7] = {0}; 
 volatile stc_SCB_t* scb_module[7] = {SCB0, SCB5, SCB4, SCB3, SCB2, SCB7, SCB6};
 
@@ -619,6 +625,11 @@ void uart_sbus_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pi
     stc_sysint_irq_cfg_uart.sysIntSrc = uart_pin_config.uart_irqn;
     stc_sysint_irq_cfg_uart.intIdx    = UART_USE_ISR;
     stc_sysint_irq_cfg_uart.isEnabled = true;
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
     Cy_SysInt_InitIRQ(&stc_sysint_irq_cfg_uart);
     Cy_SysInt_SetSystemIrqVector(stc_sysint_irq_cfg_uart.sysIntSrc, (cy_systemIntr_Handler)uart_isr_func[uart_n]);
     NVIC_EnableIRQ(stc_sysint_irq_cfg_uart.intIdx);
@@ -684,6 +695,11 @@ void uart_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pin, ua
     uart_irq_cfg.sysIntSrc = uart_pin_config.uart_irqn;
     uart_irq_cfg.intIdx    = UART_USE_ISR;
     uart_irq_cfg.isEnabled = true;
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
     interrupt_init(&uart_irq_cfg, uart_isr_func[uart_n], 7);
     
     uart_rx_interrupt(uart_n, 0);

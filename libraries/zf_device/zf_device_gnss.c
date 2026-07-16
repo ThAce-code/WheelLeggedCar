@@ -660,9 +660,10 @@ static uint8 gps_gnths_parse (char *line, gnss_info_struct *gnss)
         gnss->antenna_direction = antenna_direction;
         return_state = 1;
     }
-    else
+    else if('V' == state)
     {
         gnss->antenna_direction_state = 0;
+        return_state = 1U;
     }
     
     return return_state;

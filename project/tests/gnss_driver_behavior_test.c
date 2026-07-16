@@ -271,6 +271,23 @@ static void test_production_no_fix_gga_clears_quality(void)
     CHECK_NEAR(gnss.hdop, 99.9, 0.001);
 }
 
+static void test_production_ths_invalid_state_commits(void)
+{
+    gnss_info_struct before;
+
+    memset(&gnss, 0, sizeof(gnss));
+    CHECK(0U == production_parse("$GNTHS,123.4,A"));
+    CHECK(1U == gnss.antenna_direction_state);
+    CHECK_NEAR(gnss.antenna_direction, 123.4, 0.001);
+
+    CHECK(0U == production_parse("$GNTHS,123.4,V"));
+    CHECK(0U == gnss.antenna_direction_state);
+
+    before = gnss;
+    CHECK(0U != production_parse("$GNTHS,123.4,X"));
+    CHECK(0 == memcmp(&before, &gnss, sizeof(gnss)));
+}
+
 int main(void)
 {
     test_rmc_signs_fractional_utc_and_invalid_fields();
@@ -278,6 +295,7 @@ int main(void)
     test_bounded_checksum_rejections();
     test_production_parse_is_transactional_on_semantic_failure();
     test_production_no_fix_gga_clears_quality();
+    test_production_ths_invalid_state_commits();
 
     if(0U != failures)
     {

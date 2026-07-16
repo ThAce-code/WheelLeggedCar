@@ -585,6 +585,11 @@ void uart_sbus_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pi
 	
     zf_assert((uint8)uart_n == (uint8)(tx_pin / 0x10) ? 1 : 0);
     zf_assert((uint8)uart_n == (uint8)(rx_pin / 0x10) ? 1 : 0);
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
 	
     uart_config_struct          uart_pin_config                 = {0};
     cy_stc_gpio_pin_config_t    gpio_pin_config                 = {0};
@@ -625,11 +630,6 @@ void uart_sbus_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pi
     stc_sysint_irq_cfg_uart.sysIntSrc = uart_pin_config.uart_irqn;
     stc_sysint_irq_cfg_uart.intIdx    = UART_USE_ISR;
     stc_sysint_irq_cfg_uart.isEnabled = true;
-    if(0 == uart_isr_func[uart_n])
-    {
-        zf_assert(0U);
-        return;
-    }
     Cy_SysInt_InitIRQ(&stc_sysint_irq_cfg_uart);
     Cy_SysInt_SetSystemIrqVector(stc_sysint_irq_cfg_uart.sysIntSrc, (cy_systemIntr_Handler)uart_isr_func[uart_n]);
     NVIC_EnableIRQ(stc_sysint_irq_cfg_uart.intIdx);
@@ -654,6 +654,11 @@ void uart_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pin, ua
 	
     zf_assert((uint8)uart_n == (uint8)(tx_pin / 0x10) ? 1 : 0);
     zf_assert((uint8)uart_n == (uint8)(rx_pin / 0x10) ? 1 : 0);
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
     
     uart_config_struct          uart_pin_config                 = {0};
     cy_stc_gpio_pin_config_t    gpio_pin_config                 = {0};
@@ -695,11 +700,6 @@ void uart_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pin, ua
     uart_irq_cfg.sysIntSrc = uart_pin_config.uart_irqn;
     uart_irq_cfg.intIdx    = UART_USE_ISR;
     uart_irq_cfg.isEnabled = true;
-    if(0 == uart_isr_func[uart_n])
-    {
-        zf_assert(0U);
-        return;
-    }
     interrupt_init(&uart_irq_cfg, uart_isr_func[uart_n], 7);
     
     uart_rx_interrupt(uart_n, 0);

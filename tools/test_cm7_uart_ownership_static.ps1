@@ -51,6 +51,18 @@ if ($uartDriver -notmatch "(?s)void\s+uart_init\s*\([^)]*\).*?$nullGuardPattern.
     $failures += 'uart_init does not reject an unsupported core UART before registration.'
 }
 
+$sbusStart = $uartDriver.IndexOf('void uart_sbus_init')
+$uartInitStart = $uartDriver.IndexOf('void uart_init')
+$sbusBody = $uartDriver.Substring($sbusStart, $uartInitStart - $sbusStart)
+$uartInitBody = $uartDriver.Substring($uartInitStart)
+foreach ($functionBody in @($sbusBody, $uartInitBody)) {
+    $guardMatch = [regex]::Match($functionBody, $nullGuardPattern, 'Singleline')
+    $configIndex = $functionBody.IndexOf('get_uart_config')
+    if (-not $guardMatch.Success -or $configIndex -lt 0 -or $guardMatch.Index -gt $configIndex) {
+        $failures += 'Unsupported UART guard must run before UART hardware setup.'
+    }
+}
+
 if ($failures.Count -gt 0) {
     $failures | ForEach-Object { Write-Error $_ }
     exit 1

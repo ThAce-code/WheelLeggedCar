@@ -425,10 +425,10 @@ static void test_intercore_navigation_acceptance_policy(void)
     TEST_CHECK(1U == motion_command_router_arm_remote(200U, 0U));
     command = (navigation_command_struct){0};
     command.forward_rpm = 10.0f;
-    command.turn_rate_dps = -5.0f;
+    command.turn_rate_dps = 15.0f;
     command.confidence = 0.8f;
     command.source_sequence = 1U;
-    command.valid_for_ms = 200U;
+    command.valid_for_ms = 100U;
     command.enable = 1U;
     command.source = NAVIGATION_SOURCE_VISION;
     command.mode = NAVIGATION_MODE_VISION_ASSIST;
@@ -438,10 +438,26 @@ static void test_intercore_navigation_acceptance_policy(void)
                motion_command_router_get_diag()->active_source);
 
     command.source_sequence = 2U;
+    command.turn_rate_dps = 15.1f;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 202U));
+    command.source_sequence = 3U;
+    command.turn_rate_dps = 0.0f;
+    command.valid_for_ms = 101U;
+    TEST_CHECK(0U == intercore_control_accept_navigation(&command, 203U));
+    command.source_sequence = 4U;
+    command.valid_for_ms = 100U;
+    command.enable = 0U;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 204U));
+    motion_command_router_update(205U, 0U);
+    TEST_CHECK(MOTION_SOURCE_NONE ==
+               motion_command_router_get_diag()->active_source);
+
+    command.source_sequence = 5U;
     command.source = NAVIGATION_SOURCE_WAYPOINT;
     command.mode = NAVIGATION_MODE_WAYPOINT;
-    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 202U));
-    motion_command_router_update(203U, 0U);
+    command.enable = 1U;
+    TEST_CHECK(1U == intercore_control_accept_navigation(&command, 206U));
+    motion_command_router_update(207U, 0U);
     TEST_CHECK(MOTION_SOURCE_AUTONOMOUS ==
                motion_command_router_get_diag()->active_source);
 

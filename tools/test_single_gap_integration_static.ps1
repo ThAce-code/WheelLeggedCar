@@ -103,6 +103,35 @@ Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_1.ewp' 'single_gap_app\
 Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_1.ewp' 'single_gap_detector\.c'
 Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_1.ewp' 'single_gap_controller\.c'
 Require-Pattern 'project/iar/project_config/cyt4bb7_cm_7_1.ewp' 'dl1b_safety\.c'
+Require-Pattern 'project/code/app_config.h' '#include\s+"single_gap_config\.h"'
+Require-TextPattern 'project/code/app_config.h' '(?s)#if\s+SINGLE_GAP_MOTION_ENABLE\s*#define\s+APP_CAMERA_DEBUG_ONLY\s+\(0U\)\s*#else\s*#define\s+APP_CAMERA_DEBUG_ONLY\s+\(1U\)\s*#endif'
+Require-TextPattern 'project/code/intercore_control.c' '(?s)NAVIGATION_SOURCE_VISION\s*==\s*command->source.*?NAVIGATION_MODE_VISION_ASSIST\s*!=\s*command->mode.*?SINGLE_GAP_NAV_VALID_MS\s*<\s*command->valid_for_ms.*?SINGLE_GAP_TURN_LIMIT_DPS\s*<\s*command->turn_rate_dps.*?-SINGLE_GAP_TURN_LIMIT_DPS\s*>\s*command->turn_rate_dps'
 Reject-Pattern 'project/code/single_gap_*.c' '\b(malloc|calloc|realloc|free)\s*\('
+
+$mingwBin = 'C:\msys64\ucrt64\bin'
+$gccPath = Join-Path $mingwBin 'gcc.exe'
+if(Test-Path -LiteralPath $gccPath)
+{
+    $env:PATH = "$mingwBin;$env:PATH"
+    $macroLines = & $gccPath -dM -E -x c `
+        -D_zf_common_headfile_h_ `
+        -DSINGLE_GAP_ENABLE=1U `
+        -DSINGLE_GAP_MOTION_ENABLE=1U `
+        -DSINGLE_GAP_WHEEL_CIRCUMFERENCE_MM=200U `
+        -I (Join-Path $Root 'project\code') `
+        -I (Join-Path $Root 'libraries\zf_common') `
+        -include app_config.h `
+        (Join-Path $Root 'project\code\single_gap_config.h') 2>&1
+    if(0 -ne $LASTEXITCODE)
+    {
+        throw "Failed to preprocess motion-enabled app_config.h: $($macroLines -join ' ')"
+    }
+    $macroText = $macroLines -join "`n"
+    if(($macroText -match '(?m)^#define\s+SINGLE_GAP_MOTION_ENABLE\s+\(?1U\)?\s*$') -and
+       ($macroText -match '(?m)^#define\s+APP_CAMERA_DEBUG_ONLY\s+\(?1U\)?\s*$'))
+    {
+        throw 'Motion-enabled preprocessing left APP_CAMERA_DEBUG_ONLY enabled'
+    }
+}
 
 Write-Output 'single-gap static contracts: PASS'

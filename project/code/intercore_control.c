@@ -5,6 +5,7 @@
 #include "motion_command_router.h"
 
 #if defined(INTERCORE_HOST_TEST)
+#include "single_gap_config.h"
 #define APP_INTERCORE_COMMAND_TIMEOUT_MS  (200U)
 #define APP_INTERCORE_FORWARD_LIMIT_RPM   (60.0f)
 #define APP_INTERCORE_TURN_LIMIT_DPS      (60.0f)
@@ -64,6 +65,15 @@ uint8 intercore_control_accept_navigation(const navigation_command_struct *comma
     if((0U != intercore_last_source_sequence[command->source]) &&
        (0 >= (int32)(command->source_sequence -
                      intercore_last_source_sequence[command->source])))
+    {
+        intercore_rejected_count++;
+        return 0U;
+    }
+    if((NAVIGATION_SOURCE_VISION == command->source) &&
+       ((NAVIGATION_MODE_VISION_ASSIST != command->mode) ||
+        (SINGLE_GAP_NAV_VALID_MS < command->valid_for_ms) ||
+        (SINGLE_GAP_TURN_LIMIT_DPS < command->turn_rate_dps) ||
+        (-SINGLE_GAP_TURN_LIMIT_DPS > command->turn_rate_dps)))
     {
         intercore_rejected_count++;
         return 0U;

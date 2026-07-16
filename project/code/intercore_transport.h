@@ -22,6 +22,7 @@ typedef struct
     volatile intercore_shared_layout_struct *shared;
     uint32 boot_epoch;
     uint32 last_navigation_sequence;
+    uint32 last_gnss_sequence;
     uint8 role;
     uint8 attached;
 }intercore_transport_struct;
@@ -36,6 +37,15 @@ uint8 intercore_transport_publish_navigation(intercore_transport_struct *transpo
 intercore_transport_result_enum intercore_transport_read_navigation(
     intercore_transport_struct *transport,
     navigation_command_struct *command,
+    uint32 *record_sequence);
+uint8 intercore_transport_publish_gnss(
+    intercore_transport_struct *transport,
+    const intercore_gnss_payload_struct *payload,
+    uint32 source_ms);
+intercore_transport_result_enum intercore_transport_read_gnss(
+    intercore_transport_struct *transport,
+    intercore_gnss_payload_struct *payload,
+    uint32 *source_ms,
     uint32 *record_sequence);
 
 #endif

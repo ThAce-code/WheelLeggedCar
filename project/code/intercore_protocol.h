@@ -8,7 +8,8 @@
 #define INTERCORE_SHARED_BASE_ADDRESS      (0x28080000UL)
 #define INTERCORE_SHARED_SIZE_BYTES        (8192U)
 #define INTERCORE_PROTOCOL_MAGIC           (0x574C4349UL)
-#define INTERCORE_PROTOCOL_VERSION         (3U)
+#define INTERCORE_PROTOCOL_VERSION         (4U)
+#define INTERCORE_EVENT_COUNT              (8U)
 #define INTERCORE_NAVIGATION_MAX_VALID_MS  (200U)
 #define INTERCORE_CAMERA_DATA_BASE_ADDRESS (0x28060000UL)
 #define INTERCORE_CAMERA_DATA_SIZE_BYTES   (65536U)
@@ -30,7 +31,8 @@ typedef enum
     INTERCORE_RECORD_NAVIGATION = 1,
     INTERCORE_RECORD_CONTROL_STATUS = 2,
     INTERCORE_RECORD_PERCEPTION_POSE = 3,
-    INTERCORE_RECORD_PERCEPTION_SNAPSHOT = 4
+    INTERCORE_RECORD_PERCEPTION_SNAPSHOT = 4,
+    INTERCORE_RECORD_GNSS = 5
 }intercore_record_type_enum;
 
 typedef enum
@@ -97,7 +99,9 @@ typedef struct
     uint32 control_sequence;
     uint32 event_write_index;
     uint32 event_sequence;
-    uint8 reserved[212];
+    uint32 gnss_active_index;
+    uint32 gnss_sequence;
+    uint8 reserved[204];
 }intercore_metadata_struct;
 
 typedef struct
@@ -130,6 +134,31 @@ typedef struct
     control_status_struct payload;
     uint8 reserved[424];
 }intercore_control_slot_struct;
+
+typedef struct
+{
+    float local_x_m;
+    float local_y_m;
+    float speed_mps;
+    float course_deg;
+    float hdop;
+    float position_sigma_m;
+    uint32 checksum_error_count;
+    uint32 timeout_count;
+    uint16 satellite_count;
+    uint8 fix_valid;
+    uint8 fix_quality;
+    uint8 origin_valid;
+    uint8 reserved0;
+    uint8 reserved[10];
+}intercore_gnss_payload_struct;
+
+typedef struct
+{
+    intercore_header_struct header;
+    intercore_gnss_payload_struct payload;
+    uint8 reserved[184];
+}intercore_gnss_slot_struct;
 
 typedef struct
 {
@@ -247,7 +276,8 @@ typedef struct
     intercore_metadata_struct metadata;
     intercore_navigation_slot_struct navigation[2];
     intercore_control_slot_struct control[2];
-    intercore_event_struct events[16];
+    intercore_event_struct events[INTERCORE_EVENT_COUNT];
+    intercore_gnss_slot_struct gnss[2];
     intercore_health_struct health;
     intercore_camera_control_struct camera;
     intercore_perception_control_struct perception;
@@ -262,6 +292,8 @@ INTERCORE_LAYOUT_CHECK(metadata_size, sizeof(intercore_metadata_struct) == 256U)
 INTERCORE_LAYOUT_CHECK(control_status_size, sizeof(control_status_struct) == 64U);
 INTERCORE_LAYOUT_CHECK(navigation_slot_size, sizeof(intercore_navigation_slot_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(control_slot_size, sizeof(intercore_control_slot_struct) == 512U);
+INTERCORE_LAYOUT_CHECK(gnss_payload_size, sizeof(intercore_gnss_payload_struct) == 48U);
+INTERCORE_LAYOUT_CHECK(gnss_slot_size, sizeof(intercore_gnss_slot_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(event_size, sizeof(intercore_event_struct) == 64U);
 INTERCORE_LAYOUT_CHECK(health_size, sizeof(intercore_health_struct) == 256U);
 INTERCORE_LAYOUT_CHECK(camera_slot_size, sizeof(intercore_camera_slot_struct) == 32U);
@@ -287,6 +319,7 @@ INTERCORE_LAYOUT_CHECK(metadata_offset, offsetof(intercore_shared_layout_struct,
 INTERCORE_LAYOUT_CHECK(navigation_offset, offsetof(intercore_shared_layout_struct, navigation) == 0x100U);
 INTERCORE_LAYOUT_CHECK(control_offset, offsetof(intercore_shared_layout_struct, control) == 0x300U);
 INTERCORE_LAYOUT_CHECK(events_offset, offsetof(intercore_shared_layout_struct, events) == 0x700U);
+INTERCORE_LAYOUT_CHECK(gnss_offset, offsetof(intercore_shared_layout_struct, gnss) == 0x900U);
 INTERCORE_LAYOUT_CHECK(health_offset, offsetof(intercore_shared_layout_struct, health) == 0xB00U);
 INTERCORE_LAYOUT_CHECK(camera_offset, offsetof(intercore_shared_layout_struct, camera) == 0xC00U);
 INTERCORE_LAYOUT_CHECK(perception_offset, offsetof(intercore_shared_layout_struct, perception) == 0xD00U);

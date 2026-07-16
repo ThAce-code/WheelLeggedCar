@@ -16,6 +16,9 @@ static intercore_transport_struct intercore_transport;
 static volatile intercore_shared_layout_struct *intercore_shared;
 static uint32 intercore_last_source_sequence[4U];
 static uint32 intercore_rejected_count;
+static intercore_gnss_payload_struct intercore_latest_gnss;
+static uint32 intercore_latest_gnss_source_ms;
+static uint8 intercore_latest_gnss_available;
 
 static uint8 intercore_is_finite(float value)
 {
@@ -114,6 +117,9 @@ uint8 intercore_control_init(void)
     intercore_last_source_sequence[2U] = 0U;
     intercore_last_source_sequence[3U] = 0U;
     intercore_rejected_count = 0U;
+    intercore_latest_gnss = (intercore_gnss_payload_struct){0};
+    intercore_latest_gnss_source_ms = 0U;
+    intercore_latest_gnss_available = 0U;
     return 1U;
 }
 
@@ -122,6 +128,10 @@ void intercore_control_update(uint32 now_ms)
     navigation_command_struct command;
     uint32 record_sequence = 0U;
     intercore_transport_result_enum result;
+    intercore_gnss_payload_struct gnss_payload;
+    uint32 gnss_source_ms = 0U;
+    uint32 gnss_sequence = 0U;
+    intercore_transport_result_enum gnss_result;
 
     result = intercore_transport_read_navigation(&intercore_transport,
                                                  &command,
@@ -138,9 +148,37 @@ void intercore_control_update(uint32 now_ms)
         intercore_last_source_sequence[1U] = 0U;
         intercore_last_source_sequence[2U] = 0U;
         intercore_last_source_sequence[3U] = 0U;
+        intercore_latest_gnss_available = 0U;
     }
     else if(INTERCORE_TRANSPORT_INVALID == result)
     {
         intercore_rejected_count++;
     }
+
+    gnss_result = intercore_transport_read_gnss(
+        &intercore_transport, &gnss_payload, &gnss_source_ms, &gnss_sequence);
+    (void)gnss_sequence;
+    if(INTERCORE_TRANSPORT_OK == gnss_result)
+    {
+        intercore_latest_gnss = gnss_payload;
+        intercore_latest_gnss_source_ms = gnss_source_ms;
+        intercore_latest_gnss_available = 1U;
+    }
+    else if(INTERCORE_TRANSPORT_EPOCH_CHANGED == gnss_result)
+    {
+        intercore_latest_gnss_available = 0U;
+    }
+}
+
+uint8 intercore_control_get_latest_gnss(intercore_gnss_payload_struct *payload,
+                                        uint32 *source_ms)
+{
+    if((NULL == payload) || (NULL == source_ms) ||
+       (0U == intercore_latest_gnss_available))
+    {
+        return 0U;
+    }
+    *payload = intercore_latest_gnss;
+    *source_ms = intercore_latest_gnss_source_ms;
+    return 1U;
 }

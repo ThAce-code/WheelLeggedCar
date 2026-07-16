@@ -34,6 +34,14 @@ Assert-True ($main -match 'gnss_transport_attached\s*=\s*0U') 'GNSS publisher ha
 Assert-True ($ewp -match 'code\\sensor_gnss\.c') 'CM7_1 IAR project omits sensor_gnss.c'
 Assert-True ($ewp -match 'code\\local_position\.c') 'CM7_1 IAR project omits local_position.c'
 
+$telemetry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'project\code\telemetry.c')
+$config = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'project\code\app_config.h')
+Assert-True ($config -match 'APP_TELEMETRY_PROFILE_GNSS') 'GNSS telemetry profile is undefined'
+Assert-True ($config -match 'APP_TELEMETRY_PERIOD_MS\s+\(20U\)') 'GNSS telemetry is not 50 Hz'
+Assert-True ($telemetry -match 'static\s+float\s+vofa_data\[20\]') 'GNSS profile is not fixed at 20 floats'
+Assert-True ($telemetry -match 'gps_age_ms') 'GNSS profile omits data age'
+Assert-True ($telemetry -notmatch 'GNGGA|GNRMC|\$GN') 'raw NMEA appears in JustFloat telemetry'
+
 if(0 -ne $failures.Count)
 {
     $failures | ForEach-Object { "FAIL: $_" }

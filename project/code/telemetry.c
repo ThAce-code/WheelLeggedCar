@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: telemetry.c
-* Description: VOFA+ telemetry — nonblocking 55-float frame for leg-servo validation.
-*              At 460800 baud / 8N1, 224 bytes (55x4 + 4B tail) is about 4.86 ms per 10 ms frame.
+* Description: VOFA+ telemetry with fixed GNSS, balance, and motor profiles.
+*              The 84-byte GNSS frame takes about 1.82 ms at 460800 baud / 8N1 every 20 ms.
 *********************************************************************************************************************/
 
 #include "telemetry.h"
@@ -11,10 +11,14 @@
 #include "app_scheduler.h"
 #include "control_balance.h"
 #include "control_leg.h"
+#include "gnss_types.h"
+#include "intercore_control.h"
 #include "sensor_imu.h"
 
 static const uint8 telemetry_tail[4] = {0x00, 0x00, 0x80, 0x7F};
-#if APP_TELEMETRY_BALANCE_ENABLE
+#if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
+static float vofa_data[20];
+#elif APP_TELEMETRY_BALANCE_ENABLE
 static float vofa_data[55];
 #else
 static float vofa_data[8];
@@ -37,7 +41,12 @@ void telemetry_update(uint32 now_ms)
 #if APP_TELEMETRY_ENABLE
     const wheel_feedback_struct *wheel;
     const motor_rpm_loop_diag_struct *rpm_diag;
-#if APP_TELEMETRY_BALANCE_ENABLE
+#if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
+    intercore_gnss_payload_struct gps = {0};
+    uint32 gps_source_ms = 0U;
+    uint32 gps_age_ms = 0xFFFFFFFFUL;
+    uint8 gps_available;
+#elif APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
@@ -52,7 +61,36 @@ void telemetry_update(uint32 now_ms)
     wheel = actuator_motor_get_feedback();
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
 
-#if APP_TELEMETRY_BALANCE_ENABLE
+#if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
+    gps_available = intercore_control_get_latest_gnss(&gps, &gps_source_ms);
+    if(0U != gps_available)
+    {
+        gps_age_ms = now_ms - gps_source_ms;
+    }
+
+    vofa_data[0]  = (float)now_ms;
+    vofa_data[1]  = (float)telemetry_frame_sequence;
+    vofa_data[2]  = (float)telemetry_drop_count;
+    vofa_data[3]  = (float)((0U != gps_available) && (0U != gps.fix_valid) &&
+                            (GNSS_SNAPSHOT_MAX_AGE_MS >= gps_age_ms));
+    vofa_data[4]  = (float)gps.origin_valid;
+    vofa_data[5]  = gps.local_x_m;
+    vofa_data[6]  = gps.local_y_m;
+    vofa_data[7]  = (float)gps.satellite_count;
+    vofa_data[8]  = gps.hdop;
+    vofa_data[9]  = (float)gps_age_ms;
+    vofa_data[10] = gps.speed_mps;
+    vofa_data[11] = gps.course_deg;
+    vofa_data[12] = gps.position_sigma_m;
+    vofa_data[13] = (float)gps.fix_quality;
+    vofa_data[14] = (float)gps.checksum_error_count;
+    vofa_data[15] = (float)gps.timeout_count;
+    vofa_data[16] = (float)app_scheduler_get_missed_tick_count();
+    vofa_data[17] = (float)app_scheduler_get_max_gap_ms();
+    vofa_data[18] = (float)(wheel->online && wheel->left_online && wheel->right_online);
+    vofa_data[19] = (float)rpm_diag->mode;
+    telemetry_frame_sequence++;
+#elif APP_TELEMETRY_BALANCE_ENABLE
     balance = control_balance_get_diag();
     leg = control_leg_get_diag();
     imu = sensor_imu_get_state();

@@ -60,6 +60,7 @@ typedef struct
     uint32 acquire_bits;
     uint32 state_enter_ms;
     uint32 last_frame_ms;
+    uint32 last_observation_sequence;
     float pass_start_odometry_m;
     float previous_error;
     float previous_turn_dps;

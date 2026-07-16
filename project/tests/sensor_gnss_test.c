@@ -102,6 +102,17 @@ static void emit_rmc(uint8 state, double latitude, double longitude)
     sensor_gnss_service(now_ms);
 }
 
+static void queue_rmc(uint8 state, double latitude, double longitude)
+{
+    pending_event.sentence = MOCK_SENTENCE_RMC;
+    pending_event.state = state;
+    pending_event.latitude = latitude;
+    pending_event.longitude = longitude;
+    pending_event.speed = 36.0F;
+    pending_event.direction = 123.0F;
+    gnss_flag = 1U;
+}
+
 static void emit_gga(uint8 fix_quality, uint8 satellite_used, float hdop)
 {
     pending_event.sentence = MOCK_SENTENCE_GGA;
@@ -196,9 +207,72 @@ static void test_timeout_publishes_invalid_copy_and_resets_recovery(void)
     sensor_gnss_service(now_ms + 100U);
     CHECK(0U == sensor_gnss_take_snapshot(&timeout_snapshot));
 
-    snapshot = emit_usable_fix(30.0, 120.0);
+    emit_rmc(1U, 30.0, 120.0);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+    emit_gga(1U, SENSOR_GNSS_MIN_SATELLITES, 1.0F);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+    emit_rmc(1U, 30.0, 120.0);
+    CHECK(0U != sensor_gnss_take_snapshot(&snapshot));
     CHECK(0U == snapshot.fix_valid);
     CHECK(1U == snapshot.timeout_count);
+}
+
+static void test_timeout_discards_a_pre_timeout_partial_pair(void)
+{
+    gnss_snapshot_struct snapshot;
+    uint32 measurement_timestamp;
+    uint8 index;
+
+    reset_sensor();
+    snapshot = emit_usable_fix(30.0, 120.0);
+    measurement_timestamp = snapshot.timestamp_ms;
+
+    emit_rmc(1U, 30.1, 120.1);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+
+    now_ms = measurement_timestamp + GNSS_SNAPSHOT_MAX_AGE_MS + 1U;
+    sensor_gnss_service(now_ms);
+    CHECK(0U != sensor_gnss_take_snapshot(&snapshot));
+    CHECK(0U == snapshot.fix_valid);
+    CHECK(measurement_timestamp == snapshot.timestamp_ms);
+
+    emit_gga(1U, 10U, 1.0F);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+    emit_rmc(1U, 30.2, 120.2);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+    emit_gga(1U, 10U, 1.0F);
+    CHECK(0U != sensor_gnss_take_snapshot(&snapshot));
+    CHECK(0U == snapshot.fix_valid);
+
+    for(index = 2U; index <= SENSOR_GNSS_RECOVERY_FIX_COUNT; index++)
+    {
+        snapshot = emit_usable_fix(30.2, 120.2);
+        CHECK(((index == SENSOR_GNSS_RECOVERY_FIX_COUNT) ? 1U : 0U) ==
+              snapshot.fix_valid);
+    }
+}
+
+static void test_timeout_discards_a_buffered_sentence_parsed_during_timeout(void)
+{
+    gnss_snapshot_struct snapshot;
+    uint32 measurement_timestamp;
+
+    reset_sensor();
+    snapshot = emit_usable_fix(30.0, 120.0);
+    measurement_timestamp = snapshot.timestamp_ms;
+
+    queue_rmc(1U, 30.1, 120.1);
+    now_ms = measurement_timestamp + GNSS_SNAPSHOT_MAX_AGE_MS + 1U;
+    sensor_gnss_service(now_ms);
+    CHECK(0U != sensor_gnss_take_snapshot(&snapshot));
+    CHECK(0U == snapshot.fix_valid);
+    CHECK(measurement_timestamp == snapshot.timestamp_ms);
+
+    emit_gga(1U, 10U, 1.0F);
+    CHECK(0U == sensor_gnss_take_snapshot(&snapshot));
+    emit_rmc(1U, 30.2, 120.2);
+    CHECK(0U != sensor_gnss_take_snapshot(&snapshot));
+    CHECK(0U == snapshot.fix_valid);
 }
 
 static void test_quality_thresholds_reset_recovery(void)
@@ -277,6 +351,8 @@ int main(void)
     test_requires_both_sentence_sequences();
     test_recovers_after_five_complete_usable_fixes();
     test_timeout_publishes_invalid_copy_and_resets_recovery();
+    test_timeout_discards_a_pre_timeout_partial_pair();
+    test_timeout_discards_a_buffered_sentence_parsed_during_timeout();
     test_quality_thresholds_reset_recovery();
     test_snapshot_is_copied();
     test_origin_uses_fifty_complete_usable_fixes();

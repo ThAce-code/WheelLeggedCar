@@ -13,6 +13,7 @@ static uint32 last_sample_ms;
 static uint8 new_snapshot;
 static uint8 consecutive_usable;
 static uint8 timeout_latched;
+static uint8 pair_reset_pending;
 static uint32 last_consumed_rmc_sequence;
 static uint32 last_consumed_gga_sequence;
 static uint16 origin_sample_count;
@@ -37,6 +38,7 @@ uint8 sensor_gnss_init(void)
     new_snapshot = 0U;
     consecutive_usable = 0U;
     timeout_latched = 0U;
+    pair_reset_pending = 0U;
     last_consumed_rmc_sequence = 0U;
     last_consumed_gga_sequence = 0U;
     origin_sample_count = 0U;
@@ -59,6 +61,7 @@ uint8 sensor_gnss_set_origin(double latitude_deg, double longitude_deg)
 
 void sensor_gnss_service(uint32 now_ms)
 {
+    uint8 parse_result;
     uint8 usable;
 
     if((0U != last_sample_ms) &&
@@ -72,6 +75,9 @@ void sensor_gnss_service(uint32 now_ms)
         latest.fix_valid = 0U;
         latest.timeout_count = timeout_count;
         new_snapshot = 1U;
+        last_consumed_rmc_sequence = gnss.rmc_sequence;
+        last_consumed_gga_sequence = gnss.gga_sequence;
+        pair_reset_pending = 1U;
     }
 
     if(0U == gnss_flag)
@@ -80,7 +86,20 @@ void sensor_gnss_service(uint32 now_ms)
     }
 
     gnss_flag = 0U;
-    if(0U != gnss_data_parse())
+    parse_result = gnss_data_parse();
+    if(0U != pair_reset_pending)
+    {
+        last_consumed_rmc_sequence = gnss.rmc_sequence;
+        last_consumed_gga_sequence = gnss.gga_sequence;
+        pair_reset_pending = 0U;
+        if(0U != parse_result)
+        {
+            checksum_error_count++;
+        }
+        return;
+    }
+
+    if(0U != parse_result)
     {
         checksum_error_count++;
         return;

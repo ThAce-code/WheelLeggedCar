@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import cv2
 import numpy as np
@@ -31,8 +32,23 @@ def draw_cross_circle(image, center, diameter):
              (0, 0, 0), thickness, cv2.LINE_AA)
 
 
+def draw_rotated_cross_circle(image, center, diameter, angle_deg):
+    cx, cy = (int(round(center[0])), int(round(center[1])))
+    radius = int(round(diameter / 2.0))
+    thickness = max(2, int(round(diameter * 0.08)))
+    arm = radius * 0.68
+    cv2.circle(image, (cx, cy), radius, (0, 0, 0), thickness,
+               lineType=cv2.LINE_AA)
+    for offset in (0.0, 90.0):
+        angle = np.deg2rad(angle_deg + offset)
+        direction = np.array([np.cos(angle), np.sin(angle)]) * arm
+        start = tuple(np.rint(np.array([cx, cy]) - direction).astype(int))
+        end = tuple(np.rint(np.array([cx, cy]) + direction).astype(int))
+        cv2.line(image, start, end, (0, 0, 0), thickness, cv2.LINE_AA)
+
+
 def render_pair(origin=(400.0, 280.0), wheel=(720.0, 600.0),
-                origin_diameter=70, wheel_diameter=50, angle_deg=4.0,
+                origin_diameter=50, wheel_diameter=70, angle_deg=4.0,
                 blur_sigma=0.8, scale=1.0, perspective=False,
                 gradient=False, clutter=False):
     image = np.full((900, 1200, 3), 255, dtype=np.uint8)
@@ -78,6 +94,59 @@ def render_three():
     return image
 
 
+def render_pair_with_small_decoy_pair():
+    image, expected = render_pair(angle_deg=0, blur_sigma=0)
+    draw_cross_circle(image, (150, 700), 18)
+    draw_cross_circle(image, (250, 700), 25)
+    return image, expected
+
+
+def render_low_contrast_obstructed_pair():
+    image = np.full((600, 900, 3), 235, dtype=np.uint8)
+    draw_cross_circle(image, (300, 250), 50)
+    draw_cross_circle(image, (600, 550), 70)
+    # Repaint the printed target in low contrast and cover a short arc, as
+    # happens when the linkage overlaps the marker in the live camera view.
+    image[:] = 235
+    for center, diameter in (((300, 250), 50), ((600, 550), 70)):
+        cx, cy = center
+        radius = diameter // 2
+        thickness = max(2, int(round(diameter * 0.08)))
+        arm = int(round(radius * 0.68))
+        color = (180, 180, 180)
+        cv2.circle(image, center, radius, color, thickness, cv2.LINE_AA)
+        cv2.line(image, (cx - arm, cy), (cx + arm, cy), color,
+                 thickness, cv2.LINE_AA)
+        cv2.line(image, (cx, cy - arm), (cx, cy + arm), color,
+                 thickness, cv2.LINE_AA)
+    cv2.line(image, (322, 250), (335, 250), (40, 40, 40), 8,
+             cv2.LINE_AA)
+    return image
+
+
+def render_pair_with_origin_contour_fragmentation():
+    image = np.full((600, 900, 3), 235, dtype=np.uint8)
+    for center, diameter in (((300, 250), 50), ((600, 550), 70)):
+        cx, cy = center
+        radius = diameter // 2
+        thickness = max(2, int(round(diameter * 0.08)))
+        arm = int(round(radius * 0.68))
+        color = (180, 180, 180)
+        cv2.circle(image, center, radius, color, thickness, cv2.LINE_AA)
+        cv2.line(image, (cx - arm, cy), (cx + arm, cy), color,
+                 thickness, cv2.LINE_AA)
+        cv2.line(image, (cx, cy - arm), (cx, cy + arm), color,
+                 thickness, cv2.LINE_AA)
+    for index in range(10):
+        angle = 2.0 * np.pi * index / 10.0
+        start = (round(300 + 20 * np.cos(angle)),
+                 round(250 + 20 * np.sin(angle)))
+        end = (round(300 + 34 * np.cos(angle + 0.35)),
+               round(250 + 34 * np.sin(angle + 0.35)))
+        cv2.line(image, start, end, (40, 40, 40), 2, cv2.LINE_AA)
+    return image
+
+
 class TestCrossCircleDetector(unittest.TestCase):
     def setUp(self):
         self.detector = CrossCircleDetector()
@@ -92,6 +161,15 @@ class TestCrossCircleDetector(unittest.TestCase):
             origin=(400.3, 280.6), wheel=(720.4, 600.2))
         self.assert_centers(self.detector.update(image), expected)
 
+    def test_detects_markers_rotated_thirty_degrees(self):
+        image = np.full((900, 1200, 3), 255, dtype=np.uint8)
+        draw_rotated_cross_circle(image, (400, 280), 50, 30.0)
+        draw_rotated_cross_circle(image, (720, 600), 70, 30.0)
+        image = cv2.GaussianBlur(image, (0, 0), 0.8)
+        expected = {"origin": np.array([400.0, 280.0]),
+                    "wheel": np.array([720.0, 600.0])}
+        self.assert_centers(self.detector.update(image), expected)
+
     def test_detects_across_scale(self):
         image, expected = render_pair(scale=1.35, angle_deg=-7.0)
         self.assert_centers(self.detector.update(image), expected)
@@ -102,23 +180,123 @@ class TestCrossCircleDetector(unittest.TestCase):
             blur_sigma=1.2, clutter=True)
         self.assert_centers(self.detector.update(image), expected)
 
-    def test_assigns_larger_marker_to_origin(self):
+    def test_assigns_larger_marker_to_wheel(self):
         roles = self.detector.update(render_pair()[0])
-        self.assertGreater(roles.origin.diameter_px, roles.wheel.diameter_px)
+        self.assertGreater(roles.wheel.diameter_px, roles.origin.diameter_px)
 
-    def test_rejects_invalid_candidate_counts(self):
+    def test_rejects_missing_candidate(self):
         self.assertEqual(self.detector.update(render_one()).status, "MISSING")
+
+    def test_selects_unique_size_ratio_pair_from_unrelated_candidate(self):
         self.detector.reset()
-        self.assertEqual(self.detector.update(render_three()).status, "AMBIGUOUS")
+        first = self.detector.update(render_three())
+        second = self.detector.update(render_three())
+        self.assertEqual(first.status, "VALID")
+        self.assertEqual(second.status, "VALID")
+        self.assertAlmostEqual(second.wheel.diameter_px,
+                               first.wheel.diameter_px, places=3)
+
+    def test_prefers_full_size_pair_over_small_ratio_matched_decoys(self):
+        image, expected = render_pair_with_small_decoy_pair()
+        self.assert_centers(self.detector.update(image), expected)
+
+        decoy_origin = self.make_candidate((100.0, 700.0), 18.0, 0.9)
+        decoy_wheel = self.make_candidate((200.0, 700.0), 25.2, 0.9)
+        real_origin = self.make_candidate((400.0, 280.0), 50.0, 0.8)
+        real_wheel = self.make_candidate((720.0, 600.0), 70.0, 0.8)
+        self.detector.reset()
+        with mock.patch.object(
+                self.detector, "detect",
+                return_value=(decoy_origin, decoy_wheel,
+                              real_origin, real_wheel)):
+            roles = self.detector.update(image)
+        self.assertEqual(roles.status, "VALID")
+        self.assertEqual(roles.origin.center, real_origin.center)
+        self.assertEqual(roles.wheel.center, real_wheel.center)
+
+    def test_prefers_higher_confidence_wheel_at_similar_scale(self):
+        origin = self.make_candidate((400.0, 280.0), 50.0, 0.8)
+        wheel = self.make_candidate((720.0, 600.0), 70.0, 0.9)
+        decoy = self.make_candidate((950.0, 700.0), 71.0, 0.65)
+        with mock.patch.object(
+                self.detector, "detect", return_value=(origin, wheel, decoy)):
+            roles = self.detector.update(np.zeros((4, 4), dtype=np.uint8))
+        self.assertEqual(roles.status, "VALID")
+        self.assertEqual(roles.origin.center, origin.center)
+        self.assertEqual(roles.wheel.center, wheel.center)
+
+    def test_pair_validator_rejects_physical_outlier_before_role_lock(self):
+        actual_origin = self.make_candidate((686.7, 425.4), 30.1, 0.68)
+        false_origin = self.make_candidate((765.5, 250.7), 28.7, 0.72)
+        wheel = self.make_candidate((803.4, 614.3), 41.5, 0.90)
+
+        def inside_calibrated_range(origin, candidate_wheel):
+            return origin is actual_origin and candidate_wheel is wheel
+
+        with mock.patch.object(
+                self.detector, "detect",
+                return_value=(false_origin, actual_origin, wheel)):
+            roles = self.detector.update(
+                np.zeros((4, 4), dtype=np.uint8),
+                pair_validator=inside_calibrated_range)
+
+        self.assertEqual(roles.status, "VALID")
+        self.assertEqual(roles.origin.center, actual_origin.center)
+        self.assertEqual(roles.wheel.center, wheel.center)
+        np.testing.assert_allclose(
+            self.detector.locked_origin_center, actual_origin.center)
+
+    def test_rejects_pair_when_larger_wheel_marker_is_not_below_origin(self):
+        origin = self.make_candidate((400.0, 400.0), 50.0, 0.9)
+        wheel_above = self.make_candidate((430.0, 300.0), 70.0, 0.9)
+        with mock.patch.object(
+                self.detector, "detect",
+                return_value=(origin, wheel_above)):
+            roles = self.detector.update(np.zeros((4, 4), dtype=np.uint8))
+        self.assertEqual(roles.status, "AMBIGUOUS")
+
+    def test_rejects_nearly_horizontal_marker_pair(self):
+        origin = self.make_candidate((400.0, 400.0), 50.0, 0.9)
+        wheel_sideways = self.make_candidate((700.0, 450.0), 70.0, 0.9)
+        with mock.patch.object(
+                self.detector, "detect",
+                return_value=(origin, wheel_sideways)):
+            roles = self.detector.update(np.zeros((4, 4), dtype=np.uint8))
+        self.assertEqual(roles.status, "AMBIGUOUS")
+
+    def test_accepts_strong_pattern_candidate_just_below_confidence_cutoff(self):
+        origin = self.make_candidate((400.0, 280.0), 50.0, 0.64)
+        wheel = self.make_candidate((720.0, 600.0), 70.0, 0.8)
+        with mock.patch.object(
+                self.detector, "detect", return_value=(origin, wheel)):
+            roles = self.detector.update(np.zeros((4, 4), dtype=np.uint8))
+        self.assertEqual(roles.status, "VALID")
+
+    def test_fragmented_shape_requires_strong_ring_and_cross(self):
+        self.assertTrue(self.detector._shape_is_credible(
+            aspect=1.01, circularity=0.01, ring_score=0.91,
+            cross_score=0.84))
+        self.assertFalse(self.detector._shape_is_credible(
+            aspect=1.01, circularity=0.01, ring_score=0.50,
+            cross_score=0.84))
+
+    def test_detects_low_contrast_pair_with_partly_obstructed_ring(self):
+        roles = self.detector.update(render_low_contrast_obstructed_pair())
+        self.assertEqual(roles.status, "VALID")
+
+    def test_detects_pair_when_linkage_fragments_origin_contour(self):
+        roles = self.detector.update(
+            render_pair_with_origin_contour_fragmentation())
+        self.assertEqual(roles.status, "VALID")
 
     def test_rejects_wrong_size_ratio(self):
-        image, _ = render_pair(origin_diameter=60, wheel_diameter=55)
+        image, _ = render_pair(origin_diameter=55, wheel_diameter=60)
         self.assertEqual(self.detector.update(image).status, "AMBIGUOUS")
 
     def test_locked_wrong_ratio_is_ambiguous_and_preserves_lock(self):
         self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
         locked_center = self.detector.locked_origin_center
-        image, _ = render_pair(origin_diameter=60, wheel_diameter=55)
+        image, _ = render_pair(origin_diameter=55, wheel_diameter=60)
         self.assertEqual(self.detector.update(image).status, "AMBIGUOUS")
         np.testing.assert_allclose(self.detector.locked_origin_center, locked_center)
 
@@ -126,7 +304,7 @@ class TestCrossCircleDetector(unittest.TestCase):
         self.assertEqual(self.detector.update(render_pair()[0]).status, "VALID")
         locked_center = self.detector.locked_origin_center
         moved, _ = render_pair(origin=(400, 280), wheel=(720, 600),
-                               origin_diameter=50, wheel_diameter=70,
+                               origin_diameter=70, wheel_diameter=50,
                                angle_deg=4.0)
         roles = self.detector.update(moved)
         self.assertEqual(roles.status, "AMBIGUOUS")
@@ -173,6 +351,21 @@ class TestCrossCircleDetector(unittest.TestCase):
         roles = self.detector.update(render_pair()[0])
         self.assertEqual(roles.origin.assigned_role, "origin")
         self.assertEqual(roles.wheel.assigned_role, "wheel")
+
+    def test_projection_center_ignores_off_axis_peak_for_rotated_cross(self):
+        binary = np.zeros((101, 101), dtype=np.uint8)
+        center = np.array([50.0, 50.0])
+        angle = np.deg2rad(30.0)
+        for axis_angle in (angle, angle + np.pi * 0.5):
+            direction = np.array(
+                [np.cos(axis_angle), np.sin(axis_angle)]) * 18.0
+            start = tuple(np.rint(center - direction).astype(int))
+            end = tuple(np.rint(center + direction).astype(int))
+            cv2.line(binary, start, end, 255, 3, cv2.LINE_AA)
+        cv2.line(binary, (60, 44), (60, 56), 255, 2, cv2.LINE_AA)
+        projected = self.detector._projection_center(
+            binary, center[0], center[1], 25.0)
+        np.testing.assert_allclose(projected, center, atol=2.0)
 
     @staticmethod
     def make_candidate(center, diameter, confidence):

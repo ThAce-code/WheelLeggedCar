@@ -157,30 +157,30 @@ function Read-MatchingFrame {
 # ── Predefined calibration point sets ──
 $DefaultPoints = @(
     # (a0, a1, a2, a3, label)
-    # Mid-height, center
-    ,(90, 90, 90, 90, "mid_center")
-    # Low height
-    ,(80, 80, 80, 80, "low_center")
-    # High height
-    ,(100, 100, 100, 100, "high_center")
-    # Low with slight forward lean
-    ,(82, 82, 78, 78, "low_fwd")
-    # Low with slight backward lean
-    ,(78, 78, 82, 82, "low_bwd")
-    # Mid with slight forward lean
-    ,(92, 92, 88, 88, "mid_fwd")
-    # Mid with slight backward lean
-    ,(88, 88, 92, 92, "mid_bwd")
-    # High with slight forward lean
-    ,(102, 102, 98, 98, "high_fwd")
-    # High with slight backward lean
-    ,(98, 98, 102, 102, "high_bwd")
-    # Left-right differential low
-    ,(78, 82, 78, 82, "low_left")
-    ,(82, 78, 82, 78, "low_right")
-    # Mid differential
-    ,(88, 92, 88, 92, "mid_left")
-    ,(92, 88, 92, 88, "mid_right")
+    # Camera measures the servo0/servo2 side. Keep servo1/servo3 neutral.
+    ,(90, 90, 90, 90, "ref_start")
+    # Verified complementary sweep, with a mid reference to limit long jumps.
+    ,(80, 90, 100, 90, "differential_80_100")
+    ,(70, 90, 110, 90, "differential_70_110")
+    ,(90, 90, 90, 90, "ref_mid")
+    ,(100, 90, 80, 90, "differential_100_80")
+    ,(110, 90, 70, 90, "differential_110_70")
+    ,(120, 90, 60, 90, "differential_120_60")
+    # Walk into the expanded common-mode region in bounded increments.
+    ,(120, 90, 80, 90, "asymmetric_120_80")
+    ,(120, 90, 100, 90, "asymmetric_120_100")
+    ,(120, 90, 110, 90, "asymmetric_120_110")
+    ,(120, 90, 120, 90, "common_120")
+    ,(110, 90, 120, 90, "asymmetric_110_120")
+    ,(100, 90, 120, 90, "asymmetric_100_120")
+    ,(100, 90, 110, 90, "asymmetric_100_110")
+    ,(110, 90, 110, 90, "common_110")
+    ,(110, 90, 100, 90, "asymmetric_110_100")
+    ,(100, 90, 100, 90, "common_100")
+    ,(90, 90, 100, 90, "asymmetric_90_100")
+    ,(80, 90, 80, 90, "common_80")
+    # Repeat reference for camera/marker/mechanism drift detection.
+    ,(90, 90, 90, 90, "ref_end")
 )
 
 # ── Output file ──

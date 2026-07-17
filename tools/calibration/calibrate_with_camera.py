@@ -193,19 +193,26 @@ class RobotGeometry:
 # =======================================================================
 
 DEFAULT_POSES = [
-    (90, 90, 90, 90, "mid_center"),
-    (80, 80, 80, 80, "low_center"),
-    (100, 100, 100, 100, "high_center"),
-    (82, 82, 78, 78, "low_fwd"),
-    (78, 78, 82, 82, "low_bwd"),
-    (92, 92, 88, 88, "mid_fwd"),
-    (88, 88, 92, 92, "mid_bwd"),
-    (102, 102, 98, 98, "high_fwd"),
-    (98, 98, 102, 102, "high_bwd"),
-    (78, 82, 78, 82, "low_left"),
-    (82, 78, 82, 78, "low_right"),
-    (88, 92, 88, 92, "mid_left"),
-    (92, 88, 92, 88, "mid_right"),
+    (90, 90, 90, 90, "ref_start"),
+    (80, 90, 100, 90, "differential_80_100"),
+    (70, 90, 110, 90, "differential_70_110"),
+    (90, 90, 90, 90, "ref_mid"),
+    (100, 90, 80, 90, "differential_100_80"),
+    (110, 90, 70, 90, "differential_110_70"),
+    (120, 90, 60, 90, "differential_120_60"),
+    (120, 90, 80, 90, "asymmetric_120_80"),
+    (120, 90, 100, 90, "asymmetric_120_100"),
+    (120, 90, 110, 90, "asymmetric_120_110"),
+    (120, 90, 120, 90, "common_120"),
+    (110, 90, 120, 90, "asymmetric_110_120"),
+    (100, 90, 120, 90, "asymmetric_100_120"),
+    (100, 90, 110, 90, "asymmetric_100_110"),
+    (110, 90, 110, 90, "common_110"),
+    (110, 90, 100, 90, "asymmetric_110_100"),
+    (100, 90, 100, 90, "common_100"),
+    (90, 90, 100, 90, "asymmetric_90_100"),
+    (80, 90, 80, 90, "common_80"),
+    (90, 90, 90, 90, "ref_end"),
 ]
 
 
@@ -219,6 +226,13 @@ class CrossCirclePoseState:
             return False
         self.pose_index += 1
         return True
+
+
+def _cross_circle_samples_complete(samples, poses) -> bool:
+    if len(samples) != len(poses):
+        return False
+    return all(sample.get("label") == pose[4]
+               for sample, pose in zip(samples, poses))
 
 
 def _build_cross_circle_ik_row(sample_id: int, pose,
@@ -310,6 +324,9 @@ def _run_cross_circle_ik_loop(source, tracker, state: CrossCirclePoseState,
             printer(
                 f"[{pose[4]}] X={row['measured_x_mm']} "
                 f"Y={row['measured_y_mm']} mm")
+            if state.pose_index >= len(state.poses):
+                printer("All calibration poses captured; saving automatically")
+                break
     return samples
 
 
@@ -334,13 +351,16 @@ def manual_measure_cross_circle(args) -> None:
         source.close()
         cv2.destroyAllWindows()
 
-    if samples:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        with args.output.open("w", newline="", encoding="utf-8") as stream:
-            writer = csv.DictWriter(stream, fieldnames=_CROSS_CIRCLE_IK_FIELDS)
-            writer.writeheader()
-            writer.writerows(samples)
-        print(f"\nSaved {len(samples)} samples -> {args.output}")
+    if not _cross_circle_samples_complete(samples, DEFAULT_POSES):
+        print(f"\nIncomplete capture: {len(samples)}/{len(DEFAULT_POSES)} poses. "
+              "CSV not saved.")
+        return
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with args.output.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=_CROSS_CIRCLE_IK_FIELDS)
+        writer.writeheader()
+        writer.writerows(samples)
+    print(f"\nSaved {len(samples)} samples -> {args.output}")
 
 
 # =======================================================================

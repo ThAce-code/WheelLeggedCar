@@ -215,6 +215,11 @@ Assert-Contains "tools/calib_ik_servo.ps1" "Telemetry did not match this LIK com
 Assert-Contains "tools/calib_ik_servo.ps1" "telemetry_match" "Calibration CSV must record whether telemetry matched the commanded LIK angles."
 Assert-NotContains "tools/calib_ik_servo.ps1" "ToleranceDeg" "Telemetry confirmation must not allow a degree tolerance."
 Assert-Contains "tools/calib_ik_servo.ps1" '\$sampleId, \$label,\s*\$a0, \$a1, \$a2, \$a3,' "CSV command fields must record canonical transmitted command values."
+Assert-Contains "tools/calib_ik_servo.ps1" '\(70, 90, 110, 90, "differential_70_110"\)' "Default calibration must include the verified differential start pose."
+Assert-Contains "tools/calib_ik_servo.ps1" '\(120, 90, 60, 90, "differential_120_60"\)' "Default calibration must include the verified differential end pose."
+Assert-Contains "tools/calib_ik_servo.ps1" '\(110, 90, 120, 90, "asymmetric_110_120"\)' "Default calibration must include asymmetric visible-leg excitation."
+Assert-Contains "tools/calib_ik_servo.ps1" '\(120, 90, 120, 90, "common_120"\)' "Default calibration must include the expanded horizontal endpoint."
+Assert-Contains "tools/calib_ik_servo.ps1" '\(90, 90, 90, 90, "ref_end"\)' "Default calibration must repeat the reference pose for drift detection."
 Assert-Contains "tools/fit_leg_ik_calibration.py" '\("cmd_a0_deg", "servo0_output_deg", "servo0_deg"\)' "Calibration fit must prefer commanded LIK angles over stale IK_CALIB telemetry."
 
 Assert-Contains "docs/leg-height-phase1-hardware-test.md" "\| Gate \| Build SHA \| Height start/end \(mm\) \| Safe-pose measured height \(mm\) \| Max pitch \(deg\) \| Max wheel RPM \| IK margin min \| IK faults \| Safety trips \| Result \| Notes \|" "Hardware record must contain the required gate table."

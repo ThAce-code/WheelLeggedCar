@@ -15,6 +15,7 @@ if str(CALIBRATION_DIR) not in sys.path:
     sys.path.insert(0, str(CALIBRATION_DIR))
 
 from cross_circle_detector import CrossCircleMeasurement  # noqa: E402
+import calibrate_with_camera as calibration_workflow  # noqa: E402
 from calibrate_with_camera import (  # noqa: E402
     DEFAULT_POSES,
     CrossCirclePoseState,
@@ -86,11 +87,13 @@ class FakeCv:
 
     def __init__(self, keys):
         self.keys = deque(keys)
+        self.wait_count = 0
         self.destroyed = False
         self.saved = []
 
     def waitKey(self, delay):
         self.delay = delay
+        self.wait_count += 1
         return self.keys.popleft() if self.keys else ord("q")
 
     def destroyAllWindows(self):
@@ -118,6 +121,71 @@ class FakeCv:
 
 
 class TestCalibrateWithCrossCircle(unittest.TestCase):
+    def test_sample_set_requires_every_pose_in_order(self):
+        validator = getattr(
+            calibration_workflow, "_cross_circle_samples_complete", None)
+        self.assertIsNotNone(validator)
+        complete = [{"label": pose[4]} for pose in DEFAULT_POSES]
+        self.assertTrue(validator(complete, DEFAULT_POSES))
+        self.assertFalse(validator(
+            complete[:-1], DEFAULT_POSES))
+        wrong_order = list(complete)
+        wrong_order[0], wrong_order[1] = wrong_order[1], wrong_order[0]
+        self.assertFalse(validator(
+            wrong_order, DEFAULT_POSES))
+
+    def test_final_pose_capture_exits_without_requiring_q(self):
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        tracker = FakeTracker(valid_frames=15)
+        state = CrossCirclePoseState([(90, 90, 90, 90, "ref_end")])
+        fake_cv = FakeCv([ord(" ")])
+        rows = _run_cross_circle_ik_loop(
+            FakeSource([frame]), tracker, state, Path("snapshots"),
+            cv_module=fake_cv)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(fake_cv.wait_count, 1)
+
+    def test_default_poses_cover_verified_visible_leg_band(self):
+        expected = [
+            (90, 90, 90, 90, "ref_start"),
+            (80, 90, 100, 90, "differential_80_100"),
+            (70, 90, 110, 90, "differential_70_110"),
+            (90, 90, 90, 90, "ref_mid"),
+            (100, 90, 80, 90, "differential_100_80"),
+            (110, 90, 70, 90, "differential_110_70"),
+            (120, 90, 60, 90, "differential_120_60"),
+            (120, 90, 80, 90, "asymmetric_120_80"),
+            (120, 90, 100, 90, "asymmetric_120_100"),
+            (120, 90, 110, 90, "asymmetric_120_110"),
+            (120, 90, 120, 90, "common_120"),
+            (110, 90, 120, 90, "asymmetric_110_120"),
+            (100, 90, 120, 90, "asymmetric_100_120"),
+            (100, 90, 110, 90, "asymmetric_100_110"),
+            (110, 90, 110, 90, "common_110"),
+            (110, 90, 100, 90, "asymmetric_110_100"),
+            (100, 90, 100, 90, "common_100"),
+            (90, 90, 100, 90, "asymmetric_90_100"),
+            (80, 90, 80, 90, "common_80"),
+            (90, 90, 90, 90, "ref_end"),
+        ]
+        self.assertEqual(DEFAULT_POSES, expected)
+        self.assertTrue(all(pose[1] == 90 and pose[3] == 90
+                            for pose in DEFAULT_POSES))
+        visible_points = np.array([(pose[0], pose[2])
+                                   for pose in DEFAULT_POSES], dtype=float)
+        self.assertEqual(np.linalg.matrix_rank(
+            visible_points - np.mean(visible_points, axis=0)), 2)
+        adjacent_steps = np.linalg.norm(np.diff(visible_points, axis=0), axis=1)
+        self.assertLessEqual(float(np.max(adjacent_steps)), 30.0)
+
+    def test_python_and_powershell_default_poses_match(self):
+        powershell = (CALIBRATION_DIR.parent / "calib_ik_servo.ps1").read_text(
+            encoding="utf-8")
+        for a0, a1, a2, a3, label in DEFAULT_POSES:
+            with self.subTest(label=label):
+                self.assertIn(
+                    f'({a0}, {a1}, {a2}, {a3}, "{label}")', powershell)
+
     def test_ik_parser_accepts_cross_circle_ffmpeg(self):
         args = build_parser().parse_args([
             "--marker-type", "cross-circle", "--ffmpeg"])

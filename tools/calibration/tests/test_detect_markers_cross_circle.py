@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
 from collections import deque
 from pathlib import Path
@@ -59,6 +60,7 @@ class FakeTracker:
         self.process_count = 0
         self.reset_count = 0
         self.capture_count = 0
+        self.clear_history_count = 0
         self.current_sample_accepted = True
         self.statuses = deque(statuses or [])
         self.detector = SimpleNamespace(
@@ -82,6 +84,10 @@ class FakeTracker:
         self.reset_count += 1
         self.valid_frame_count = 0
 
+    def clear_history(self):
+        self.clear_history_count += 1
+        self.valid_frame_count = 0
+
 
 class FakeCv:
     FONT_HERSHEY_SIMPLEX = 0
@@ -90,10 +96,12 @@ class FakeCv:
         self.keys = deque(keys)
         self.wait_count = 0
         self.destroyed = False
+        self.wait_event = threading.Event()
 
     def waitKey(self, delay):
         self.assert_delay = delay
         self.wait_count += 1
+        self.wait_event.set()
         return self.keys.popleft() if self.keys else ord("q")
 
     def destroyAllWindows(self):
@@ -113,6 +121,9 @@ class FakeCv:
 
 
 class TestDetectMarkersCrossCircle(unittest.TestCase):
+    @staticmethod
+    def run_loop(*args, **kwargs):
+        return _run_cross_circle_loop(*args, **kwargs)
     def test_parser_accepts_cross_circle_ffmpeg_mode(self):
         args = build_parser().parse_args([
             "--marker-type", "cross-circle", "--ffmpeg",
@@ -120,6 +131,11 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
         self.assertEqual(args.marker_type, "cross-circle")
         self.assertTrue(args.ffmpeg)
         self.assertEqual(args.ffmpeg_name, "USB Camera")
+
+    def test_parser_defaults_to_calibrated_cross_circle_envelope(self):
+        args = build_parser().parse_args(["--marker-type", "cross-circle"])
+        self.assertEqual(args.cross_circle_x_range, [-50.0, -10.0])
+        self.assertEqual(args.cross_circle_y_range, [25.0, 95.0])
 
     def test_parser_defaults_to_aruco(self):
         self.assertEqual(build_parser().parse_args([]).marker_type, "aruco")
@@ -185,7 +201,7 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
 
     def test_no_frame_still_pumps_events_and_uses_short_timeout(self):
         source, tracker, cv = FakeSource([None]), FakeTracker(), FakeCv([ord("q")])
-        _run_cross_circle_loop(source, tracker, None, cv_module=cv)
+        self.run_loop(source, tracker, None, cv_module=cv)
         self.assertEqual(source.timeouts, [0.01])
         self.assertEqual(cv.wait_count, 1)
         self.assertEqual(tracker.process_count, 0)
@@ -194,7 +210,7 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
         source = FakeSource([None, None])
         tracker = FakeTracker(valid_frames=14)
         messages = []
-        _run_cross_circle_loop(
+        self.run_loop(
             source, tracker, None, cv_module=FakeCv([ord(" "), ord("q")]),
             printer=messages.append)
         self.assertEqual(tracker.capture_count, 0)
@@ -203,15 +219,32 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
     def test_space_captures_at_fifteen_valid_frames(self):
         source = FakeSource([np.zeros((4, 4, 3), dtype=np.uint8), None])
         tracker = FakeTracker(valid_frames=15)
-        measurements = _run_cross_circle_loop(
+        measurements = self.run_loop(
             source, tracker, None, cv_module=FakeCv([ord(" "), ord("q")]))
         self.assertEqual(tracker.capture_count, 1)
+        self.assertEqual(tracker.clear_history_count, 1)
         self.assertEqual(measurements[0]["label"], "meas_000")
+
+    def test_two_points_capture_without_manual_reset(self):
+        class RefillingTracker(FakeTracker):
+            def process(self, frame):
+                self.valid_frame_count = min(15, self.valid_frame_count + 1)
+                return super().process(frame)
+
+        frame = np.zeros((4, 4, 3), dtype=np.uint8)
+        tracker = RefillingTracker()
+        keys = [0] * 14 + [ord(" ")] + [0] * 14 + [ord(" "), ord("q")]
+        measurements = self.run_loop(
+            FakeSource([frame] * len(keys)), tracker, None,
+            cv_module=FakeCv(keys))
+        self.assertEqual([row["label"] for row in measurements],
+                         ["meas_000", "meas_001"])
+        self.assertEqual(tracker.clear_history_count, 2)
 
     def test_space_rejects_ambiguous_current_state_after_fifteen_frames(self):
         frame = np.zeros((4, 4, 3), dtype=np.uint8)
         tracker = FakeTracker(valid_frames=15, statuses=["AMBIGUOUS"])
-        measurements = _run_cross_circle_loop(
+        measurements = self.run_loop(
             FakeSource([frame, None]), tracker, None,
             cv_module=FakeCv([ord(" "), ord("q")]))
         self.assertEqual(measurements, [])
@@ -219,7 +252,7 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
 
     def test_space_rejects_when_current_iteration_has_no_frame(self):
         tracker = FakeTracker(valid_frames=15)
-        measurements = _run_cross_circle_loop(
+        measurements = self.run_loop(
             FakeSource([None, None]), tracker, None,
             cv_module=FakeCv([ord(" "), ord("q")]))
         self.assertEqual(measurements, [])
@@ -262,7 +295,7 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
             Detector(), plane, np.eye(3), np.zeros(4))
         frame = np.zeros((4, 4, 3), dtype=np.uint8)
         keys = [0] * 15 + [ord(" "), ord("q")]
-        measurements = _run_cross_circle_loop(
+        measurements = self.run_loop(
             FakeSource([frame] * 16 + [None]), tracker, None,
             cv_module=FakeCv(keys))
         self.assertEqual(tracker.valid_frame_count, 15)
@@ -271,16 +304,34 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
 
     def test_reset_key_resets_tracker(self):
         tracker = FakeTracker(valid_frames=10)
-        _run_cross_circle_loop(
+        self.run_loop(
             FakeSource([None, None]), tracker, None,
             cv_module=FakeCv([ord("r"), ord("q")]))
         self.assertEqual(tracker.reset_count, 1)
 
     def test_quit_always_closes_source_and_windows(self):
         source, cv = FakeSource([None]), FakeCv([ord("q")])
-        _run_cross_circle_loop(source, FakeTracker(), None, cv_module=cv)
+        self.run_loop(source, FakeTracker(), None, cv_module=cv)
         self.assertTrue(source.closed)
         self.assertTrue(cv.destroyed)
+
+    def test_detection_runs_on_gui_thread_to_avoid_highgui_deadlock(self):
+        caller_thread = threading.get_ident()
+
+        class ThreadRecordingTracker(FakeTracker):
+            def __init__(self):
+                super().__init__()
+                self.process_thread = None
+
+            def process(self, frame):
+                self.process_thread = threading.get_ident()
+                return super().process(frame)
+
+        tracker = ThreadRecordingTracker()
+        _run_cross_circle_loop(
+            FakeSource([np.zeros((4, 4, 3), dtype=np.uint8)]),
+            tracker, None, cv_module=FakeCv([ord("q")]))
+        self.assertEqual(tracker.process_thread, caller_thread)
 
     def test_camera_backend_mismatch_is_rejected_before_open(self):
         calib = SimpleNamespace(
@@ -309,6 +360,33 @@ class TestDetectMarkersCrossCircle(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "opened DSHOW"):
                 interactive_measure_cross_circle(args)
         self.assertTrue(source.closed)
+
+    def test_live_tracker_receives_physical_pair_envelope(self):
+        source = FakeSource([])
+        calib = SimpleNamespace(
+            camera_matrix=np.eye(3), dist_coeffs=np.zeros(4))
+        plane = SimpleNamespace(backend="ffmpeg-dshow")
+        args = build_parser().parse_args([
+            "--marker-type", "cross-circle", "--ffmpeg",
+            "--ffmpeg-name", "USB Camera"])
+        tracker = object()
+        with (mock.patch("detect_markers.CalibrationData.load",
+                         return_value=calib),
+              mock.patch("detect_markers.load_plane_calibration",
+                         return_value=plane),
+              mock.patch("detect_markers._validate_cross_circle_calibrations"),
+              mock.patch("detect_markers.open_capture_source",
+                         return_value=(source, "ffmpeg-dshow")),
+              mock.patch("detect_markers.CrossCircleDetector",
+                         return_value=object()),
+              mock.patch("detect_markers.CrossCircleMeasurementTracker",
+                         return_value=tracker) as tracker_factory,
+              mock.patch("detect_markers._run_cross_circle_loop")):
+            interactive_measure_cross_circle(args)
+
+        self.assertEqual(
+            tracker_factory.call_args.kwargs["relative_bounds_mm"],
+            (-50.0, -10.0, 25.0, 95.0))
 
     def test_tracker_setup_exception_closes_source(self):
         source = FakeSource([])

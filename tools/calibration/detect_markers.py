@@ -444,7 +444,7 @@ def _run_cross_circle_loop(
     cleanup: bool = True,
 ) -> List[dict]:
     measurements: List[dict] = []
-    printer("SPACE=capture  r=reset  s=save  q=quit")
+    printer("SPACE=capture point  r=reset  s=write CSV  q=quit")
     try:
         while True:
             frame = source.read(timeout_sec=0.01)
@@ -477,13 +477,17 @@ def _run_cross_circle_loop(
                     row = _cross_circle_csv_row(
                         captured, f"meas_{len(measurements):03d}")
                     measurements.append(row)
+                    tracker.clear_history()
                     printer(
-                        f"{row['label']}: X={row['x_mm']} Y={row['y_mm']} mm")
+                        f"{row['label']}: X={row['x_mm']} Y={row['y_mm']} mm; "
+                        "history cleared for next point")
             elif key == ord("s"):
                 if measurements:
                     _save_cross_circle_csv(measurements, out_csv)
                 else:
-                    printer("No captured measurements to save")
+                    printer(
+                        "No captured measurements: wait for history=15/15, "
+                        "press SPACE to capture, then press s to save")
     finally:
         if cleanup:
             source.close()
@@ -524,6 +528,11 @@ def interactive_measure_cross_circle(args) -> None:
     calib = CalibrationData.load(args.calib)
     plane = load_plane_calibration(args.plane_homography)
     _validate_cross_circle_calibrations(calib, plane, args)
+    x_min, x_max = args.cross_circle_x_range
+    y_min, y_max = args.cross_circle_y_range
+    if x_min >= x_max or y_min >= y_max:
+        raise ValueError("cross-circle measurement ranges require MIN_MM < MAX_MM")
+    relative_bounds_mm = (x_min, x_max, y_min, y_max)
 
     source, actual_backend = open_capture_source(
         args.camera, args.backend, args.width, args.height, args.fps,
@@ -534,7 +543,8 @@ def interactive_measure_cross_circle(args) -> None:
                 f"capture backend mismatch: opened {actual_backend}, "
                 f"plane calibration requires {plane.backend}")
         tracker = CrossCircleMeasurementTracker(
-            CrossCircleDetector(), plane, calib.camera_matrix, calib.dist_coeffs)
+            CrossCircleDetector(), plane, calib.camera_matrix,
+            calib.dist_coeffs, relative_bounds_mm=relative_bounds_mm)
         _run_cross_circle_loop(source, tracker, args.output, cleanup=False)
     finally:
         source.close()
@@ -557,6 +567,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plane-homography", type=Path, default=_DEFAULT_PLANE)
     parser.add_argument("--marker-type", choices=["aruco", "cross-circle"],
                         default="aruco")
+    parser.add_argument(
+        "--cross-circle-x-range", type=float, nargs=2,
+        default=[-50.0, -10.0], metavar=("MIN_MM", "MAX_MM"),
+        help="plausible wheel-center X range used to reject false marker pairs")
+    parser.add_argument(
+        "--cross-circle-y-range", type=float, nargs=2,
+        default=[25.0, 95.0], metavar=("MIN_MM", "MAX_MM"),
+        help="plausible wheel-center Y range used to reject false marker pairs")
     parser.add_argument("--marker-size", type=float, default=30.0)
     parser.add_argument("--image", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)

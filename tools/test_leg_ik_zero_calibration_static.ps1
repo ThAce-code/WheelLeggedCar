@@ -77,10 +77,10 @@ int main(void)
     {
         return 1;
     }
-    if((fabsf(reference_cmd[LEG_SERVO_FL] - leg_config_get_servo(LEG_SERVO_FL)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_FR] - leg_config_get_servo(LEG_SERVO_FR)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_RL] - leg_config_get_servo(LEG_SERVO_RL)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_RR] - leg_config_get_servo(LEG_SERVO_RR)->neutral_deg) > 0.001f))
+    if((fabsf(reference_cmd[LEG_SERVO_FL] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_FR] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_RL] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_RR] - 90.0f) > 0.001f))
     {
         return 2;
     }
@@ -132,6 +132,10 @@ function Test-PhysicalHullPoint {
 }
 
 Assert-Contains "project/code/leg_config.h" "ik_offset_deg" "Missing per-servo IK offset configuration."
+Assert-Contains "project/code/leg_config.c" '\{0,\s*90\.0f,\s*90\.0f' "FL safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{1,\s*90\.0f,\s*90\.0f' "FR safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{2,\s*90\.0f,\s*90\.0f' "RL safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{3,\s*90\.0f,\s*90\.0f' "RR safe and neutral must be literal 90 degrees."
 Assert-Contains "project/code/leg_config.c" '\.physical_reference_x_mm\s*=\s*-20\.766667f' "LIKREF physical X missing."
 Assert-Contains "project/code/leg_config.c" '\.physical_reference_y_mm\s*=\s*47\.356667f' "LIKREF physical Y missing."
 Assert-Contains "project/code/leg_config.h" "physical_workspace" "Missing calibrated physical IK workspace configuration."

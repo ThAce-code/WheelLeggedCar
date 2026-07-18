@@ -28,6 +28,8 @@ Require-Pattern $kinematicsSource 'cfg->beta_reference_deg' `
     "command FK must reconstruct beta from the calibrated reference"
 Require-Pattern $kinematicsSource 'leg_config_get_servo\(servo_a_index\)' `
     "command FK must use the per-servo logical direction"
+Require-Pattern $kinematicsHeader '(?s)BODY_WHEEL.*cross-circle.*\+X forward.*\+Y down.*millimetres.*command/model estimates.*not measured feedback' `
+    "public physical-coordinate contract comment missing"
 Require-Pattern $configHeader 'LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT\s*=\s*8' `
     "physical workspace must contain the fitted eight-vertex hull"
 Require-Pattern $configHeader 'physical_reference_x_mm' `
@@ -45,10 +47,28 @@ Require-Pattern $configSource '\.alpha_reference_deg\s*=\s*170\.536799f' `
     "fitted alpha reference missing"
 Require-Pattern $configSource '\.beta_reference_deg\s*=\s*-4\.081158f' `
     "fitted beta reference missing"
+Require-Pattern $configSource '\.model_reference_x_mm\s*=\s*22\.830129f' `
+    "fitted model reference X missing"
+Require-Pattern $configSource '\.model_reference_y_mm\s*=\s*46\.929213f' `
+    "fitted model reference Y missing"
 Require-Pattern $configSource '\.model_to_physical_scale\s*=\s*0\.955219899f' `
     "fitted uniform scale missing"
-Require-Pattern $configSource '\{-40\.620f,\s*47\.370f\}' `
-    "fitted physical hull is missing"
+Require-Pattern $configSource '\.model_to_physical_m00\s*=\s*-0\.996313812f' `
+    "fitted matrix m00 missing"
+Require-Pattern $configSource '\.model_to_physical_m01\s*=\s*0\.085783378f' `
+    "fitted matrix m01 missing"
+Require-Pattern $configSource '\.model_to_physical_m10\s*=\s*0\.085783378f' `
+    "fitted matrix m10 missing"
+Require-Pattern $configSource '\.model_to_physical_m11\s*=\s*0\.996313812f' `
+    "fitted matrix m11 missing"
+Require-Pattern $configSource '\{-40\.620f,\s*47\.370f\}' ` "physical hull vertex 0 missing"
+Require-Pattern $configSource '\{-30\.910f,\s*39\.630f\}' ` "physical hull vertex 1 missing"
+Require-Pattern $configSource '\{-20\.380f,\s*32\.170f\}' ` "physical hull vertex 2 missing"
+Require-Pattern $configSource '\{-15\.040f,\s*47\.600f\}' ` "physical hull vertex 3 missing"
+Require-Pattern $configSource '\{-22\.030f,\s*88\.490f\}' ` "physical hull vertex 4 missing"
+Require-Pattern $configSource '\{-31\.420f,\s*74\.120f\}' ` "physical hull vertex 5 missing"
+Require-Pattern $configSource '\{-37\.940f,\s*59\.340f\}' ` "physical hull vertex 6 missing"
+Require-Pattern $configSource '\{-39\.580f,\s*53\.010f\}' ` "physical hull vertex 7 missing"
 Require-Pattern $configSource '\.physical_workspace_inset_mm\s*=\s*2\.0f' `
     "physical hull must be inset by 2 mm"
 

@@ -50,6 +50,10 @@
 #define APP_SERVO_SETTLE_MS             (100U)
 #define APP_SERVO_SETTLE_TICKS          ((APP_SERVO_SETTLE_MS * APP_SERVO_PWM_FREQ_HZ + 999U) / 1000U)
 #define APP_SERVO_TEST_ENABLE           (0U)
+#define APP_SERVO0_PULSE_TRIM_US        (-11.111111f)
+#define APP_SERVO1_PULSE_TRIM_US        (0.0f)
+#define APP_SERVO2_PULSE_TRIM_US        (0.0f)
+#define APP_SERVO3_PULSE_TRIM_US        (0.0f)
 
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3
 #define APP_SERVO1_PWM_CH               TCPWM_CH12_P01_0

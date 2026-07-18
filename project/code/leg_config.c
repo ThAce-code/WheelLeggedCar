@@ -8,10 +8,10 @@
 static const leg_config_struct leg_config_default =
 {
     {
-        {0,  90.0f,  90.0f, 10.0f, 175.0f,  1.0f, 0.0f,  1.0f,  1.0f},
-        {1,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f,  1.0f, -1.0f},
-        {2,  90.0f,  90.0f, 10.0f, 175.0f,  1.0f, 0.0f, -1.0f,  1.0f},
-        {3,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f, -1.0f, -1.0f}
+        {0,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f,  1.0f,  1.0f},
+        {1,  90.0f,  90.0f, 10.0f, 175.0f,  1.0f, 0.0f,  1.0f, -1.0f},
+        {2,  90.0f,  90.0f, 10.0f, 175.0f, -1.0f, 0.0f, -1.0f,  1.0f},
+        {3,  90.0f,  90.0f, 10.0f, 175.0f,  1.0f, 0.0f, -1.0f, -1.0f}
     },
     {
         .l1_mm = 60.0f,   /* driven link (SolidWorks measured) */
@@ -19,22 +19,34 @@ static const leg_config_struct leg_config_default =
         .l3_mm = 90.0f,   /* passive link (SolidWorks measured) */
         .l4_mm = 60.0f,   /* driven link (SolidWorks measured) */
         .l5_mm = 37.0f,   /* servo-axis spacing (SolidWorks measured) */
-        .x_min_mm = -35.0f,
-        .x_max_mm = 35.0f,
-        .y_min_mm = 35.0f,
-        .y_max_mm = 150.0f,
-        .x_offset_mm = 0.0f,
-        .y_offset_mm = 0.0f,
-        .validate_x_min_mm = -35.0f,
-        .validate_x_max_mm = 35.0f,
-        .validate_y_min_mm = 35.0f,
-        .validate_y_max_mm = 140.0f,
-        .validate_horizontal_y_min_mm = 45.0f,
-        .validate_horizontal_y_max_mm = 75.0f,
-        .validate_vertical_x_min_mm = -15.0f,
-        .validate_vertical_x_max_mm = 15.0f,
-        .reference_x_mm = 0.0f,
-        .reference_y_mm = 55.0f,
+        /* Five-bar model-space bounds; physical LXY uses the hull below. */
+        .x_min_mm = 10.0f,
+        .x_max_mm = 50.0f,
+        .y_min_mm = 25.0f,
+        .y_max_mm = 100.0f,
+        .physical_reference_x_mm = -20.766667f,
+        .physical_reference_y_mm = 47.356667f,
+        .alpha_reference_deg = 170.536799f,
+        .beta_reference_deg = -4.081158f,
+        .model_reference_x_mm = 22.830129f,
+        .model_reference_y_mm = 46.929213f,
+        .model_to_physical_scale = 0.955219899f,
+        .model_to_physical_m00 = -0.996313812f,
+        .model_to_physical_m01 = 0.085783378f,
+        .model_to_physical_m10 = 0.085783378f,
+        .model_to_physical_m11 = 0.996313812f,
+        .physical_workspace =
+        {
+            {-40.620f, 47.370f},
+            {-30.910f, 39.630f},
+            {-20.380f, 32.170f},
+            {-15.040f, 47.600f},
+            {-22.030f, 88.490f},
+            {-31.420f, 74.120f},
+            {-37.940f, 59.340f},
+            {-39.580f, 53.010f}
+        },
+        .physical_workspace_inset_mm = 2.0f,
         .left_alpha_branch = LEG_IK_BRANCH_PLUS,
         .left_beta_branch = LEG_IK_BRANCH_MINUS,
         .right_alpha_branch = LEG_IK_BRANCH_PLUS,

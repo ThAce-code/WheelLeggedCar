@@ -401,7 +401,8 @@ typedef enum { APP_FALSE = 0, APP_TRUE = 1 } app_bool_enum;
 typedef enum { LEG_SERVO_FL = 0, LEG_SERVO_FR = 1, LEG_SERVO_RL = 2, LEG_SERVO_RR = 3, LEG_SERVO_COUNT = 4 } leg_servo_id_enum;
 typedef struct { uint8 servo_index; float safe_deg; float neutral_deg; float min_deg; float max_deg; float direction; float ik_offset_deg; float mount_x; float mount_y; } leg_servo_config_struct;
 typedef enum { LEG_IK_BRANCH_PLUS = 0, LEG_IK_BRANCH_MINUS = 1 } leg_ik_branch_enum;
-typedef struct { float l1_mm; float l2_mm; float l3_mm; float l4_mm; float l5_mm; float x_min_mm; float x_max_mm; float y_min_mm; float y_max_mm; float x_offset_mm; float y_offset_mm; float validate_x_min_mm; float validate_x_max_mm; float validate_y_min_mm; float validate_y_max_mm; float validate_horizontal_y_min_mm; float validate_horizontal_y_max_mm; float validate_vertical_x_min_mm; float validate_vertical_x_max_mm; float reference_x_mm; float reference_y_mm; leg_ik_branch_enum left_alpha_branch; leg_ik_branch_enum left_beta_branch; leg_ik_branch_enum right_alpha_branch; leg_ik_branch_enum right_beta_branch; } leg_kinematics_config_struct;
+typedef enum { LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT = 8 } leg_physical_workspace_constant_enum;
+typedef struct { float l1_mm; float l2_mm; float l3_mm; float l4_mm; float l5_mm; float x_min_mm; float x_max_mm; float y_min_mm; float y_max_mm; float physical_reference_x_mm; float physical_reference_y_mm; float alpha_reference_deg; float beta_reference_deg; float model_reference_x_mm; float model_reference_y_mm; float model_to_physical_scale; float model_to_physical_m00; float model_to_physical_m01; float model_to_physical_m10; float model_to_physical_m11; float physical_workspace[LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT][2]; float physical_workspace_inset_mm; leg_ik_branch_enum left_alpha_branch; leg_ik_branch_enum left_beta_branch; leg_ik_branch_enum right_alpha_branch; leg_ik_branch_enum right_beta_branch; } leg_kinematics_config_struct;
 typedef struct { float low_height_mm; float high_height_mm; float default_height_mm; float max_height_speed_mm_s; float max_height_accel_mm_s2; float max_height_jerk_mm_s3; float height_position_kp_s; float height_rate_kp_s; float height_settle_error_mm; uint32 height_settle_ms; uint32 fast_height_transition_ms; float ik_min_margin; float safe_support_height_mm; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_height_profile_struct;
 typedef struct { leg_servo_config_struct servo[LEG_SERVO_COUNT]; leg_kinematics_config_struct kinematics; leg_height_profile_struct height_profile; float height_min; float height_max; float pitch_limit; float roll_limit; } leg_config_struct;
 const leg_config_struct *leg_config_get(void);
@@ -438,36 +439,37 @@ static float wrapped_delta_deg(float current_deg, float previous_deg)
 
 static int check_side(uint8 right_side)
 {
-    int height;
+    int physical_y;
     leg_ik_result_struct previous = {0};
-    for(height = 35; height <= 80; height++)
+    const float physical_x = -20.766667f;
+    for(physical_y = 38; physical_y <= 69; physical_y++)
     {
         float x_mm;
         float y_mm;
         leg_ik_result_struct result;
-        if((APP_TRUE != leg_kinematics_solve(right_side, 0.0f, (float)height, &previous, &result)) ||
+        if((APP_TRUE != leg_kinematics_solve(right_side, physical_x, (float)physical_y, &previous, &result)) ||
            (APP_TRUE != result.valid))
         {
-            printf("IK rejected side %u height %d\\n", (unsigned int)right_side, height);
+            printf("IK rejected side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
             return 1;
         }
         if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
            (!isfinite(result.singularity_margin)) || (0.20f > result.singularity_margin))
         {
-            printf("IK margin/output invalid side %u height %d\\n", (unsigned int)right_side, height);
+            printf("IK margin/output invalid side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
             return 1;
         }
         if((APP_TRUE == previous.valid) &&
            ((8.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
             (8.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
         {
-            printf("IK discontinuity side %u height %d\\n", (unsigned int)right_side, height);
+            printf("IK discontinuity side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
             return 1;
         }
         if((APP_TRUE != leg_kinematics_forward(right_side, result.servo_deg[0], result.servo_deg[1], &x_mm, &y_mm)) ||
-           (0.5f < fabsf(x_mm)) || (0.5f < fabsf(y_mm - (float)height)))
+           (0.5f < fabsf(x_mm - physical_x)) || (0.5f < fabsf(y_mm - (float)physical_y)))
         {
-            printf("FK mismatch side %u height %d: %.3f, %.3f\\n", (unsigned int)right_side, height, x_mm, y_mm);
+            printf("FK mismatch side %u physical Y %d: %.3f, %.3f\\n", (unsigned int)right_side, physical_y, x_mm, y_mm);
             return 1;
         }
         previous = result;
@@ -477,46 +479,54 @@ static int check_side(uint8 right_side)
 
 int main(void)
 {
-    leg_ik_result_struct result = {0};
+    leg_ik_result_struct left_reference = {0};
+    leg_ik_result_struct right_reference = {0};
     const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
-    const float off_center_x_mm = -20.0f;
-    float degenerate_offset_mm;
-    float off_center_y_mm;
+    float servo_deg[LEG_SERVO_COUNT];
     float forward_x_mm;
     float forward_y_mm;
     if(0 == cfg)
     {
         return 1;
     }
-    degenerate_offset_mm = off_center_x_mm - cfg->l5_mm + cfg->l4_mm;
-    off_center_y_mm = sqrtf((cfg->l3_mm * cfg->l3_mm) -
-                            (degenerate_offset_mm * degenerate_offset_mm));
     if((0 != check_side(APP_FALSE)) || (0 != check_side(APP_TRUE)))
     {
         return 1;
     }
-    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, off_center_x_mm, off_center_y_mm, 0, &result)) ||
-       (APP_TRUE != result.valid) ||
-       (0.20f >= result.singularity_margin) ||
-       (!isfinite(result.servo_deg[0])) ||
-       (!isfinite(result.servo_deg[1])) ||
-       (APP_TRUE != leg_kinematics_forward(APP_FALSE, result.servo_deg[0], result.servo_deg[1],
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                         cfg->physical_reference_x_mm,
+                                         cfg->physical_reference_y_mm,
+                                         0, &left_reference)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                         cfg->physical_reference_x_mm,
+                                         cfg->physical_reference_y_mm,
+                                         0, &right_reference)) ||
+       (APP_TRUE != leg_kinematics_map_reference_pose(&left_reference,
+                                                       &right_reference,
+                                                       servo_deg)) ||
+       (0.01f < fabsf(servo_deg[0] - 90.0f)) ||
+       (0.01f < fabsf(servo_deg[1] - 90.0f)) ||
+       (0.01f < fabsf(servo_deg[2] - 90.0f)) ||
+       (0.01f < fabsf(servo_deg[3] - 90.0f)) ||
+       (APP_TRUE != leg_kinematics_forward(APP_FALSE,
+                                           left_reference.servo_deg[0],
+                                           left_reference.servo_deg[1],
                                            &forward_x_mm, &forward_y_mm)) ||
-       (0.5f < fabsf(forward_x_mm - off_center_x_mm)) ||
-       (0.5f < fabsf(forward_y_mm - off_center_y_mm)))
+       (0.5f < fabsf(forward_x_mm - cfg->physical_reference_x_mm)) ||
+       (0.5f < fabsf(forward_y_mm - cfg->physical_reference_y_mm)))
     {
-        printf("Off-center denominator-degenerate IK point rejected or incorrect: %.3f, %.3f, margin %.3f\\n",
-               result.servo_deg[0], result.servo_deg[1], result.singularity_margin);
+        printf("Physical reference equivalence failed: %.3f, %.3f\\n",
+               forward_x_mm, forward_y_mm);
         return 1;
     }
-    if(APP_TRUE == leg_kinematics_solve(APP_FALSE, 36.0f, 80.0f, 0, &result))
+    if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
     {
-        printf("Out-of-workspace point accepted\\n");
+        printf("Uncalibrated X=0 target accepted\\n");
         return 1;
     }
-    if(APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, 150.0f, 0, &result))
+    if(APP_TRUE == leg_kinematics_target_valid(-40.620f, 47.370f))
     {
-        printf("Tangent-circle point accepted\\n");
+        printf("Hull vertex accepted without the 2 mm inset\\n");
         return 1;
     }
     return 0;

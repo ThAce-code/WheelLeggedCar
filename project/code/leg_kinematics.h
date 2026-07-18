@@ -18,6 +18,7 @@ typedef struct
     uint8 valid;
 }leg_ik_result_struct;
 
+uint8 leg_kinematics_target_valid(float x_mm, float y_mm);
 uint8 leg_kinematics_solve(uint8 right_side,
                            float x_mm,
                            float y_mm,
@@ -28,6 +29,11 @@ uint8 leg_kinematics_forward(uint8 right_side,
                               float servo_b_deg,
                               float *x_mm,
                               float *y_mm);
+uint8 leg_kinematics_forward_command(uint8 right_side,
+                                      float servo_a_command_deg,
+                                      float servo_b_command_deg,
+                                      float *x_mm,
+                                      float *y_mm);
 uint8 leg_kinematics_map_reference_pose(const leg_ik_result_struct *left,
                                         const leg_ik_result_struct *right,
                                         float servo_deg[LEG_SERVO_COUNT]);

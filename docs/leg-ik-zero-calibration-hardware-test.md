@@ -23,19 +23,21 @@ compensation, or balance gains.
 - Left source: measured calibration.
 - Right source: mirror assumption until the independent checks below pass.
 
-The command hull is the calibrated convex workspace inset by 2 mm. Select
-test points from that inset hull; it is not a rectangular X/Y limit.
-`LXY,0,55` is outside the calibrated physical workspace and must be rejected.
+`LXY` accepts a point only when it is model-reachable: the physical point maps
+to the five-bar lower-half-plane with real roots, the IK margin is at least
+`0.02`, and both left and right candidates map to valid commands within the
+configured servo limits. This is a command/model estimate gate, not measured
+feedback or an empirical coordinate boundary. `LXY,0,55` must be rejected.
 
-### Experimental low-race target
+### Model-reachable low command example
 
 The hardware-tested mirrored command `LIK,40,140,140,40` places the left-leg
 logical pair at `40,140`. The current model estimates this pose as
-`BODY_WHEEL=(-18.831,25.076) mm`. This is an experimental command estimate,
-not a measured wheel-centre calibration sample.
+`BODY_WHEEL=(-18.831,25.076) mm`. This is a command/model estimate, not a
+measured wheel-centre calibration sample.
 
-With the vehicle supported and wheel-motor power disconnected, run one command
-at a time and wait for the previous trajectory to settle:
+With the chassis supported and wheel power disconnected, run one command at a
+time and wait for the output to settle:
 
 ```text
 STOP
@@ -50,8 +52,8 @@ static gate does not enable dynamic wheel shift or balance fast mode.
 ## Safety prerequisites
 
 1. Put the vehicle on a rigid support so neither wheels nor chassis can fall.
-2. Disconnect or mechanically unload wheel drive where practical. Keep the
-   wheels clear of the bench and remove terrain obstacles.
+2. Keep wheel power disconnected. Keep the wheels clear of the bench and
+   remove terrain obstacles.
 3. Start with `STOP`; this locks the leg path and stops balance and wheel
    output.
 4. Build `cyt4bb7_cm_7_0` in `project/iar/cyt4bb7.eww`, flash it, and wait
@@ -65,9 +67,9 @@ static gate does not enable dynamic wheel shift or balance fast mode.
    fault), stop PWM immediately and return to the 50 Hz build. Do not continue
    with the 300 Hz build until the root cause is resolved.
 
-Stop immediately if a linkage approaches an end stop, a servo chatters or
-heats, the supply sags, a wheel moves, telemetry reports a nonzero leg fault,
-or `ik_valid` becomes zero.
+Stop immediately for interference, branch surprise, invalid IK, or a leg
+fault. Also stop if a linkage approaches an end stop, a servo chatters or
+heats, the supply sags, or a wheel moves.
 
 ## 1. Set the physical reference pose and record PWM midpoints
 
@@ -131,9 +133,11 @@ they do not prove that a pose is mechanically safe. The command stops balance
 and wheel drive first. Send `LIKREF` once after boot or `STOP` before each
 individual `LXY` command. Do not chain first validation commands unattended.
 
-Choose two points (`P1` and `P2`) at least 2 mm inside the calibrated convex
-hull, record their absolute BODY_WHEEL coordinates, and command each one only
-after a visual inspection:
+Choose two model-reachable points (`P1` and `P2`) with lower-half-plane real
+roots, margin at least `0.02`, and valid mapped commands within servo limits
+on both sides. Record their absolute BODY_WHEEL coordinates. Change one axis
+at a time by no more than `2 mm`, wait for settled output, and inspect before
+each command:
 
 ```text
 STOP
@@ -156,7 +160,8 @@ STOP
 ```
 
 Do not increase the range, drive the chassis, or enable balance if any point
-fails. Keep the CSV and the exact servo pose; the next action is
+fails. Stop immediately for interference, branch surprise, invalid IK, or leg
+fault. Keep the CSV and the exact servo pose; the next action is
 geometry/direction diagnosis, not a larger command.
 
 Suggested individual trace (replace the point with P0, P1, or P2) is:

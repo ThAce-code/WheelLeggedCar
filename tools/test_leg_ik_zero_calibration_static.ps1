@@ -143,29 +143,6 @@ int main(void)
 '@ | Set-Content (Join-Path $Path "test_leg_ik_zero_calibration.c") -NoNewline
 }
 
-function Test-PhysicalHullPoint {
-    param([double]$X, [double]$Y)
-
-    $hull = @(
-        @(-40.620, 47.370), @(-30.910, 39.630),
-        @(-20.380, 32.170), @(-15.040, 47.600),
-        @(-22.030, 88.490), @(-31.420, 74.120),
-        @(-37.940, 59.340), @(-39.580, 53.010)
-    )
-    for($i = 0; $i -lt $hull.Count; $i++) {
-        $first = $hull[$i]
-        $second = $hull[($i + 1) % $hull.Count]
-        $edgeX = $second[0] - $first[0]
-        $edgeY = $second[1] - $first[1]
-        $length = [math]::Sqrt($edgeX * $edgeX + $edgeY * $edgeY)
-        $distance = ($edgeX * ($Y - $first[1]) - $edgeY * ($X - $first[0])) / $length
-        if($distance -lt 2.0) {
-            return $false
-        }
-    }
-    return $true
-}
-
 Assert-Contains "project/code/leg_config.h" "ik_offset_deg" "Missing per-servo IK offset configuration."
 Assert-Contains "project/code/leg_config.c" '\{0,\s*90\.0f,\s*90\.0f' "FL safe and neutral must be literal 90 degrees."
 Assert-Contains "project/code/leg_config.c" '\{1,\s*90\.0f,\s*90\.0f' "FR safe and neutral must be literal 90 degrees."
@@ -173,10 +150,8 @@ Assert-Contains "project/code/leg_config.c" '\{2,\s*90\.0f,\s*90\.0f' "RL safe a
 Assert-Contains "project/code/leg_config.c" '\{3,\s*90\.0f,\s*90\.0f' "RR safe and neutral must be literal 90 degrees."
 Assert-Contains "project/code/leg_config.c" '\.physical_reference_x_mm\s*=\s*-20\.766667f' "LIKREF physical X missing."
 Assert-Contains "project/code/leg_config.c" '\.physical_reference_y_mm\s*=\s*47\.356667f' "LIKREF physical Y missing."
-Assert-Contains "project/code/leg_config.h" "physical_workspace" "Missing calibrated physical IK workspace configuration."
-Assert-Contains "project/code/leg_config.h" "physical_workspace_inset_mm" "Missing physical workspace safety inset."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_target_valid" "Missing physical target validation API."
-Assert-Contains "project/code/control_leg.c" "leg_kinematics_target_valid" "LXY validation must enforce the calibrated physical hull."
+Assert-Contains "project/code/control_leg.c" "leg_kinematics_target_valid" "LXY validation must enforce model reachability."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_reference_pose" "Missing reference-pose mapping API."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_target_pose" "Missing target-pose mapping API."
 Assert-Contains "project/code/control_leg.h" "control_leg_set_ik_reference" "Missing reference-pose controller API."
@@ -192,18 +167,13 @@ Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF" "Hardwa
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "BODY_WHEEL" "Hardware procedure must name the public physical frame."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF = \(-20\.766667, 47\.356667\)" "Hardware procedure must record the exact P0 reference."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "absolute.*BODY_WHEEL.*millimetres" "LXY must be documented as an absolute physical command."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "convex workspace inset by 2 mm" "Hardware procedure must retain the fitted inset hull."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "model-reachable" "Hardware procedure must define model reachability."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "0.02" "Hardware procedure must state the minimum IK margin."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "servo limits" "Hardware procedure must require mapped servo limits."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55.*must be rejected" "The legacy model-space target must be documented as rejected."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "P1.*P2.*at least 2 mm inside" "Hardware procedure must require two inset physical targets."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "motor-disabled" "Hardware procedure must require motor-disabled acceptance."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "Target X.*Measured X.*Error X.*Pose-status flags.*Servo outputs" "Hardware procedure must record physical-coordinate acceptance evidence."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "right leg[\s\S]*measured independently" "Hardware procedure must gate right-leg provenance on independent measurement."
-
-if(-not (Test-PhysicalHullPoint -X -20.7667 -Y 47.3567)) { throw "Physical reference must be inside the inset hull." }
-if(-not (Test-PhysicalHullPoint -X -18.0 -Y 47.3567)) { throw "Forward test point must be inside the inset hull." }
-if(-not (Test-PhysicalHullPoint -X -23.5 -Y 47.3567)) { throw "Rearward test point must be inside the inset hull." }
-if(Test-PhysicalHullPoint -X 0.0 -Y 55.0) { throw "Uncalibrated X=0 target must be rejected." }
-if(Test-PhysicalHullPoint -X -40.620 -Y 47.370) { throw "A hull vertex must be rejected by the 2 mm inset." }
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-ik-zero-" + [Guid]::NewGuid().ToString())
 $originalPath = $null

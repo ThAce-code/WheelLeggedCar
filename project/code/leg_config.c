@@ -19,11 +19,6 @@ static const leg_config_struct leg_config_default =
         .l3_mm = 90.0f,   /* passive link (SolidWorks measured) */
         .l4_mm = 60.0f,   /* driven link (SolidWorks measured) */
         .l5_mm = 37.0f,   /* servo-axis spacing (SolidWorks measured) */
-        /* Five-bar model-space bounds; physical LXY uses the hull below. */
-        .x_min_mm = 10.0f,
-        .x_max_mm = 50.0f,
-        .y_min_mm = 23.0f,
-        .y_max_mm = 100.0f,
         .physical_reference_x_mm = -20.766667f,
         .physical_reference_y_mm = 47.356667f,
         .alpha_reference_deg = 170.536799f,
@@ -35,26 +30,6 @@ static const leg_config_struct leg_config_default =
         .model_to_physical_m01 = 0.085783378f,
         .model_to_physical_m10 = 0.085783378f,
         .model_to_physical_m11 = 0.996313812f,
-        .physical_workspace =
-        {
-            {-40.620f, 47.370f},
-            {-30.910f, 39.630f},
-            {-20.380f, 32.170f},
-            {-15.040f, 47.600f},
-            {-22.030f, 88.490f},
-            {-31.420f, 74.120f},
-            {-37.940f, 59.340f},
-            {-39.580f, 53.010f}
-        },
-        .physical_workspace_inset_mm = 2.0f,
-        .experimental_race_enable = 1U,
-        .experimental_race_x_mm = -18.831f,
-        .experimental_race_y_mm = 25.076f,
-        .experimental_race_tolerance_x_mm = 0.5f,
-        .experimental_race_tolerance_y_mm = 0.5f,
-        .experimental_race_ik_min_margin = 0.02f,
-        .experimental_race_alpha_branch = LEG_IK_BRANCH_PLUS,
-        .experimental_race_beta_branch = LEG_IK_BRANCH_PLUS,
         .left_alpha_branch = LEG_IK_BRANCH_PLUS,
         .left_beta_branch = LEG_IK_BRANCH_MINUS,
         .right_alpha_branch = LEG_IK_BRANCH_PLUS,

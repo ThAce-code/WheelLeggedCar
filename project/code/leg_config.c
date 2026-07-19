@@ -22,7 +22,7 @@ static const leg_config_struct leg_config_default =
         /* Five-bar model-space bounds; physical LXY uses the hull below. */
         .x_min_mm = 10.0f,
         .x_max_mm = 50.0f,
-        .y_min_mm = 25.0f,
+        .y_min_mm = 23.0f,
         .y_max_mm = 100.0f,
         .physical_reference_x_mm = -20.766667f,
         .physical_reference_y_mm = 47.356667f,
@@ -47,6 +47,14 @@ static const leg_config_struct leg_config_default =
             {-39.580f, 53.010f}
         },
         .physical_workspace_inset_mm = 2.0f,
+        .experimental_race_enable = 1U,
+        .experimental_race_x_mm = -18.831f,
+        .experimental_race_y_mm = 25.076f,
+        .experimental_race_tolerance_x_mm = 0.5f,
+        .experimental_race_tolerance_y_mm = 0.5f,
+        .experimental_race_ik_min_margin = 0.02f,
+        .experimental_race_alpha_branch = LEG_IK_BRANCH_PLUS,
+        .experimental_race_beta_branch = LEG_IK_BRANCH_PLUS,
         .left_alpha_branch = LEG_IK_BRANCH_PLUS,
         .left_beta_branch = LEG_IK_BRANCH_MINUS,
         .right_alpha_branch = LEG_IK_BRANCH_PLUS,

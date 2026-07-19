@@ -50,6 +50,7 @@ function Write-NumericHarness {
 #include "leg_kinematics.h"
 #include "leg_config.h"
 #include <math.h>
+#include <stdio.h>
 
 int main(void)
 {
@@ -59,6 +60,10 @@ int main(void)
     leg_ik_result_struct right_target = {0};
     float reference_cmd[LEG_SERVO_COUNT];
     float target_cmd[LEG_SERVO_COUNT];
+    float low_left_x;
+    float low_left_y;
+    float low_right_x;
+    float low_right_y;
     static const float physical_points[][2] = {
         {-18.0000f, 47.3567f},
         {-23.5000f, 47.3567f},
@@ -102,6 +107,61 @@ int main(void)
     if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
     {
         return 20;
+    }
+    if((APP_TRUE != leg_kinematics_target_valid(-18.831f, 25.076f)) ||
+       (APP_TRUE != leg_kinematics_target_valid(-18.83f, 25.08f)))
+    {
+        return 21;
+    }
+    if((APP_TRUE == leg_kinematics_target_valid(-18.20f, 25.08f)) ||
+       (APP_TRUE == leg_kinematics_target_valid(-18.83f, 24.50f)))
+    {
+        return 22;
+    }
+    if(APP_TRUE != leg_kinematics_solve(APP_FALSE, -18.831f, 25.076f,
+                                        &left_ref, &left_target))
+    {
+        return 23;
+    }
+    if(APP_TRUE != leg_kinematics_solve(APP_TRUE, -18.831f, 25.076f,
+                                        &right_ref, &right_target))
+    {
+        return 24;
+    }
+    if(APP_TRUE != leg_kinematics_map_target_pose(&left_ref, &right_ref,
+                                                   &left_target, &right_target,
+                                                   target_cmd))
+    {
+        return 25;
+    }
+    if((fabsf(target_cmd[LEG_SERVO_FL] - 40.0f) > 0.05f) ||
+       (fabsf(target_cmd[LEG_SERVO_FR] - 140.0f) > 0.05f) ||
+       (fabsf(target_cmd[LEG_SERVO_RL] - 140.0f) > 0.05f) ||
+       (fabsf(target_cmd[LEG_SERVO_RR] - 40.0f) > 0.05f))
+    {
+        fprintf(stderr, "low-race mapped commands: %.6f %.6f %.6f %.6f\n",
+                target_cmd[LEG_SERVO_FL], target_cmd[LEG_SERVO_FR],
+                target_cmd[LEG_SERVO_RL], target_cmd[LEG_SERVO_RR]);
+        return 26;
+    }
+    if((APP_TRUE != leg_kinematics_forward_command(APP_FALSE, 40.0f, 140.0f,
+                                                    &low_left_x, &low_left_y)) ||
+       (APP_TRUE != leg_kinematics_forward_command(APP_TRUE, 140.0f, 40.0f,
+                                                    &low_right_x, &low_right_y)))
+    {
+        return 27;
+    }
+    if((fabsf(low_left_x - (-18.831f)) > 0.01f) ||
+       (fabsf(low_left_y - 25.076f) > 0.01f) ||
+       (fabsf(low_right_x - low_left_x) > 0.01f) ||
+       (fabsf(low_right_y - low_left_y) > 0.01f))
+    {
+        return 28;
+    }
+    if(APP_TRUE == leg_kinematics_forward_command(APP_FALSE, 9.0f, 140.0f,
+                                                   &low_left_x, &low_left_y))
+    {
+        return 29;
     }
     return 0;
 }

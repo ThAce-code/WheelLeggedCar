@@ -65,6 +65,14 @@ typedef struct
     float model_to_physical_m11;
     float physical_workspace[LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT][2];
     float physical_workspace_inset_mm;
+    uint8 experimental_race_enable;
+    float experimental_race_x_mm;
+    float experimental_race_y_mm;
+    float experimental_race_tolerance_x_mm;
+    float experimental_race_tolerance_y_mm;
+    float experimental_race_ik_min_margin;
+    leg_ik_branch_enum experimental_race_alpha_branch;
+    leg_ik_branch_enum experimental_race_beta_branch;
     leg_ik_branch_enum left_alpha_branch;
     leg_ik_branch_enum left_beta_branch;
     leg_ik_branch_enum right_alpha_branch;

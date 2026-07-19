@@ -289,6 +289,32 @@ static float leg_kinematics_clamp_fk_workspace(float value, float minimum, float
     return value;
 }
 
+static uint8 leg_kinematics_experimental_race_target_valid(
+    const leg_kinematics_config_struct *cfg,
+    float x_mm,
+    float y_mm)
+{
+    if((NULL == cfg) ||
+       (0U == cfg->experimental_race_enable) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->experimental_race_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->experimental_race_y_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->experimental_race_tolerance_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->experimental_race_tolerance_y_mm)) ||
+       (0.0f > cfg->experimental_race_tolerance_x_mm) ||
+       (0.0f > cfg->experimental_race_tolerance_y_mm))
+    {
+        return APP_FALSE;
+    }
+    if((leg_kinematics_absf(x_mm - cfg->experimental_race_x_mm) >
+        cfg->experimental_race_tolerance_x_mm) ||
+       (leg_kinematics_absf(y_mm - cfg->experimental_race_y_mm) >
+        cfg->experimental_race_tolerance_y_mm))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
 uint8 leg_kinematics_target_valid(float x_mm, float y_mm)
 {
     const leg_kinematics_config_struct *cfg;
@@ -302,6 +328,11 @@ uint8 leg_kinematics_target_valid(float x_mm, float y_mm)
        (0.0f > cfg->physical_workspace_inset_mm))
     {
         return APP_FALSE;
+    }
+
+    if(APP_TRUE == leg_kinematics_experimental_race_target_valid(cfg, x_mm, y_mm))
+    {
+        return APP_TRUE;
     }
 
     /* Vertices are stored counter-clockwise.  The signed distance from the
@@ -444,6 +475,11 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     float beta_minus_rad;
     float alpha_margin;
     float beta_margin;
+    float minimum_margin;
+    float physical_x_mm;
+    float physical_y_mm;
+    uint8 experimental_race_target;
+    const leg_ik_result_struct *selection_previous;
     float alpha_deg;
     float beta_deg;
     leg_ik_branch_enum alpha_branch;
@@ -477,6 +513,17 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
         return APP_FALSE;
     }
 
+    experimental_race_target = APP_FALSE;
+    if((APP_TRUE == leg_kinematics_model_to_physical(x, y,
+                                                      &physical_x_mm,
+                                                      &physical_y_mm)) &&
+       (APP_TRUE == leg_kinematics_experimental_race_target_valid(cfg,
+                                                                   physical_x_mm,
+                                                                   physical_y_mm)))
+    {
+        experimental_race_target = APP_TRUE;
+    }
+
     a = 2.0f * x * cfg->l1_mm;
     b = 2.0f * y * cfg->l1_mm;
     c = (x * x) + (y * y) + (cfg->l1_mm * cfg->l1_mm) - (cfg->l2_mm * cfg->l2_mm);
@@ -485,8 +532,21 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     f = ((x - cfg->l5_mm) * (x - cfg->l5_mm)) + (y * y) +
         (cfg->l4_mm * cfg->l4_mm) - (cfg->l3_mm * cfg->l3_mm);
 
-    alpha_branch = (APP_TRUE == right_side) ? cfg->right_alpha_branch : cfg->left_alpha_branch;
-    beta_branch = (APP_TRUE == right_side) ? cfg->right_beta_branch : cfg->left_beta_branch;
+    if(APP_TRUE == experimental_race_target)
+    {
+        alpha_branch = cfg->experimental_race_alpha_branch;
+        beta_branch = cfg->experimental_race_beta_branch;
+        if((LEG_IK_BRANCH_MINUS < alpha_branch) ||
+           (LEG_IK_BRANCH_MINUS < beta_branch))
+        {
+            return APP_FALSE;
+        }
+    }
+    else
+    {
+        alpha_branch = (APP_TRUE == right_side) ? cfg->right_alpha_branch : cfg->left_alpha_branch;
+        beta_branch = (APP_TRUE == right_side) ? cfg->right_beta_branch : cfg->left_beta_branch;
+    }
 
     if((APP_FALSE == leg_kinematics_solve_angle_candidates(a, b, c,
                                                             &alpha_plus_rad, &alpha_minus_rad, &alpha_margin)) ||
@@ -497,15 +557,27 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     }
 
     result->singularity_margin = (alpha_margin < beta_margin) ? alpha_margin : beta_margin;
-    if(profile->ik_min_margin > result->singularity_margin)
+    minimum_margin = profile->ik_min_margin;
+    if(APP_TRUE == experimental_race_target)
+    {
+        if((APP_FALSE == leg_kinematics_is_finite(cfg->experimental_race_ik_min_margin)) ||
+           (0.0f > cfg->experimental_race_ik_min_margin) ||
+           (1.0f < cfg->experimental_race_ik_min_margin))
+        {
+            return APP_FALSE;
+        }
+        minimum_margin = cfg->experimental_race_ik_min_margin;
+    }
+    if(minimum_margin > result->singularity_margin)
     {
         return APP_FALSE;
     }
 
+    selection_previous = (APP_TRUE == experimental_race_target) ? NULL : previous;
     if((APP_FALSE == leg_kinematics_select_angle(alpha_plus_rad, alpha_minus_rad,
-                                                  alpha_branch, previous, 0U, &alpha_rad)) ||
+                                                  alpha_branch, selection_previous, 0U, &alpha_rad)) ||
        (APP_FALSE == leg_kinematics_select_angle(beta_plus_rad, beta_minus_rad,
-                                                  beta_branch, previous, 1U, &beta_rad)))
+                                                  beta_branch, selection_previous, 1U, &beta_rad)))
     {
         return APP_FALSE;
     }

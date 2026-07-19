@@ -59,6 +59,22 @@ Require-Pattern $configHeader 'model_to_physical_m00' `
     "kinematics config must expose the constrained similarity matrix"
 Require-Pattern $configHeader 'physical_workspace\[LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT\]\[2\]' `
     "kinematics config must store the physical hull"
+Require-Pattern $configHeader 'experimental_race_enable' `
+    "experimental low-race enable missing"
+Require-Pattern $configHeader 'experimental_race_x_mm' `
+    "experimental low-race target X missing"
+Require-Pattern $configHeader 'experimental_race_y_mm' `
+    "experimental low-race target Y missing"
+Require-Pattern $configHeader 'experimental_race_tolerance_x_mm' `
+    "experimental low-race X tolerance missing"
+Require-Pattern $configHeader 'experimental_race_tolerance_y_mm' `
+    "experimental low-race Y tolerance missing"
+Require-Pattern $configHeader 'experimental_race_ik_min_margin' `
+    "experimental low-race IK margin missing"
+Require-Pattern $configHeader 'experimental_race_alpha_branch' `
+    "experimental low-race alpha branch missing"
+Require-Pattern $configHeader 'experimental_race_beta_branch' `
+    "experimental low-race beta branch missing"
 
 Require-Pattern $configSource '\.physical_reference_x_mm\s*=\s*-20\.766667f' `
     "physical reference X must be the three-reference mean"
@@ -92,6 +108,22 @@ Require-Pattern $configSource '\{-37\.940f,\s*59\.340f\}' ` "physical hull verte
 Require-Pattern $configSource '\{-39\.580f,\s*53\.010f\}' ` "physical hull vertex 7 missing"
 Require-Pattern $configSource '\.physical_workspace_inset_mm\s*=\s*2\.0f' `
     "physical hull must be inset by 2 mm"
+Require-Pattern $configSource '\.experimental_race_enable\s*=\s*1U' `
+    "experimental low-race target must be explicitly enabled"
+Require-Pattern $configSource '\.experimental_race_x_mm\s*=\s*-18\.831f' `
+    "experimental low-race target X mismatch"
+Require-Pattern $configSource '\.experimental_race_y_mm\s*=\s*25\.076f' `
+    "experimental low-race target Y mismatch"
+Require-Pattern $configSource '\.experimental_race_tolerance_x_mm\s*=\s*0\.5f' `
+    "experimental low-race X tolerance mismatch"
+Require-Pattern $configSource '\.experimental_race_tolerance_y_mm\s*=\s*0\.5f' `
+    "experimental low-race Y tolerance mismatch"
+Require-Pattern $configSource '\.experimental_race_ik_min_margin\s*=\s*0\.02f' `
+    "experimental low-race IK margin mismatch"
+Require-Pattern $configSource '\.experimental_race_alpha_branch\s*=\s*LEG_IK_BRANCH_PLUS' `
+    "experimental low-race alpha branch mismatch"
+Require-Pattern $configSource '\.experimental_race_beta_branch\s*=\s*LEG_IK_BRANCH_PLUS' `
+    "experimental low-race beta branch mismatch"
 
 Require-Pattern $configSource '\{0,\s*90\.0f,\s*90\.0f,\s*10\.0f,\s*175\.0f,\s*-1\.0f' `
     "servo0 IK direction must match the fitted visible-leg direction"
@@ -108,6 +140,20 @@ Require-Pattern $kinematicsSource 'leg_kinematics_solve_model' `
     "five-bar model solver must be isolated from physical conversion"
 Require-Pattern $kinematicsSource 'leg_kinematics_target_valid\(x_mm, y_mm\)' `
     "public IK solve must reject targets outside the physical hull"
+Require-Pattern $kinematicsSource 'leg_kinematics_experimental_race_target_valid' `
+    "narrow experimental target validator missing"
+Require-Pattern $kinematicsSource 'cfg->experimental_race_ik_min_margin' `
+    "experimental low-race IK margin must be scoped to the narrow target"
+Require-Pattern $kinematicsSource 'cfg->experimental_race_alpha_branch' `
+    "experimental low-race alpha branch must be selected explicitly"
+Require-Pattern $kinematicsSource 'cfg->experimental_race_beta_branch' `
+    "experimental low-race beta branch must be selected explicitly"
+Require-Pattern $kinematicsSource 'experimental_race_target[\s\S]*NULL\s*:\s*previous' `
+    "experimental low-race target must not be overridden by nearest-root selection"
+Require-Pattern $kinematicsSource 'profile->ik_min_margin' `
+    "normal targets must retain the calibrated IK margin"
+Reject-Pattern $kinematicsSource 'return\s+APP_TRUE;\s*/\*.*bypass' `
+    "physical target validation must not be globally bypassed"
 Reject-Pattern $kinematicsSource 'x\s*=\s*x_mm\s*\+\s*cfg->x_offset_mm' `
     "physical coordinates must not use the obsolete additive X offset"
 Reject-Pattern $kinematicsSource 'y\s*=\s*y_mm\s*\+\s*cfg->y_offset_mm' `

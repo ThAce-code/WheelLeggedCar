@@ -15,6 +15,8 @@ $leg = Get-Content "project/code/control_leg.c" -Raw
 $telemetry = Get-Content "project/code/telemetry.c" -Raw
 $collector = Get-Content "tools/collect_balance_data.ps1" -Raw
 $calibration = Get-Content "tools/calib_ik_servo.ps1" -Raw
+$ikDoc = Get-Content "docs/leg-ik-zero-calibration-hardware-test.md" -Raw
+$heightDoc = Get-Content "docs/leg-height-phase1-hardware-test.md" -Raw
 
 Require-Pattern $types 'LEG_POSE_SOURCE_NONE\s*=\s*0[\s\S]*LEG_POSE_SOURCE_MEASURED_CALIBRATION\s*=\s*1[\s\S]*LEG_POSE_SOURCE_MIRROR_ASSUMPTION\s*=\s*2' 'Leg pose provenance enum is missing.'
 Require-Pattern $types 'LEG_POSE_STATUS_IK_VALID\s*=\s*\(1U\s*<<\s*0\)[\s\S]*LEG_POSE_STATUS_LEFT_VALID\s*=\s*\(1U\s*<<\s*1\)[\s\S]*LEG_POSE_STATUS_RIGHT_VALID\s*=\s*\(1U\s*<<\s*2\)[\s\S]*LEG_POSE_STATUS_LEFT_MEASURED\s*=\s*\(1U\s*<<\s*3\)[\s\S]*LEG_POSE_STATUS_RIGHT_MIRROR\s*=\s*\(1U\s*<<\s*4\)' 'Leg pose status-bit enum is missing.'
@@ -65,6 +67,36 @@ Require-Pattern $calibration 'left_pose_source' 'Calibration CSV must record lef
 Require-Pattern $calibration 'right_pose_source' 'Calibration CSV must record right pose provenance.'
 Require-Pattern $calibration '\$csvFields\s*=[\s\S]*"leg_pose_status_flags"' 'Calibration CSV must record the packed pose status.'
 Require-Pattern $calibration 'legacy_stance_ref_units' 'Calibration CSV must name the legacy stance reference honestly.'
+
+$runtimeFiles = @(
+    "project/code/app_types.h",
+    "project/code/control_leg.h",
+    "project/code/control_leg.c",
+    "project/code/control_balance.c",
+    "project/code/control_chassis.c",
+    "project/code/telemetry.c"
+)
+foreach($path in $runtimeFiles) {
+    $runtimeText = Get-Content $path -Raw
+    Reject-Pattern $runtimeText '\b(actual_height_mm|target_height_mm|height_ref_mm|height_norm|reference_x_mm|reference_y_mm|control_leg_ik_validation_point_valid)\b' `
+        "stale coordinate-domain symbol remains in $path"
+}
+Reject-Pattern $leg 'left_command_pose_body_mm\.x_mm\s*=\s*0\.0f' `
+    'Invalid pose must not fabricate left command X=0.'
+Reject-Pattern $leg 'left_command_pose_body_mm\.y_mm\s*=\s*control_leg_legacy' `
+    'Legacy stance must not fabricate left command Y.'
+Require-Pattern $ikDoc 'BODY_WHEEL[\s\S]*cross-circle[\s\S]*\+X[\s\S]*forward[\s\S]*\+Y[\s\S]*downward' `
+    'BODY_WHEEL frame definition is missing from the IK hardware procedure.'
+Require-Pattern $ikDoc 'LIKREF\s*=\s*\(-20\.766667,\s*47\.356667\)' `
+    'Exact physical LIKREF point is missing from the IK hardware procedure.'
+Require-Pattern $ikDoc 'LXY,0,55[\s\S]*must be rejected' `
+    'The invalid legacy LXY reference command must be rejected in the procedure.'
+Require-Pattern $ikDoc 'right leg[\s\S]*mirror\s+assumption[\s\S]*independent' `
+    'Right-leg independent validation gate is missing from the IK hardware procedure.'
+Require-Pattern $ikDoc 'motor-disabled[\s\S]*Target X[\s\S]*Measured X[\s\S]*Error X[\s\S]*Pose-status[\s\S]*Servo outputs' `
+    'Motor-disabled physical-coordinate evidence table is missing from the IK hardware procedure.'
+Require-Pattern $heightDoc 'legacy stance units' `
+    'Height hardware procedure must label LH/LHF inputs as legacy stance units.'
 
 $frameBytes = (55 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0

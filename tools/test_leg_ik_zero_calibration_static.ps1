@@ -154,13 +154,15 @@ Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'X' == line\[1\
 Assert-Contains "project/code/host_command.c" "control_leg_set_ik_reference" "LIKREF must enter the reference controller mode."
 Assert-Contains "project/code/host_command.c" "control_leg_set_xy" "LXY must enter the restricted XY controller mode."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF" "Hardware procedure must include LIKREF."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55" "Hardware procedure must include reference XY check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,5,55" "Hardware procedure must include positive X check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-5,55" "Hardware procedure must include negative X check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,52" "Hardware procedure must include lower Y check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,58" "Hardware procedure must include higher Y check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,35,55" "Hardware procedure must include the wide positive-X endpoint."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,140" "Hardware procedure must include the wide Y endpoint."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "BODY_WHEEL" "Hardware procedure must name the public physical frame."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF = \(-20\.766667, 47\.356667\)" "Hardware procedure must record the exact P0 reference."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "absolute.*BODY_WHEEL.*millimetres" "LXY must be documented as an absolute physical command."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "convex workspace inset by 2 mm" "Hardware procedure must retain the fitted inset hull."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55.*must be rejected" "The legacy model-space target must be documented as rejected."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "P1.*P2.*at least 2 mm inside" "Hardware procedure must require two inset physical targets."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "motor-disabled" "Hardware procedure must require motor-disabled acceptance."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "Target X.*Measured X.*Error X.*Pose-status flags.*Servo outputs" "Hardware procedure must record physical-coordinate acceptance evidence."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "right leg[\s\S]*measured independently" "Hardware procedure must gate right-leg provenance on independent measurement."
 
 if(-not (Test-PhysicalHullPoint -X -20.7667 -Y 47.3567)) { throw "Physical reference must be inside the inset hull." }
 if(-not (Test-PhysicalHullPoint -X -18.0 -Y 47.3567)) { throw "Forward test point must be inside the inset hull." }

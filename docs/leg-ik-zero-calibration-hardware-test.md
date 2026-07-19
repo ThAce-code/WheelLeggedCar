@@ -1,14 +1,31 @@
 # Leg IK Zero Calibration Hardware Test
 
-This procedure calibrates the conversion between the five-bar IK joint-angle
-zero and the four physical BDS300 PWM angle commands. It validates only the
-reference-pose repeatability and the sign of small open-loop X/Y moves. It
-does **not** validate measured millimetre X accuracy: the configured link
-dimensions are still temporary.
+This procedure validates the physical wheel-centre command contract and the
+conversion between the five-bar IK joint-angle zero and the four BDS300 PWM
+angle commands. PWM is open loop: telemetry reports a calibrated command
+estimate derived from the actuator output commands, not a measured servo or
+wheel-centre position.
 
 `LH` and `LHF` continue to use the existing empirical height map. Do not use
 this procedure to tune normal height control, PWM frequency, servo slew, roll
 compensation, or balance gains.
+
+## BODY_WHEEL coordinate contract
+
+- Origin: chassis-fixed cross-circle marker center.
+- Unit: millimetres.
+- +X: vehicle forward.
+- +Y: downward.
+- Reference command: `LIKREF = (-20.766667, 47.356667) mm`.
+- `LXY,x,y` consumes absolute `BODY_WHEEL` millimetres, not relative motion.
+- Runtime X/Y is a calibrated command estimate from actuator output commands;
+  no position feedback is fitted.
+- Left source: measured calibration.
+- Right source: mirror assumption until the independent checks below pass.
+
+The command hull is the calibrated convex workspace inset by 2 mm. Select
+test points from that inset hull; it is not a rectangular X/Y limit.
+`LXY,0,55` is outside the calibrated physical workspace and must be rejected.
 
 ## Safety prerequisites
 
@@ -34,8 +51,9 @@ or `ik_valid` becomes zero.
 
 ## 1. Set the physical reference pose and record PWM midpoints
 
-The reference is a level, left/right-symmetric pose with the wheel centre
-approximately at `X = 0 mm`, `Y = 55 mm`.
+The reference is the calibrated `BODY_WHEEL` point
+`P0 = (-20.766667, 47.356667) mm`. It must be checked with the chassis-fixed
+cross-circle marker as origin, rather than with an arbitrary local ruler zero.
 
 1. Begin from the known-safe command:
 
@@ -45,8 +63,7 @@ approximately at `X = 0 mm`, `Y = 55 mm`.
    ```
 
 2. With the chassis supported, make small `LIK,a0,a1,a2,a3` adjustments until
-   the chassis is level, both sides are symmetric, and the wheel centre is
-   about 55 mm below the chosen chassis datum. Change no channel by more than
+   the chassis is level and both sides are symmetric at P0. Change no channel by more than
    1-2 degrees between observations.
 3. Record the final four numbers in physical channel order:
 
@@ -70,7 +87,7 @@ in the restricted X checks below and is a stop condition.
 
 ## 2. Verify the compiled reference pose
 
-`LIKREF` computes IK at the configured reference point `(0,55)`, applies the
+`LIKREF` computes IK at P0 `(-20.766667,47.356667)`, applies the
 four stored midpoint conversions, stops balance/drive first, and holds the
 result. It is the first required check after changing `neutral_deg`.
 
@@ -82,98 +99,85 @@ powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
   -Note ik_zero_likref
 ```
 
-Pass only if the physical pose matches the measured reference pose, the four
-servo targets remain stable, `leg_fault_reason=0`, and no wheel or linkage
-motion is unexpected. The telemetry fields `ik_valid`, `ik_margin`, and
-`servo_target_deg[0..3]` are the evidence to retain.
+Pass only if the physical pose matches the P0 measurement, the four servo
+targets remain stable, `leg_fault_reason=0`, and no wheel or linkage motion is
+unexpected. Retain `leg_pose_status_flags`, left/right command estimates and
+sources, `ik_valid`, `ik_margin`, and `servo_target_deg[0..3]`.
 
-## 3. Wide-cross open-loop IK validation
+## 3. Physical open-loop IK validation
 
-The `LXY,x,y` values are temporary model coordinates, not calibrated physical
-millimetres. To permit useful motion testing with one firmware build while
-keeping the unvalidated far corners closed, commands use a wide-cross envelope:
+The IK margin check, per-servo limits, and fault-safe return remain active, but
+they do not prove that a pose is mechanically safe. The command stops balance
+and wheel drive first. Send `LIKREF` once after boot or `STOP` before each
+individual `LXY` command. Do not chain first validation commands unattended.
 
-- horizontal band: `x=[-35,35]`, `y=[45,75]`;
-- vertical band: `x=[-15,15]`, `y=[35,140]`.
+Choose two points (`P1` and `P2`) at least 2 mm inside the calibrated convex
+hull, record their absolute BODY_WHEEL coordinates, and command each one only
+after a visual inspection:
 
-The IK margin check, per-servo angle limits, and fault-safe return remain active.
-Passing the command guard does not prove that a pose is mechanically safe. The
-command turns balance and wheel drive off first. Send `LIKREF` once after boot
-or after `STOP` before issuing any `LXY` command.
+```text
+STOP
+LIKREF
+LXY,<P1_X>,<P1_Y>
+STOP
+LIKREF
+LXY,<P2_X>,<P2_Y>
+STOP
+```
 
-Run one point at a time, with visual confirmation before proceeding:
+Then verify the legacy model-space-looking command is rejected without servo
+motion:
 
 ```text
 STOP
 LIKREF
 LXY,0,55
-LXY,5,55
-LXY,-5,55
-LXY,0,52
-LXY,0,58
 STOP
 ```
 
-After the original small-range checks pass, expand only one axis at a time:
+Do not increase the range, drive the chassis, or enable balance if any point
+fails. Keep the CSV and the exact servo pose; the next action is
+geometry/direction diagnosis, not a larger command.
 
-```text
-STOP
-LIKREF
-LXY,20,55
-LXY,30,55
-LXY,35,55
-STOP
-LIKREF
-LXY,-20,55
-LXY,-30,55
-LXY,-35,55
-STOP
-LIKREF
-LXY,0,45
-LXY,0,75
-LXY,0,100
-LXY,0,120
-LXY,0,140
-STOP
-```
-
-Do not chain these as an unattended script during first validation. Stop and
-visually inspect after every command. A rejected corner such as `LXY,35,140`
-is expected and confirms that the cross envelope is active.
-
-Suggested individual traces are:
+Suggested individual trace (replace the point with P0, P1, or P2) is:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\collect_balance_data.ps1 `
   -Port COM6 -Duration 5 `
-  -Commands "0:STOP;1:LIKREF;2:LXY,0,55;4:STOP" `
-  -Out data\ik_zero_xy_0_55.csv `
-  -Note ik_zero_xy_0_55
+  -Commands "0:STOP;1:LIKREF;2:LXY,<X>,<Y>;4:STOP" `
+  -Out data\ik_physical_<point>.csv `
+  -Note ik_physical_<point>
 ```
 
-Repeat this command with exactly one test point at second 2 and use a distinct
-output filename. Complete the original `LXY,5,55`, `LXY,-5,55`, `LXY,0,52`,
-and `LXY,0,58` checks before using the wide-cross points above.
+## 4. Motor-disabled physical acceptance record
 
-Required observations:
+Keep wheel-motor output disabled. At P0 (`LIKREF`) and at P1/P2, measure each
+wheel centre from the BODY_WHEEL origin. Record target-minus-measured component
+errors, the packed pose-status flags, provenance, and the four servo outputs.
 
-- `LXY,0,55` is visually equivalent to `LIKREF`.
-- `LXY,5,55` and `LXY,-5,55` produce opposite wheel-centre X directions.
-- `LXY,0,52` and `LXY,0,58` produce the expected small opposite height
-  changes without a branch jump.
-- All five points keep `leg_fault_reason=0`, `ik_valid=1`, enabled servo
-  output, and no sustained chatter.
+| Side | Point / command | Target X (mm) | Target Y (mm) | Measured X (mm) | Measured Y (mm) | Error X (mm) | Error Y (mm) | Pose-status flags | Servo outputs (deg) | Result / notes |
+|---|---|---:|---:|---:|---:|---:|---:|---|---|---|
+| Left | P0 / `LIKREF` | -20.766667 | 47.356667 | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Left | P1 / `LXY,<P1_X>,<P1_Y>` | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Left | P2 / `LXY,<P2_X>,<P2_Y>` | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Right | P0 / `LIKREF` | -20.766667 | 47.356667 | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Right | P1 / `LXY,<P1_X>,<P1_Y>` | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| Right | P2 / `LXY,<P2_X>,<P2_Y>` | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
 
-Do not increase the range, drive the chassis, or enable balance from this IK
-path if any point fails. Keep the failed CSV and note the exact servo pose;
-the next action is geometry/direction diagnosis, not a larger command.
+The left leg source is measured calibration. The right leg has mirror
+assumption provenance until it is measured independently at P0, P1, and P2.
+Do not infer right measurements from left values. Dynamic wheel shift remains
+prohibited until those independent right-leg measurements are recorded and
+reviewed. Verify `LXY,0,55` is rejected and produces no servo output change;
+also verify invalid FK clears the relevant validity bit without replacing X/Y
+with a legacy stance value.
 
 ## Completion record
 
 Record in the test log:
 
-- firmware commit SHA and IAR build result;
+- firmware commit SHA and evidenced IAR build result (or unavailable);
 - the four final `neutral_deg` values;
-- wheel-centre measurement method and approximate 55 mm result;
-- five CSV filenames and visual observations;
+- BODY_WHEEL measurement method plus the completed motor-disabled table;
+- P0/P1/P2 CSV filenames, rejection trace, and visual observations;
 - minimum observed IK margin and any fault/IMU event.

@@ -224,9 +224,9 @@ Assert-NotContains "tools/calib_ik_servo.ps1" "ToleranceDeg" "Telemetry confirma
 Assert-Contains "tools/calib_ik_servo.ps1" '\$sampleId, \$label,\s*\$a0, \$a1, \$a2, \$a3,' "CSV command fields must record canonical transmitted command values."
 Assert-Contains "tools/fit_leg_ik_calibration.py" '\("cmd_a0_deg", "servo0_output_deg", "servo0_deg"\)' "Calibration fit must prefer commanded LIK angles over stale IK_CALIB telemetry."
 
-Assert-Contains "docs/leg-height-phase1-hardware-test.md" "\| Gate \| Build SHA \| Height start/end \(mm\) \| Safe-pose measured height \(mm\) \| Max pitch \(deg\) \| Max wheel RPM \| IK margin min \| IK faults \| Safety trips \| Result \| Notes \|" "Hardware record must contain the required gate table."
-Assert-Contains "docs/leg-height-phase1-hardware-test.md" "bench/no wheel output[\s\S]*supported stationary at low/default/high heights[\s\S]*balance-in-place transition[\s\S]*low-speed straight transition[\s\S]*low-speed turn and stop" "Hardware gates must be listed in the immutable order."
-Assert-Contains "docs/leg-height-phase1-hardware-test.md" "30 / 55 / 80" "Hardware Gate 1 must include the extended empirical height endpoints."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "\| Gate \| Build SHA \| Legacy stance start/end \(units\) \| Safe-pose BODY_WHEEL measurement \| Max pitch \(deg\) \| Max wheel RPM \| IK margin min \| IK faults \| Safety trips \| Result \| Notes \|" "Hardware record must contain the legacy-stance gate table."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "bench/no wheel output[\s\S]*supported stationary at low/default/high legacy stance[\s\S]*balance-in-place transition[\s\S]*low-speed straight transition[\s\S]*low-speed turn and stop" "Hardware gates must be listed in the immutable order."
+Assert-Contains "docs/leg-height-phase1-hardware-test.md" "30 / 55 / 80" "Hardware Gate 1 must include the extended legacy stance endpoints."
 Assert-NotContains "docs/leg-height-phase1-hardware-test.md" "35 / 80 / 120" "Hardware Gate 1 must not use the non-monotonic 120 mm command."
 Assert-Contains "docs/leg-height-phase1-hardware-test.md" "A failure blocks all later gates" "Hardware record must state that failures block later gates."
 Assert-Contains "docs/leg-height-phase1-hardware-test.md" "IAR Embedded Workbench 9\.40\.1" "Hardware record must name the required IAR version."

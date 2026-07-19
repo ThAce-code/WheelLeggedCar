@@ -164,7 +164,7 @@
 
 #define APP_LEG_VERIFY_ENABLE           (0U)
 #define APP_LEG_VERIFY_DELAY_MS         (2000U)
-#define APP_LEG_VERIFY_HEIGHT_CMD       (0.0f)
+#define APP_LEG_VERIFY_LEGACY_STANCE_CMD (0.0f)
 #define APP_LEG_VERIFY_PITCH_CMD        (25.0f)
 #define APP_LEG_VERIFY_ROLL_CMD         (0.0f)
 

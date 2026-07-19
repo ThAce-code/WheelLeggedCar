@@ -335,39 +335,39 @@ function Assert-StableGateModel {
     }
 }
 
-function Assert-HeightCommandRange {
+function Assert-LegacyStanceCommandRange {
     param([hashtable]$Config)
 
     $lowReject = 29.0
     $highReject = 81.0
     $phase1RejectedHigh = 120.0
-    if(($lowReject -ge $Config["low_height_mm"]) -and ($lowReject -le $Config["high_height_mm"])) {
-        throw "29 mm command must be outside the extended empirical height interval."
+    if(($lowReject -ge $Config["legacy_low_units"]) -and ($lowReject -le $Config["legacy_high_units"])) {
+        throw "Legacy stance command 29 must be outside the configured interval."
     }
-    if(($highReject -ge $Config["low_height_mm"]) -and ($highReject -le $Config["high_height_mm"])) {
-        throw "81 mm command must be outside the extended empirical height interval."
+    if(($highReject -ge $Config["legacy_low_units"]) -and ($highReject -le $Config["legacy_high_units"])) {
+        throw "Legacy stance command 81 must be outside the configured interval."
     }
-    if(($phase1RejectedHigh -ge $Config["low_height_mm"]) -and ($phase1RejectedHigh -le $Config["high_height_mm"])) {
-        throw "120 mm command must be outside the empirical Phase 1 height interval."
+    if(($phase1RejectedHigh -ge $Config["legacy_low_units"]) -and ($phase1RejectedHigh -le $Config["legacy_high_units"])) {
+        throw "Legacy stance command 120 must be outside the configured Phase 1 interval."
     }
 }
 
 function Get-LegTransitionConfig {
     $text = Get-Content "project/code/leg_config.c" -Raw
     $names = @(
-        "low_height_mm",
-        "high_height_mm",
-        "default_height_mm",
-        "max_height_speed_mm_s",
-        "max_height_accel_mm_s2",
-        "max_height_jerk_mm_s3",
-        "height_position_kp_s",
-        "height_rate_kp_s",
-        "height_settle_error_mm",
-        "height_settle_ms",
-        "fast_height_transition_ms",
+        "legacy_low_units",
+        "legacy_high_units",
+        "legacy_default_units",
+        "legacy_max_rate_units_s",
+        "legacy_max_accel_units_s2",
+        "legacy_max_jerk_units_s3",
+        "legacy_position_kp_s",
+        "legacy_rate_kp_s",
+        "legacy_settle_error_units",
+        "legacy_settle_ms",
+        "fast_stance_transition_ms",
         "ik_min_margin",
-        "safe_support_height_mm"
+        "legacy_safe_support_units"
     )
     $config = @{}
 
@@ -403,12 +403,12 @@ typedef struct { uint8 servo_index; float safe_deg; float neutral_deg; float min
 typedef enum { LEG_IK_BRANCH_PLUS = 0, LEG_IK_BRANCH_MINUS = 1 } leg_ik_branch_enum;
 typedef enum { LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT = 8 } leg_physical_workspace_constant_enum;
 typedef struct { float l1_mm; float l2_mm; float l3_mm; float l4_mm; float l5_mm; float x_min_mm; float x_max_mm; float y_min_mm; float y_max_mm; float physical_reference_x_mm; float physical_reference_y_mm; float alpha_reference_deg; float beta_reference_deg; float model_reference_x_mm; float model_reference_y_mm; float model_to_physical_scale; float model_to_physical_m00; float model_to_physical_m01; float model_to_physical_m10; float model_to_physical_m11; float physical_workspace[LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT][2]; float physical_workspace_inset_mm; leg_ik_branch_enum left_alpha_branch; leg_ik_branch_enum left_beta_branch; leg_ik_branch_enum right_alpha_branch; leg_ik_branch_enum right_beta_branch; } leg_kinematics_config_struct;
-typedef struct { float low_height_mm; float high_height_mm; float default_height_mm; float max_height_speed_mm_s; float max_height_accel_mm_s2; float max_height_jerk_mm_s3; float height_position_kp_s; float height_rate_kp_s; float height_settle_error_mm; uint32 height_settle_ms; uint32 fast_height_transition_ms; float ik_min_margin; float safe_support_height_mm; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_height_profile_struct;
-typedef struct { leg_servo_config_struct servo[LEG_SERVO_COUNT]; leg_kinematics_config_struct kinematics; leg_height_profile_struct height_profile; float height_min; float height_max; float pitch_limit; float roll_limit; } leg_config_struct;
+typedef struct { float legacy_low_units; float legacy_high_units; float legacy_default_units; float legacy_max_rate_units_s; float legacy_max_accel_units_s2; float legacy_max_jerk_units_s3; float legacy_position_kp_s; float legacy_rate_kp_s; float legacy_settle_error_units; uint32 legacy_settle_ms; uint32 fast_stance_transition_ms; float ik_min_margin; float legacy_safe_support_units; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_stance_profile_struct;
+typedef struct { leg_servo_config_struct servo[LEG_SERVO_COUNT]; leg_kinematics_config_struct kinematics; leg_stance_profile_struct stance_profile; float legacy_body_min_units; float legacy_body_max_units; float pitch_limit; float roll_limit; } leg_config_struct;
 const leg_config_struct *leg_config_get(void);
 const leg_servo_config_struct *leg_config_get_servo(uint8 leg_id);
 const leg_kinematics_config_struct *leg_config_get_kinematics(void);
-const leg_height_profile_struct *leg_config_get_height_profile(void);
+const leg_stance_profile_struct *leg_config_get_stance_profile(void);
 #endif
 '@ | Set-Content (Join-Path $Path "leg_config.h") -NoNewline
 
@@ -535,29 +535,29 @@ int main(void)
 }
 
 $config = Get-LegTransitionConfig
-Assert-Equal -Actual $config["low_height_mm"] -Expected 30.0 -Message "Extended empirical low height"
-Assert-Equal -Actual $config["high_height_mm"] -Expected 80.0 -Message "Extended empirical high height"
-Assert-Equal -Actual $config["default_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 default height"
-Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 20.0 -Message "Fast-response maximum height speed"
-Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Fast-response maximum height acceleration"
-Assert-Equal -Actual $config["max_height_jerk_mm_s3"] -Expected 80.0 -Message "Maximum height jerk"
-Assert-Equal -Actual $config["height_position_kp_s"] -Expected 2.0 -Message "Fast-response height position velocity gain"
-Assert-Equal -Actual $config["height_rate_kp_s"] -Expected 4.0 -Message "Height velocity acceleration gain"
-Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
-Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
-Assert-Equal -Actual $config["fast_height_transition_ms"] -Expected 500.0 -Message "Fast height transition duration"
+Assert-Equal -Actual $config["legacy_low_units"] -Expected 30.0 -Message "Extended empirical low legacy stance"
+Assert-Equal -Actual $config["legacy_high_units"] -Expected 80.0 -Message "Extended empirical high legacy stance"
+Assert-Equal -Actual $config["legacy_default_units"] -Expected 55.0 -Message "Empirical Phase 1 default legacy stance"
+Assert-Equal -Actual $config["legacy_max_rate_units_s"] -Expected 20.0 -Message "Fast-response maximum legacy stance rate"
+Assert-Equal -Actual $config["legacy_max_accel_units_s2"] -Expected 20.0 -Message "Fast-response maximum legacy stance acceleration"
+Assert-Equal -Actual $config["legacy_max_jerk_units_s3"] -Expected 80.0 -Message "Maximum legacy stance jerk"
+Assert-Equal -Actual $config["legacy_position_kp_s"] -Expected 2.0 -Message "Legacy stance position-to-rate gain"
+Assert-Equal -Actual $config["legacy_rate_kp_s"] -Expected 4.0 -Message "Legacy stance rate-to-acceleration gain"
+Assert-Equal -Actual $config["legacy_settle_error_units"] -Expected 1.0 -Message "Legacy stance settle error"
+Assert-Equal -Actual $config["legacy_settle_ms"] -Expected 300.0 -Message "Legacy stance settle time"
+Assert-Equal -Actual $config["fast_stance_transition_ms"] -Expected 500.0 -Message "Fast legacy stance transition duration"
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
-Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 safe support height"
-Assert-HeightCommandRange -Config $config
+Assert-Equal -Actual $config["legacy_safe_support_units"] -Expected 55.0 -Message "Empirical Phase 1 safe support legacy stance"
+Assert-LegacyStanceCommandRange -Config $config
 
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
 
-Assert-JerkLimitedHeightTrajectory -PositionKpS $config["height_position_kp_s"] -RateKpS $config["height_rate_kp_s"]
-Assert-FastHeightTrajectory -StartMm 45.0 -TargetMm 65.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
-Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 30.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
-Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-JerkLimitedHeightTrajectory -PositionKpS $config["legacy_position_kp_s"] -RateKpS $config["legacy_rate_kp_s"]
+Assert-FastHeightTrajectory -StartMm 45.0 -TargetMm 65.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 30.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy

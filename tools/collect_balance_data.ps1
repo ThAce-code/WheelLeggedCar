@@ -16,7 +16,7 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 55
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_ref_mm,leg_height_norm,leg_pose_status_flags,leg_ik_valid,leg_left_pose_valid,leg_right_pose_valid,leg_left_pose_source,leg_right_pose_source,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_command_x_mm,leg_left_command_y_mm,leg_right_command_x_mm,leg_right_command_y_mm,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_legacy_stance_target_units,leg_legacy_stance_ref_units,leg_legacy_stance_norm,leg_pose_status_flags,leg_ik_valid,leg_left_pose_valid,leg_right_pose_valid,leg_left_pose_source,leg_right_pose_source,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_command_x_mm,leg_left_command_y_mm,leg_right_command_x_mm,leg_right_command_y_mm,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -137,9 +137,9 @@ function Pop-BalanceFrames {
                 left_duty = $values[10]
                 right_duty = $values[11]
                 leg_mode = $values[12]
-                leg_target_height_mm = $values[13]
-                leg_height_ref_mm = $values[14]
-                leg_height_norm = $values[15]
+                leg_legacy_stance_target_units = $values[13]
+                leg_legacy_stance_ref_units = $values[14]
+                leg_legacy_stance_norm = $values[15]
                 leg_pose_status_flags = $values[16]
                 leg_ik_valid = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
                 leg_left_pose_valid = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
@@ -294,9 +294,9 @@ try {
                     ("{0:F3}" -f $frame.left_duty),
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F3}" -f $frame.leg_mode),
-                    ("{0:F3}" -f $frame.leg_target_height_mm),
-                    ("{0:F3}" -f $frame.leg_height_ref_mm),
-                    ("{0:F6}" -f $frame.leg_height_norm),
+                    ("{0:F3}" -f $frame.leg_legacy_stance_target_units),
+                    ("{0:F3}" -f $frame.leg_legacy_stance_ref_units),
+                    ("{0:F6}" -f $frame.leg_legacy_stance_norm),
                     ("{0:F0}" -f $frame.leg_pose_status_flags),
                     ("{0:F3}" -f $frame.leg_ik_valid),
                     ("{0:F3}" -f $frame.leg_left_pose_valid),

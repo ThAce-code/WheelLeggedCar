@@ -31,13 +31,13 @@ Require-Pattern $leg 'LEG_POSE_SOURCE_MEASURED_CALIBRATION' 'Left pose must repo
 Require-Pattern $leg 'LEG_POSE_SOURCE_MIRROR_ASSUMPTION' 'Right pose must report mirror-assumption provenance.'
 Require-Pattern $leg 'APP_TRUE\s*==\s*leg_kinematics_forward_command[\s\S]*command_pose->x_mm\s*=[\s\S]*command_pose->y_mm\s*=[\s\S]*command_pose->valid\s*=\s*APP_TRUE;[\s\S]*else[\s\S]*command_pose->valid\s*=\s*APP_FALSE;' 'Forward-command failure must preserve coordinates and clear validity.'
 Reject-Pattern $leg '(left|right)_x_mm\s*=\s*0\.0f' 'Physical X must never be fabricated as zero.'
-Reject-Pattern $leg '(left|right)_y_mm\s*=\s*control_leg_height_ref_mm' 'Legacy height must never be copied into physical Y.'
-Reject-Pattern $leg 'actual_height_mm\s*=' 'Legacy height must not be published as actual height.'
+Reject-Pattern $leg '(left|right)_y_mm\s*=\s*control_leg_legacy_stance_ref_units' 'Legacy stance must never be copied into physical Y.'
+Reject-Pattern $leg 'actual_height_mm\s*=' 'Legacy stance must not be published as actual height.'
 
 Require-Pattern $telemetry 'float vofa_data\[55\]' 'Telemetry must remain exactly 55 floats.'
-Require-Pattern $telemetry 'vofa_data\[13\]\s*=\s*leg->target_height_mm' 'Telemetry index 13 must retain target_height_mm.'
-Require-Pattern $telemetry 'vofa_data\[14\]\s*=\s*leg->height_ref_mm' 'Telemetry index 14 must retain height_ref_mm.'
-Require-Pattern $telemetry 'vofa_data\[15\]\s*=\s*leg->height_norm' 'Telemetry index 15 must retain height_norm.'
+Require-Pattern $telemetry 'vofa_data\[13\]\s*=\s*leg->legacy_stance_target_units' 'Telemetry index 13 must retain legacy_stance_target_units.'
+Require-Pattern $telemetry 'vofa_data\[14\]\s*=\s*leg->legacy_stance_ref_units' 'Telemetry index 14 must retain legacy_stance_ref_units.'
+Require-Pattern $telemetry 'vofa_data\[15\]\s*=\s*leg->legacy_stance_norm' 'Telemetry index 15 must retain legacy_stance_norm.'
 Require-Pattern $telemetry 'vofa_data\[16\]\s*=\s*\(float\)pose_status_flags' 'Telemetry index 16 must encode pose status flags.'
 Require-Pattern $telemetry 'vofa_data\[17\]\s*=\s*\(float\)leg->output_enable' 'Telemetry index 17 must retain output enable.'
 Require-Pattern $telemetry 'vofa_data\[33\]\s*=\s*leg->left_command_pose_body_mm\.x_mm' 'Telemetry index 33 must be left command X.'
@@ -54,6 +54,9 @@ Require-Pattern $collector 'leg_right_command_x_mm' 'Collector must decode right
 Require-Pattern $collector 'leg_right_command_y_mm' 'Collector must decode right physical Y.'
 Require-Pattern $collector 'leg_left_pose_source' 'Collector must decode left provenance.'
 Require-Pattern $collector 'leg_right_pose_source' 'Collector must decode right provenance.'
+Require-Pattern $collector 'leg_legacy_stance_target_units' 'Collector must name the legacy stance target honestly.'
+Require-Pattern $collector 'leg_legacy_stance_ref_units' 'Collector must name the legacy stance reference honestly.'
+Require-Pattern $collector 'leg_legacy_stance_norm' 'Collector must name the legacy stance norm honestly.'
 Require-Pattern $calibration 'left_command_x_mm' 'Calibration CSV must record left physical X.'
 Require-Pattern $calibration 'right_command_x_mm' 'Calibration CSV must record right physical X.'
 Require-Pattern $calibration 'left_pose_valid' 'Calibration CSV must record left pose validity.'
@@ -61,6 +64,7 @@ Require-Pattern $calibration 'right_pose_valid' 'Calibration CSV must record rig
 Require-Pattern $calibration 'left_pose_source' 'Calibration CSV must record left pose provenance.'
 Require-Pattern $calibration 'right_pose_source' 'Calibration CSV must record right pose provenance.'
 Require-Pattern $calibration '\$csvFields\s*=[\s\S]*"leg_pose_status_flags"' 'Calibration CSV must record the packed pose status.'
+Require-Pattern $calibration 'legacy_stance_ref_units' 'Calibration CSV must name the legacy stance reference honestly.'
 
 $frameBytes = (55 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0

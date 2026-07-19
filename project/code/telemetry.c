@@ -93,11 +93,11 @@ void telemetry_update(uint32 now_ms)
     vofa_data[10] = rpm_diag->left_duty;
     vofa_data[11] = rpm_diag->right_duty;
 
-    /* 12-17: leg height / IK */
+    /* 12-17: legacy leg stance / IK */
     vofa_data[12] = (float)leg->mode;
-    vofa_data[13] = leg->target_height_mm;
-    vofa_data[14] = leg->height_ref_mm;
-    vofa_data[15] = leg->height_norm;
+    vofa_data[13] = leg->legacy_stance_target_units;
+    vofa_data[14] = leg->legacy_stance_ref_units;
+    vofa_data[15] = leg->legacy_stance_norm;
     vofa_data[16] = (float)pose_status_flags;
     vofa_data[17] = (float)leg->output_enable;
 

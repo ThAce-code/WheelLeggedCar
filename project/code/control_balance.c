@@ -173,7 +173,7 @@ void control_balance_init(void)
     control_balance_diag.speed_term_rpm = 0.0f;
     control_balance_diag.pos_term_rpm = 0.0f;
     control_balance_diag.ff_term_rpm = 0.0f;
-    control_balance_diag.leg_height_norm = 0.0f;
+    control_balance_diag.legacy_stance_norm = 0.0f;
     control_balance_diag.balance_pitch_kp_eff = control_balance_pitch_kp;
     control_balance_diag.balance_pitch_rate_kd_eff = control_balance_pitch_rate_kd;
     control_balance_diag.balance_wheel_speed_ks_eff = control_balance_wheel_speed_ks;
@@ -313,24 +313,25 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
 
     {
-        const leg_height_profile_struct *height_profile;
-        float height_norm;
+        const leg_stance_profile_struct *stance_profile;
+        float legacy_stance_norm;
         float pitch_kp_eff;
         float pitch_rate_kd_eff;
         float wheel_speed_ks_base_eff;
         float pitch_setpoint_base_eff;
 
-        height_profile = leg_config_get_height_profile();
-        if(height_profile->high_height_mm > height_profile->low_height_mm)
+        stance_profile = leg_config_get_stance_profile();
+        if(stance_profile->legacy_high_units > stance_profile->legacy_low_units)
         {
-            height_norm = (leg->height_ref_mm - height_profile->low_height_mm) /
-                          (height_profile->high_height_mm - height_profile->low_height_mm);
+            legacy_stance_norm =
+                (leg->legacy_stance_ref_units - stance_profile->legacy_low_units) /
+                (stance_profile->legacy_high_units - stance_profile->legacy_low_units);
         }
         else
         {
-            height_norm = 0.0f;
+            legacy_stance_norm = 0.0f;
         }
-        height_norm = control_balance_clamp01(height_norm);
+        legacy_stance_norm = control_balance_clamp01(legacy_stance_norm);
 
         if(((LEG_MOTION_TRANSITION == leg->motion_state) ||
             (LEG_MOTION_STABLE == leg->motion_state)) &&
@@ -338,18 +339,18 @@ void control_balance_update(uint32 now_ms)
            (APP_TRUE == leg->output_enable) &&
            (APP_TRUE == leg->drive_allowed))
         {
-            pitch_kp_eff = control_balance_lerp(height_profile->balance_pitch_kp_low,
-                                                height_profile->balance_pitch_kp_high,
-                                                height_norm);
-            pitch_rate_kd_eff = control_balance_lerp(height_profile->balance_pitch_rate_kd_low,
-                                                     height_profile->balance_pitch_rate_kd_high,
-                                                     height_norm);
-            wheel_speed_ks_base_eff = control_balance_lerp(height_profile->balance_wheel_speed_ks_low,
-                                                           height_profile->balance_wheel_speed_ks_high,
-                                                           height_norm);
-            pitch_setpoint_base_eff = control_balance_lerp(height_profile->balance_pitch_setpoint_low_deg,
-                                                           height_profile->balance_pitch_setpoint_high_deg,
-                                                           height_norm);
+            pitch_kp_eff = control_balance_lerp(stance_profile->balance_pitch_kp_low,
+                                                stance_profile->balance_pitch_kp_high,
+                                                legacy_stance_norm);
+            pitch_rate_kd_eff = control_balance_lerp(stance_profile->balance_pitch_rate_kd_low,
+                                                     stance_profile->balance_pitch_rate_kd_high,
+                                                     legacy_stance_norm);
+            wheel_speed_ks_base_eff = control_balance_lerp(stance_profile->balance_wheel_speed_ks_low,
+                                                           stance_profile->balance_wheel_speed_ks_high,
+                                                           legacy_stance_norm);
+            pitch_setpoint_base_eff = control_balance_lerp(stance_profile->balance_pitch_setpoint_low_deg,
+                                                           stance_profile->balance_pitch_setpoint_high_deg,
+                                                           legacy_stance_norm);
         }
         else
         {
@@ -374,7 +375,7 @@ void control_balance_update(uint32 now_ms)
         pos_term_rpm = control_balance_wheel_pos_kp * control_balance_wheel_pos_rev;
         ff_term_rpm = chassis->speed_ff_rpm;
 
-        control_balance_diag.leg_height_norm = height_norm;
+        control_balance_diag.legacy_stance_norm = legacy_stance_norm;
         control_balance_diag.balance_pitch_kp_eff = pitch_kp_eff;
         control_balance_diag.balance_pitch_rate_kd_eff = pitch_rate_kd_eff;
         control_balance_diag.balance_wheel_speed_ks_eff = wheel_speed_ks_base_eff;

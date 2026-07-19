@@ -219,7 +219,7 @@ typedef struct
     float speed_term_rpm;
     float pos_term_rpm;
     float ff_term_rpm;
-    float leg_height_norm;
+    float legacy_stance_norm;
     float balance_pitch_kp_eff;
     float balance_pitch_rate_kd_eff;
     float balance_wheel_speed_ks_eff;
@@ -291,10 +291,10 @@ typedef struct
 
 typedef struct
 {
-    float target_height_mm;
-    float height_ref_mm;
-    float height_rate_mm_s;
-    float height_norm;
+    float legacy_stance_target_units;
+    float legacy_stance_ref_units;
+    float legacy_stance_rate_units_s;
+    float legacy_stance_norm;
     float ik_margin;
     leg_pose_command_estimate_struct left_command_pose_body_mm;
     leg_pose_command_estimate_struct right_command_pose_body_mm;

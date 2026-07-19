@@ -50,9 +50,9 @@ function Pop-Frame {
     $Buffer.RemoveRange(0, $tailIdx + $Tail.Length)
     return @{
         leg_mode             = $values[12]
-        leg_target_height_mm = $values[13]
-        leg_height_ref_mm    = $values[14]
-        leg_height_norm      = $values[15]
+        leg_legacy_stance_target_units = $values[13]
+        leg_legacy_stance_ref_units    = $values[14]
+        leg_legacy_stance_norm         = $values[15]
         leg_pose_status_flags = $values[16]
         leg_ik_valid         = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
         left_pose_valid      = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
@@ -233,7 +233,7 @@ $rxBuf = New-Object System.Collections.Generic.List[byte]
 # ── CSV header ──
 $csvFields = "sample_id","label","cmd_a0_deg","cmd_a1_deg","cmd_a2_deg","cmd_a3_deg",
              "servo0_output_deg","servo1_output_deg","servo2_output_deg","servo3_output_deg",
-             "ik_valid","leg_mode","leg_height_ref_mm","leg_pose_status_flags","left_command_x_mm","left_command_y_mm",
+             "ik_valid","leg_mode","legacy_stance_ref_units","leg_pose_status_flags","left_command_x_mm","left_command_y_mm",
              "right_command_x_mm","right_command_y_mm","left_pose_valid","right_pose_valid",
              "left_pose_source","right_pose_source","ik_margin",
              "drive_forward_limit_rpm","motion_state","fault_reason","drive_allowed","telemetry_match",
@@ -309,7 +309,7 @@ try {
             $a0, $a1, $a2, $a3,
             $s0, $s1, $s2, $s3,
             $ikv, $lmode,
-            ("{0:F3}" -f $frame.leg_height_ref_mm),
+            ("{0:F3}" -f $frame.leg_legacy_stance_ref_units),
             ("{0:F0}" -f $frame.leg_pose_status_flags),
             ("{0:F3}" -f $frame.left_command_x_mm),
             ("{0:F3}" -f $frame.left_command_y_mm),

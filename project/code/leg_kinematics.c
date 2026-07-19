@@ -427,7 +427,7 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
                                         leg_ik_result_struct *result)
 {
     const leg_kinematics_config_struct *cfg;
-    const leg_height_profile_struct *profile;
+    const leg_stance_profile_struct *profile;
     float x;
     float y;
     float a;
@@ -462,7 +462,7 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     result->valid = APP_FALSE;
 
     cfg = leg_config_get_kinematics();
-    profile = leg_config_get_height_profile();
+    profile = leg_config_get_stance_profile();
     if((NULL == cfg) || (NULL == profile))
     {
         return APP_FALSE;

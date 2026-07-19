@@ -353,7 +353,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('H' == line[1]) && ('F' == line[2]) && (',' == line[3]) &&
        (APP_TRUE == host_command_parse_number(&line[4], &value)))
     {
-        if(APP_TRUE == control_leg_set_fast_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_fast_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;
@@ -363,7 +363,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('H' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_number(&line[3], &value)))
     {
-        if(APP_TRUE == control_leg_set_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;
@@ -377,7 +377,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
-        if(APP_TRUE == control_leg_set_direct_step_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_direct_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;

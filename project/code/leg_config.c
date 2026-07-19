@@ -53,19 +53,19 @@ static const leg_config_struct leg_config_default =
         .right_beta_branch = LEG_IK_BRANCH_MINUS
     },
     {
-        .low_height_mm = 30.0f,
-        .high_height_mm = 80.0f,
-        .default_height_mm = 55.0f,
-        .max_height_speed_mm_s = 20.0f,
-        .max_height_accel_mm_s2 = 20.0f,
-        .max_height_jerk_mm_s3 = 80.0f,
-        .height_position_kp_s = 2.0f,
-        .height_rate_kp_s = 4.0f,
-        .height_settle_error_mm = 1.0f,
-        .height_settle_ms = 300U,
-        .fast_height_transition_ms = 500U,
+        .legacy_low_units = 30.0f,
+        .legacy_high_units = 80.0f,
+        .legacy_default_units = 55.0f,
+        .legacy_max_rate_units_s = 20.0f,
+        .legacy_max_accel_units_s2 = 20.0f,
+        .legacy_max_jerk_units_s3 = 80.0f,
+        .legacy_position_kp_s = 2.0f,
+        .legacy_rate_kp_s = 4.0f,
+        .legacy_settle_error_units = 1.0f,
+        .legacy_settle_ms = 300U,
+        .fast_stance_transition_ms = 500U,
         .ik_min_margin = 0.20f,
-        .safe_support_height_mm = 55.0f,
+        .legacy_safe_support_units = 55.0f,
         .transition_forward_limit_rpm = 30.0f,
         .balance_pitch_kp_low = 18.0f,
         .balance_pitch_kp_high = 22.0f,
@@ -105,7 +105,7 @@ const leg_kinematics_config_struct *leg_config_get_kinematics(void)
     return &leg_config_default.kinematics;
 }
 
-const leg_height_profile_struct *leg_config_get_height_profile(void)
+const leg_stance_profile_struct *leg_config_get_stance_profile(void)
 {
-    return &leg_config_default.height_profile;
+    return &leg_config_default.stance_profile;
 }

@@ -102,6 +102,12 @@ void host_set_feedback_healthy(uint8 healthy, uint32 now_ms)
     host_wheel_feedback.right_online = healthy;
 }
 
+void host_set_motor_rpm(float left_rpm, float right_rpm)
+{
+    host_rpm_diag.left_motor_rpm = left_rpm;
+    host_rpm_diag.right_motor_rpm = right_rpm;
+}
+
 const motor_rpm_loop_diag_struct *actuator_motor_get_motor_rpm_loop_diag(void)
 {
     return &host_rpm_diag;
@@ -156,6 +162,7 @@ void control_leg_disable_race_assist(uint32 now_ms)
 
 void host_chassis_reset(uint32 now_ms, leg_motion_state_enum motion_state);
 void host_set_feedback_healthy(uint8 healthy, uint32 now_ms);
+void host_set_motor_rpm(float left_rpm, float right_rpm);
 extern uint8 host_race_request_accept;
 extern uint32 host_race_request_count;
 
@@ -172,11 +179,44 @@ static int expect_zero_forward_output(const char *name)
     if(expect_near(cmd->target_forward_rpm, 0.0f, 0.001f) ||
        expect_near(cmd->actual_forward_rpm, 0.0f, 0.001f) ||
        expect_near(output->forward_target_rpm, 0.0f, 0.001f) ||
+       expect_near(output->forward_ramped_rpm, 0.0f, 0.001f) ||
        expect_near(output->forward_actual_rpm, 0.0f, 0.001f) ||
        expect_near(output->forward_limit_eff_rpm, 0.0f, 0.001f) ||
        expect_near(output->fast_forward_limit_eff_rpm, 0.0f, 0.001f))
     {
         fprintf(stderr, "%s did not publish zero forward target/actual/caps\n", name);
+        return 1;
+    }
+    return 0;
+}
+
+static int check_forward_telemetry_truth(void)
+{
+    const chassis_output_struct *output;
+    const float target_rpm = 50.0f;
+    const float expected_ramped_rpm = APP_CHASSIS_FORWARD_RAMP_RPM_S * 0.005f;
+    const float measured_rpm = 33.0f;
+
+    host_chassis_reset(50U, LEG_MOTION_STABLE);
+    control_chassis_init();
+    host_set_motor_rpm(31.0f, 35.0f);
+    control_chassis_set_cmd(target_rpm, 0.0f, APP_TRUE, 50U);
+    control_chassis_update(50U);
+    output = control_chassis_get_output();
+
+    if(expect_near(output->forward_target_rpm, target_rpm, 0.001f) ||
+       expect_near(output->forward_ramped_rpm, expected_ramped_rpm, 0.001f) ||
+       expect_near(output->wheel_speed_measured_rpm, measured_rpm, 0.001f) ||
+       expect_near(output->forward_actual_rpm, measured_rpm, 0.001f) ||
+       (output->forward_target_rpm == output->forward_ramped_rpm) ||
+       (output->forward_target_rpm == output->wheel_speed_measured_rpm) ||
+       (output->forward_ramped_rpm == output->wheel_speed_measured_rpm))
+    {
+        fprintf(stderr,
+                "I62/I63/I64 producer truth mismatch: target %.3f ramped %.3f measured %.3f\n",
+                output->forward_target_rpm,
+                output->forward_ramped_rpm,
+                output->wheel_speed_measured_rpm);
         return 1;
     }
     return 0;
@@ -272,7 +312,8 @@ static int check_rejected_leg_request_decelerates_bounded(void)
        expect_near(cmd->actual_forward_rpm,
                    forward_before_fault - fault_ramp_delta,
                    0.001f) ||
-       expect_near(output->forward_target_rpm, cmd->actual_forward_rpm, 0.001f) ||
+       expect_near(output->forward_target_rpm, cmd->target_forward_rpm, 0.001f) ||
+       expect_near(output->forward_ramped_rpm, cmd->actual_forward_rpm, 0.001f) ||
        (0.0f >= cmd->actual_forward_rpm) ||
        expect_near(output->speed_pitch_limit_deg,
                    APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG,
@@ -343,6 +384,7 @@ static int check_transition_remains_30_rpm(void)
 int main(void)
 {
     if(check_requested_fast_reaches_supervisor() ||
+       check_forward_telemetry_truth() ||
        check_rejected_leg_request_stops_same_cycle() ||
        check_rejected_leg_request_decelerates_bounded() ||
        check_unhealthy_feedback_publishes_zero_caps() ||

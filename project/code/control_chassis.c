@@ -193,6 +193,7 @@ static void control_chassis_clear_output(void)
     control_chassis_output.pitch_offset_deg = 0.0f;
     control_chassis_output.turn_rpm = 0.0f;
     control_chassis_output.forward_target_rpm = 0.0f;
+    control_chassis_output.forward_ramped_rpm = 0.0f;
     control_chassis_output.forward_actual_rpm = 0.0f;
     control_chassis_output.turn_target_dps = 0.0f;
     control_chassis_output.gyro_z_dps = 0.0f;
@@ -569,7 +570,8 @@ void control_chassis_update(uint32 now_ms)
 
     control_chassis_output.pitch_offset_deg = speed_pitch_offset_deg;
     control_chassis_output.turn_rpm = turn_rpm;
-    control_chassis_output.forward_target_rpm = control_chassis_cmd.actual_forward_rpm;
+    control_chassis_output.forward_target_rpm = control_chassis_cmd.target_forward_rpm;
+    control_chassis_output.forward_ramped_rpm = control_chassis_cmd.actual_forward_rpm;
     control_chassis_output.forward_actual_rpm = avg_wheel_speed_rpm;
     control_chassis_output.turn_target_dps = control_chassis_cmd.actual_turn_dps;
     control_chassis_output.gyro_z_dps = gyro_z_filtered_dps;

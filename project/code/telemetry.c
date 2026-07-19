@@ -166,7 +166,7 @@ void telemetry_update(uint32 now_ms)
     vofa_data[60] = leg->race_assist_actual;
     vofa_data[61] = chassis->requested_accel_rpm_s;
     vofa_data[62] = chassis->forward_target_rpm;
-    vofa_data[63] = chassis->forward_actual_rpm;
+    vofa_data[63] = chassis->forward_ramped_rpm;
     vofa_data[64] = chassis->wheel_speed_measured_rpm;
     vofa_data[65] = chassis->speed_error_rpm;
     vofa_data[66] = balance->pitch_setpoint_deg;

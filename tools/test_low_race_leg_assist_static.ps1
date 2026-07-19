@@ -88,7 +88,7 @@ Require-Pattern $telemetry 'vofa_data\[61\]\s*=\s*chassis->requested_accel_rpm_s
     "Requested acceleration must occupy telemetry index 61."
 Require-Pattern $telemetry 'vofa_data\[62\]\s*=\s*chassis->forward_target_rpm' `
     "Forward target must occupy telemetry index 62."
-Require-Pattern $telemetry 'vofa_data\[63\]\s*=\s*chassis->forward_actual_rpm' `
+Require-Pattern $telemetry 'vofa_data\[63\]\s*=\s*chassis->forward_ramped_rpm' `
     "Ramped forward target must occupy telemetry index 63."
 Require-Pattern $telemetry 'vofa_data\[64\]\s*=\s*chassis->wheel_speed_measured_rpm' `
     "Measured wheel speed must occupy telemetry index 64."

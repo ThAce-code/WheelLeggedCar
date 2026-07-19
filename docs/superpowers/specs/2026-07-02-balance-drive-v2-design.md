@@ -297,6 +297,7 @@ typedef struct
     float pitch_offset_deg;
     float turn_rpm;
     float forward_target_rpm;
+    float forward_ramped_rpm;
     float forward_actual_rpm;
     float turn_target_dps;
     float gyro_z_dps;
@@ -308,8 +309,9 @@ The names should make the new architecture explicit:
 
 - `pitch_offset_deg`: forward speed-loop output.
 - `turn_rpm`: yaw-rate loop output.
-- `forward_target_rpm`: ramped speed target.
-- `forward_actual_rpm`: average wheel speed.
+- `forward_target_rpm`: bounded requested speed target.
+- `forward_ramped_rpm`: ramp-limited speed target used by the controller.
+- `forward_actual_rpm`: average measured wheel speed.
 - `turn_target_dps`: ramped yaw-rate target.
 - `gyro_z_dps`: measured yaw-rate.
 

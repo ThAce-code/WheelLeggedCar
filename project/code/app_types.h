@@ -160,7 +160,9 @@ typedef struct
 {
     float pitch_offset_deg;
     float turn_rpm;
+    /* Bounded command target, ramped target, and independent wheel measurement. */
     float forward_target_rpm;
+    float forward_ramped_rpm;
     float forward_actual_rpm;
     float turn_target_dps;
     float gyro_z_dps;

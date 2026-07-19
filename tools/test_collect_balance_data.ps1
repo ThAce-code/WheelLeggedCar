@@ -141,7 +141,7 @@ Assert-True ($Fields -match "leg_legacy_stance_target_units") "CSV header must i
 Assert-True ($Fields -match "leg_legacy_stance_ref_units") "CSV header must include legacy stance reference"
 Assert-True ($Fields -match "leg_legacy_stance_norm") "CSV header must include legacy stance norm"
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
-Assert-True ($Fields -notmatch "leg_height_cmd_est_mm") "CSV header must not duplicate the legacy height reference"
+Assert-True ($Fields -notmatch "leg_height_cmd_est_mm") "CSV header must not duplicate the legacy stance reference"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

@@ -38,68 +38,68 @@ function Assert-Near {
     }
 }
 
-function Step-HeightSupervisor {
+function Step-LegacyStanceSupervisor {
     param(
-        [double]$ReferenceMm,
-        [double]$RateMmS,
-        [double]$AccelMmS2,
-        [double]$TargetMm,
-        [double]$MaxSpeedMmS,
-        [double]$MaxAccelMmS2,
-        [double]$MaxJerkMmS3,
+        [double]$ReferenceUnits,
+        [double]$RateUnitsS,
+        [double]$AccelUnitsS2,
+        [double]$TargetUnits,
+        [double]$MaxRateUnitsS,
+        [double]$MaxAccelUnitsS2,
+        [double]$MaxJerkUnitsS3,
         [double]$PositionKpS,
         [double]$RateKpS,
         [double]$DtS
     )
 
-    $errorMm = $TargetMm - $ReferenceMm
-    $desiredRateMmS = [math]::Max(-$MaxSpeedMmS, [math]::Min($errorMm * $PositionKpS, $MaxSpeedMmS))
-    $desiredAccelMmS2 = [math]::Max(-$MaxAccelMmS2,
-        [math]::Min($RateKpS * ($desiredRateMmS - $RateMmS), $MaxAccelMmS2))
-    $accelDeltaMmS2 = [math]::Max(-$MaxJerkMmS3 * $DtS,
-        [math]::Min($desiredAccelMmS2 - $AccelMmS2, $MaxJerkMmS3 * $DtS))
-    $AccelMmS2 += $accelDeltaMmS2
-    $AccelMmS2 = [math]::Max(-$MaxAccelMmS2, [math]::Min($AccelMmS2, $MaxAccelMmS2))
-    $RateMmS = [math]::Max(-$MaxSpeedMmS, [math]::Min($RateMmS + ($AccelMmS2 * $DtS), $MaxSpeedMmS))
-    $nextReferenceMm = $ReferenceMm + ($RateMmS * $DtS)
-    if(([math]::Abs($TargetMm - $nextReferenceMm) -le 0.01) -and
-       ([math]::Abs($RateMmS) -le 0.05) -and
-       ([math]::Abs($AccelMmS2) -le ($MaxJerkMmS3 * $DtS))) {
-        $nextReferenceMm = $TargetMm
-        $RateMmS = 0.0
-        $AccelMmS2 = 0.0
+    $errorUnits = $TargetUnits - $ReferenceUnits
+    $desiredRateUnitsS = [math]::Max(-$MaxRateUnitsS, [math]::Min($errorUnits * $PositionKpS, $MaxRateUnitsS))
+    $desiredAccelUnitsS2 = [math]::Max(-$MaxAccelUnitsS2,
+        [math]::Min($RateKpS * ($desiredRateUnitsS - $RateUnitsS), $MaxAccelUnitsS2))
+    $accelDeltaUnitsS2 = [math]::Max(-$MaxJerkUnitsS3 * $DtS,
+        [math]::Min($desiredAccelUnitsS2 - $AccelUnitsS2, $MaxJerkUnitsS3 * $DtS))
+    $AccelUnitsS2 += $accelDeltaUnitsS2
+    $AccelUnitsS2 = [math]::Max(-$MaxAccelUnitsS2, [math]::Min($AccelUnitsS2, $MaxAccelUnitsS2))
+    $RateUnitsS = [math]::Max(-$MaxRateUnitsS, [math]::Min($RateUnitsS + ($AccelUnitsS2 * $DtS), $MaxRateUnitsS))
+    $nextReferenceUnits = $ReferenceUnits + ($RateUnitsS * $DtS)
+    if(([math]::Abs($TargetUnits - $nextReferenceUnits) -le 0.01) -and
+       ([math]::Abs($RateUnitsS) -le 0.05) -and
+       ([math]::Abs($AccelUnitsS2) -le ($MaxJerkUnitsS3 * $DtS))) {
+        $nextReferenceUnits = $TargetUnits
+        $RateUnitsS = 0.0
+        $AccelUnitsS2 = 0.0
     }
-    return @($nextReferenceMm, $RateMmS, $AccelMmS2)
+    return @($nextReferenceUnits, $RateUnitsS, $AccelUnitsS2)
 }
 
-function Assert-JerkLimitedHeightTrajectory {
+function Assert-JerkLimitedLegacyStanceTrajectory {
     param(
         [double]$PositionKpS,
         [double]$RateKpS
     )
-    $referenceMm = 55.0
-    $rateMmS = 0.0
-    $accelMmS2 = 0.0
-    $targetMm = 65.0
+    $referenceUnits = 55.0
+    $rateUnitsS = 0.0
+    $accelUnitsS2 = 0.0
+    $targetUnits = 65.0
     for($step = 0; $step -lt 5000; $step++) {
         if(200 -eq $step) {
-            $targetMm = 45.0
+            $targetUnits = 45.0
         }
-        $previousAccelMmS2 = $accelMmS2
-        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -AccelMmS2 $accelMmS2 -TargetMm $targetMm -MaxSpeedMmS 20.0 -MaxAccelMmS2 20.0 -MaxJerkMmS3 80.0 -PositionKpS $PositionKpS -RateKpS $RateKpS -DtS 0.01
-        $referenceMm = $result[0]
-        $rateMmS = $result[1]
-        $accelMmS2 = $result[2]
-        if((20.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
-            throw "Height trajectory exceeded 20 mm/s."
+        $previousAccelUnitsS2 = $accelUnitsS2
+        $result = Step-LegacyStanceSupervisor -ReferenceUnits $referenceUnits -RateUnitsS $rateUnitsS -AccelUnitsS2 $accelUnitsS2 -TargetUnits $targetUnits -MaxRateUnitsS 20.0 -MaxAccelUnitsS2 20.0 -MaxJerkUnitsS3 80.0 -PositionKpS $PositionKpS -RateKpS $RateKpS -DtS 0.01
+        $referenceUnits = $result[0]
+        $rateUnitsS = $result[1]
+        $accelUnitsS2 = $result[2]
+        if((20.0 + 0.0001) -lt [math]::Abs($rateUnitsS)) {
+            throw "Legacy stance trajectory exceeded 20 units/s."
         }
-        if((20.0 + 0.0001) -lt [math]::Abs($accelMmS2)) {
-            throw "Height trajectory exceeded 20 mm/s2."
+        if((20.0 + 0.0001) -lt [math]::Abs($accelUnitsS2)) {
+            throw "Legacy stance trajectory exceeded 20 units/s2."
         }
-        if((0.8 + 0.0001) -lt [math]::Abs($accelMmS2 - $previousAccelMmS2)) {
-            throw ("Height trajectory exceeded 80 mm/s3 at 10 ms: step {0}." -f $step)
+        if((0.8 + 0.0001) -lt [math]::Abs($accelUnitsS2 - $previousAccelUnitsS2)) {
+            throw ("Legacy stance trajectory exceeded 80 units/s3 at 10 ms: step {0}." -f $step)
         }
-        $halfDeltaDeg = 0.5 * (($referenceMm - 55.0) / 0.595)
+        $halfDeltaDeg = 0.5 * (($referenceUnits - 55.0) / 0.595)
         $servoFl = 90.0 + $halfDeltaDeg
         $servoFr = 90.0 - $halfDeltaDeg
         $servoRl = 90.0 - $halfDeltaDeg
@@ -107,12 +107,12 @@ function Assert-JerkLimitedHeightTrajectory {
         Assert-Near -Actual $servoFl -Expected $servoRr -Tolerance 0.0001 -Message "FL/RR empirical synchronization"
         Assert-Near -Actual $servoFr -Expected $servoRl -Tolerance 0.0001 -Message "FR/RL empirical synchronization"
         Assert-Near -Actual ($servoFl + $servoFr) -Expected 180.0 -Tolerance 0.0001 -Message "Front differential pair center"
-        Assert-Near -Actual ($servoRr - $servoRl) -Expected (($referenceMm - 55.0) / 0.595) -Tolerance 0.0001 -Message "Empirical height differential"
-        if(($step -gt 200) -and (45.0 -eq $referenceMm) -and (0.0 -eq $rateMmS) -and (0.0 -eq $accelMmS2)) {
+        Assert-Near -Actual ($servoRr - $servoRl) -Expected (($referenceUnits - 55.0) / 0.595) -Tolerance 0.0001 -Message "Empirical legacy stance differential"
+        if(($step -gt 200) -and (45.0 -eq $referenceUnits) -and (0.0 -eq $rateUnitsS) -and (0.0 -eq $accelUnitsS2)) {
             return
         }
     }
-    throw ("Jerk-limited height trajectory did not settle: target {0}, reference {1}, rate {2}, accel {3}." -f $targetMm, $referenceMm, $rateMmS, $accelMmS2)
+    throw ("Jerk-limited legacy stance trajectory did not settle: target {0}, reference {1}, rate {2}, accel {3}." -f $targetUnits, $referenceUnits, $rateUnitsS, $accelUnitsS2)
 }
 
 function Get-S7Blend([double]$u) {
@@ -142,45 +142,45 @@ function Get-S7Derivative3([double]$u) {
     return (840.0 * $u) - (5040.0 * $u2) + (8400.0 * $u2 * $u) - (4200.0 * $u2 * $u2)
 }
 
-function Get-FastHeightReference {
+function Get-FastLegacyStanceReference {
     param(
-        [double]$StartMm,
-        [double]$TargetMm,
+        [double]$StartUnits,
+        [double]$TargetUnits,
         [double]$ElapsedMs,
         [double]$DurationMs
     )
 
     $u = [math]::Max(0.0, [math]::Min($ElapsedMs / $DurationMs, 1.0))
     $blend = Get-S7Blend $u
-    return $StartMm + (($TargetMm - $StartMm) * $blend)
+    return $StartUnits + (($TargetUnits - $StartUnits) * $blend)
 }
 
-function Assert-FastHeightTrajectory {
+function Assert-FastLegacyStanceTrajectory {
     param(
-        [double]$StartMm,
-        [double]$TargetMm,
-        [double]$LowMm,
-        [double]$HighMm,
+        [double]$StartUnits,
+        [double]$TargetUnits,
+        [double]$LowUnits,
+        [double]$HighUnits,
         [double]$DurationMs
     )
 
-    $previousMm = $StartMm
-    $direction = [math]::Sign($TargetMm - $StartMm)
+    $previousUnits = $StartUnits
+    $direction = [math]::Sign($TargetUnits - $StartUnits)
     for($elapsedMs = 0; $elapsedMs -lt $DurationMs; $elapsedMs += 6) {
-        $referenceMm = Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $elapsedMs -DurationMs $DurationMs
-        if(($LowMm -gt $referenceMm) -or ($HighMm -lt $referenceMm)) {
-            throw ("Fast height reference overshot its command interval at {0} ms: {1}." -f $elapsedMs, $referenceMm)
+        $referenceUnits = Get-FastLegacyStanceReference -StartUnits $StartUnits -TargetUnits $TargetUnits -ElapsedMs $elapsedMs -DurationMs $DurationMs
+        if(($LowUnits -gt $referenceUnits) -or ($HighUnits -lt $referenceUnits)) {
+            throw ("Fast legacy stance reference overshot its command interval at {0} ms: {1}." -f $elapsedMs, $referenceUnits)
         }
-        if((0.0 -lt $direction) -and ($previousMm -gt ($referenceMm + 0.000001))) {
-            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        if((0.0 -lt $direction) -and ($previousUnits -gt ($referenceUnits + 0.000001))) {
+            throw ("Fast legacy stance reference reversed before its target at {0} ms." -f $elapsedMs)
         }
-        if((0.0 -gt $direction) -and ($previousMm -lt ($referenceMm - 0.000001))) {
-            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        if((0.0 -gt $direction) -and ($previousUnits -lt ($referenceUnits - 0.000001))) {
+            throw ("Fast legacy stance reference reversed before its target at {0} ms." -f $elapsedMs)
         }
-        $previousMm = $referenceMm
+        $previousUnits = $referenceUnits
     }
-    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected $StartMm -Tolerance 0.000001 -Message "Fast height start reference"
-    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected $TargetMm -Tolerance 0.000001 -Message "Fast height completes at configured duration"
+    Assert-Near -Actual (Get-FastLegacyStanceReference -StartUnits $StartUnits -TargetUnits $TargetUnits -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected $StartUnits -Tolerance 0.000001 -Message "Fast legacy stance start reference"
+    Assert-Near -Actual (Get-FastLegacyStanceReference -StartUnits $StartUnits -TargetUnits $TargetUnits -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected $TargetUnits -Tolerance 0.000001 -Message "Fast legacy stance completes at configured duration"
 }
 
 function Assert-SoftFaultSafeRate {
@@ -554,10 +554,10 @@ Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result 
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."
 Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
 
-Assert-JerkLimitedHeightTrajectory -PositionKpS $config["legacy_position_kp_s"] -RateKpS $config["legacy_rate_kp_s"]
-Assert-FastHeightTrajectory -StartMm 45.0 -TargetMm 65.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
-Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 30.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
-Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["legacy_low_units"] -HighMm $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
+Assert-JerkLimitedLegacyStanceTrajectory -PositionKpS $config["legacy_position_kp_s"] -RateKpS $config["legacy_rate_kp_s"]
+Assert-FastLegacyStanceTrajectory -StartUnits 45.0 -TargetUnits 65.0 -LowUnits $config["legacy_low_units"] -HighUnits $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
+Assert-FastLegacyStanceTrajectory -StartUnits 55.0 -TargetUnits 30.0 -LowUnits $config["legacy_low_units"] -HighUnits $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
+Assert-FastLegacyStanceTrajectory -StartUnits 55.0 -TargetUnits 80.0 -LowUnits $config["legacy_low_units"] -HighUnits $config["legacy_high_units"] -DurationMs $config["fast_stance_transition_ms"]
 Assert-SoftFaultSafeRate
 Assert-InsufficientIkMarginFault
 Assert-MotionPolicy

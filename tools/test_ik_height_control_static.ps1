@@ -69,8 +69,8 @@ Assert-Contains "project/code/leg_config.c" "legacy_low_units = 30\.0f" "Extende
 Assert-Contains "project/code/leg_config.c" "legacy_high_units = 80\.0f" "Extended high legacy stance command must remain available."
 Assert-Contains "project/code/leg_config.c" "legacy_default_units = 55\.0f" "Phase 1 default command must remain at legacy center 55."
 Assert-Contains "project/code/leg_config.c" "legacy_safe_support_units = 55\.0f" "LOCK transition must restart from legacy safe support 55."
-Assert-Contains "project/code/app_config.h" "APP_SERVO_MAX_SPEED_DPS\s+\(90\.0f\)" "Servo PWM output slew limit must be conservative for 7.4V empirical height validation."
-Assert-Contains "project/code/app_config.h" "APP_LEG_FAST_SERVO_MAX_SPEED_DPS\s+\(180\.0f\)" "Fast height profile must use a scoped 180 dps servo slew cap."
+Assert-Contains "project/code/app_config.h" "APP_SERVO_MAX_SPEED_DPS\s+\(90\.0f\)" "Servo PWM output slew limit must be conservative for 7.4V empirical legacy stance validation."
+Assert-Contains "project/code/app_config.h" "APP_LEG_FAST_SERVO_MAX_SPEED_DPS\s+\(180\.0f\)" "Fast legacy stance profile must use a scoped 180 dps servo slew cap."
 Assert-Contains "project/code/app_config.h" "APP_LEG_DIRECT_STEP_TEST_ENABLE\s+\(0U\)" "Direct-step bench mode must default off."
 
 Assert-Contains "project/code/app_types.h" "leg_diag_struct" "Missing leg diagnostics."
@@ -110,27 +110,27 @@ Assert-NotContains "project/code/control_leg.c" "static float control_leg_ramp_t
 Assert-NotContains "project/code/control_leg.c" "static uint8 control_leg_apply_calib" "Empirical LH mode must not retain the unused IK calibration helper."
 Assert-NotContains "project/code/control_leg.c" "control_leg_left_ik" "Empirical LH mode must not retain unused left IK state."
 Assert-NotContains "project/code/control_leg.c" "control_leg_right_ik" "Empirical LH mode must not retain unused right IK state."
-Assert-NotContains "project/code/control_leg.c" "height \+ \(pitch \* servo_cfg->mount_x\)" "Height mode must not use old direct servo mixer."
+Assert-NotContains "project/code/control_leg.c" "height \+ \(pitch \* servo_cfg->mount_x\)" "Legacy stance mode must not use the old direct servo mixer."
 Assert-Contains "project/code/control_leg.c" "control_leg_legacy_stance_ref_units" "Legacy stance supervisor must retain a bounded reference."
 Assert-Contains "project/code/control_leg.c" "control_leg_legacy_stance_rate_units_s" "Legacy stance supervisor must retain a bounded rate."
 Assert-Contains "project/code/control_leg.c" "control_leg_legacy_stance_accel_units_s2" "Legacy stance supervisor must retain bounded acceleration state."
-Assert-Contains "project/code/control_leg.c" "control_leg_motion_state" "Height supervisor must publish motion state."
-Assert-Contains "project/code/control_leg.c" "control_leg_fault_reason" "Height supervisor must publish a fault reason."
-Assert-Contains "project/code/control_leg.c" "control_leg_settle_start_ms" "Height supervisor must track stable settle timing."
+Assert-Contains "project/code/control_leg.c" "control_leg_motion_state" "Legacy stance supervisor must publish motion state."
+Assert-Contains "project/code/control_leg.c" "control_leg_fault_reason" "Legacy stance supervisor must publish a fault reason."
+Assert-Contains "project/code/control_leg.c" "control_leg_settle_start_ms" "Legacy stance supervisor must track stable settle timing."
 Assert-Contains "project/code/control_leg.c" "legacy_max_jerk_units_s3" "Legacy stance supervisor must use the configured jerk limit."
 Assert-Contains "project/code/control_leg.c" "desired_rate_units_s" "Legacy stance supervisor must derive a bounded rate from position error."
 Assert-Contains "project/code/control_leg.c" "legacy_position_kp_s" "Legacy stance supervisor must use the configured position gain."
 Assert-Contains "project/code/control_leg.c" "legacy_rate_kp_s" "Legacy stance supervisor must use the configured rate gain."
 Assert-Contains "project/code/control_leg.c" "accel_delta_units_s2" "Legacy stance supervisor must ramp acceleration by configured jerk."
 Assert-Contains "project/code/control_leg.c" "fast_stance_transition_ms" "Fast legacy stance mode must use the configured 500 ms duration."
-Assert-Contains "project/code/control_leg.c" "35\.0f - \(84\.0f \* p\)" "Fast height mode must use the seven-degree S7 blend."
+Assert-Contains "project/code/control_leg.c" "35\.0f - \(84\.0f \* p\)" "Fast legacy stance mode must use the seven-degree S7 blend."
 Assert-Contains "project/code/control_leg.c" "control_leg_pose_start_deg" "S7 pose trajectory must store four-element start array."
 Assert-Contains "project/code/control_leg.c" "control_leg_pose_target_deg" "S7 pose trajectory must store four-element target array."
 Assert-Contains "project/code/control_leg.c" "2\.1875f" "S7 pose trajectory must use the normalized peak-speed factor."
 Assert-Contains "project/code/control_leg.c" "actuator_servo_publish_cmd" "Leg controller must publish one atomic actuator frame."
 Assert-Contains "project/code/control_leg.c" "LEG_MODE_FAST_LEGACY_STANCE[\s\S]*APP_LEG_FAST_SERVO_MAX_SPEED_DPS" "Only fast legacy stance mode may select the 180 dps servo slew cap."
 Assert-Contains "project/code/control_leg.c" "APP_SERVO_MAX_SPEED_DPS" "Non-fast leg modes must restore the 90 dps servo slew cap."
-Assert-Contains "project/code/control_leg.c" "control_leg_enter_fault" "Height command validation failures must enter the soft fault state."
+Assert-Contains "project/code/control_leg.c" "control_leg_enter_fault" "Legacy stance command validation failures must enter the soft fault state."
 Assert-Contains "project/code/control_leg.c" "LEG_MOTION_FAULT" "Soft fault must be externally observable."
 Assert-Contains "project/code/app_types.h" "LEG_FAULT_IK_MARGIN" "Insufficient IK margin fault reason must remain available for geometry IK validation."
 Assert-Contains "project/code/control_leg.c" "control_leg_write_safe_angles\(config\)" "Soft fault must command verified safe servo angles."
@@ -160,7 +160,7 @@ Assert-Contains "project/code/control_balance.c" "balance_pitch_kp_low" "Balance
 Assert-Contains "project/code/control_balance.c" "balance_pitch_kp_high" "Balance must use stance profile high gain."
 Assert-Contains "project/code/control_chassis.c" "control_leg_get_diag" "Chassis must read leg stance diagnostics."
 Assert-Contains "project/code/control_chassis.c" "chassis_forward_limit_low_rpm" "Chassis must use stance profile forward limits."
-Assert-Contains "project/code/control_chassis.c" "LEG_MOTION_TRANSITION" "Chassis must use leg transition state instead of height-error inference."
+Assert-Contains "project/code/control_chassis.c" "LEG_MOTION_TRANSITION" "Chassis must use leg transition state instead of legacy-stance-error inference."
 Assert-Contains "project/code/control_chassis.c" "LEG_MOTION_FAULT" "Chassis must stop forward motion on a leg fault."
 Assert-Contains "project/code/control_chassis.c" "drive_allowed" "Chassis must honor leg drive permission."
 Assert-Contains "project/code/control_chassis.c" "effective_fast_enable" "Chassis must interlock fast blend without clearing the operator request."
@@ -241,7 +241,10 @@ $runtimeFiles = @(
 )
 $staleLegacyNames = 'leg_height_profile_struct|leg_config_get_height_profile|low_height_mm|high_height_mm|default_height_mm|max_height_(speed|accel|jerk)_mm|height_(position|rate)_kp_s|height_settle_(error_mm|ms)|fast_height_transition_ms|safe_support_height_mm|LEG_MODE_(HEIGHT|FAST_HEIGHT|DIRECT_STEP)|control_leg_set_(fast_)?height|control_leg_set_direct_step_height|target_height_mm|height_ref_mm|height_rate_mm_s|\bheight_norm\b|leg_height_norm|CONTROL_LEG_EMPIRICAL_CENTER_HEIGHT_MM|CONTROL_LEG_EMPIRICAL_MM_PER_DELTA_DEG|Y_real\s*~='
 foreach($runtimeFile in $runtimeFiles) {
-    Assert-NotContains $runtimeFile $staleLegacyNames ("Stale legacy-height runtime name remains in {0}." -f $runtimeFile)
+    Assert-NotContains $runtimeFile $staleLegacyNames ("Stale legacy-stance runtime name remains in {0}." -f $runtimeFile)
 }
+
+$staleNumericTestNames = 'Step-HeightSupervisor|ReferenceMm|RateMmS|AccelMmS2|TargetMm|MaxSpeedMmS|MaxAccelMmS2|MaxJerkMmS3|Assert-JerkLimitedHeightTrajectory|Get-FastHeightReference|Assert-FastHeightTrajectory|StartMm|LowMm|HighMm|errorMm|desiredRateMmS|desiredAccelMmS2|accelDeltaMmS2|nextReferenceMm|previousAccelMmS2|referenceMm|rateMmS|accelMmS2|targetMm|previousMm|Height trajectory|Fast height'
+Assert-NotContains "tools/test_leg_transition_numeric.ps1" $staleNumericTestNames "Numeric legacy-stance tests must not restore height/mm terminology for the 30/55/80 scalar."
 
 Write-Host "ik legacy stance control static checks passed"

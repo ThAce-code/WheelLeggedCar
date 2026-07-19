@@ -179,16 +179,20 @@ git commit -m "Use model reachability for LXY targets"
 - Consumes: Task 1 candidate engine.
 - Produces: forward/inverse round trips without rectangle clamps and bounded adjacent-target motion.
 
+> **Approved margin-aware continuity revision:** for adjacent 1 mm physical-grid targets, use `<=13 deg` per joint when both endpoint singularity margins are `>=0.05`; allow `<=16 deg` when either endpoint is below `0.05`. At the valid `(-32,33)` point, the best continuous beta root moves `12.034 deg` at margin `0.332`; the alternative root moves `26.754 deg`. The sole wider fixed-root transition is `(-12,29)`: alpha moves `15.707 deg` while margin rises from `0.02874` to `0.30851`. The user approved the bounded low-margin allowance rather than rejecting model-reachable points or introducing a workspace gate.
+
 - [ ] **Step 1: Write a failing grid-continuity test**
 
-Add a host C loop over physical `Y=20..100 mm` and `X=-60..20 mm` in `1 mm` steps. For every accepted point require both sides to solve, margin `>=0.02`, FK round-trip error `<=0.5 mm`, and wrapped change from the previous adjacent accepted solution `<=12 deg` per joint. Clear `previous.valid` across rejected gaps.
+Add host C row and column traversals over physical `Y=20..100 mm` and `X=-60..20 mm` in `1 mm` steps. For every accepted point require both sides to solve, margin `>=0.02`, FK round-trip error `<=0.5 mm`, and wrapped change from the previous adjacent accepted solution `<=13 deg` per joint when both margins are `>=0.05`, otherwise `<=16 deg`. Clear `previous.valid` across rejected gaps and assert the fixed accepted-point count `5637` for both sides and traversals.
 
 The central assertion is:
 
 ```c
 if((APP_TRUE == previous.valid) &&
-   ((12.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
-    (12.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+   ((adjacent_motion_limit_deg(&previous, &result) <
+     wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
+    (adjacent_motion_limit_deg(&previous, &result) <
+     wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
 {
     printf("model branch discontinuity %.1f %.1f\n", physical_x, physical_y);
     return 1;
@@ -225,7 +229,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_transition_nu
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_ik_zero_calibration_static.ps1
 ```
 
-Expected: both exit `0`, grid round trips stay within `0.5 mm`, and adjacent motion stays within `12 deg`.
+Expected: both exit `0`, grid round trips stay within `0.5 mm`, and adjacent motion stays within `13 deg` (or `16 deg` across a `<0.05` margin endpoint).
 
 - [ ] **Step 5: Commit**
 

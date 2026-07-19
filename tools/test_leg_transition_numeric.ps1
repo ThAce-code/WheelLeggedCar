@@ -429,6 +429,8 @@ function New-NumericHarness {
 #include <math.h>
 #include <stdio.h>
 
+#define LEG_MODEL_GRID_ACCEPTED_POINT_COUNT (5637U)
+
 static float wrapped_delta_deg(float current_deg, float previous_deg)
 {
     float delta = current_deg - previous_deg;
@@ -437,19 +439,40 @@ static float wrapped_delta_deg(float current_deg, float previous_deg)
     return fabsf(delta);
 }
 
-static int check_side(uint8 right_side)
+static float adjacent_motion_limit_deg(const leg_ik_result_struct *previous,
+                                       const leg_ik_result_struct *result)
 {
-    int physical_x_i;
-    int physical_y_i;
+    if((0.05f > previous->singularity_margin) ||
+       (0.05f > result->singularity_margin))
+    {
+        return 16.0f;
+    }
+    return 13.0f;
+}
 
-    for(physical_y_i = 20; physical_y_i <= 100; physical_y_i++)
+static int check_side(uint8 right_side, uint8 column_major, uint32 *accepted_count)
+{
+    int outer_i;
+    int inner_i;
+
+    if(NULL == accepted_count)
+    {
+        return 1;
+    }
+    *accepted_count = 0U;
+
+    for(outer_i = (APP_TRUE == column_major) ? -60 : 20;
+        outer_i <= ((APP_TRUE == column_major) ? 20 : 100);
+        outer_i++)
     {
         leg_ik_result_struct previous = {0};
-        const float physical_y = (float)physical_y_i;
 
-        for(physical_x_i = -60; physical_x_i <= 20; physical_x_i++)
+        for(inner_i = (APP_TRUE == column_major) ? 20 : -60;
+            inner_i <= ((APP_TRUE == column_major) ? 100 : 20);
+            inner_i++)
         {
-            const float physical_x = (float)physical_x_i;
+            const float physical_x = (float)((APP_TRUE == column_major) ? outer_i : inner_i);
+            const float physical_y = (float)((APP_TRUE == column_major) ? inner_i : outer_i);
             float x_mm;
             float y_mm;
             leg_ik_result_struct result;
@@ -467,6 +490,7 @@ static int check_side(uint8 right_side)
                        (unsigned int)right_side, physical_x, physical_y);
                 return 1;
             }
+            (*accepted_count)++;
             if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
                (!isfinite(result.singularity_margin)) || (0.02f > result.singularity_margin))
             {
@@ -475,8 +499,10 @@ static int check_side(uint8 right_side)
                 return 1;
             }
             if((APP_TRUE == previous.valid) &&
-               ((12.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
-                (12.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+               ((adjacent_motion_limit_deg(&previous, &result) <
+                 wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
+                (adjacent_motion_limit_deg(&previous, &result) <
+                 wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
             {
                 printf("model branch discontinuity %.1f %.1f\\n", physical_x, physical_y);
                 return 1;
@@ -499,6 +525,10 @@ int main(void)
     leg_ik_result_struct left_reference = {0};
     leg_ik_result_struct right_reference = {0};
     const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    uint32 left_row_accepted_count;
+    uint32 right_row_accepted_count;
+    uint32 left_column_accepted_count;
+    uint32 right_column_accepted_count;
     float servo_deg[LEG_SERVO_COUNT];
     float forward_x_mm;
     float forward_y_mm;
@@ -506,8 +536,24 @@ int main(void)
     {
         return 1;
     }
-    if((0 != check_side(APP_FALSE)) || (0 != check_side(APP_TRUE)))
+    if((0 != check_side(APP_FALSE, APP_FALSE, &left_row_accepted_count)) ||
+       (0 != check_side(APP_TRUE, APP_FALSE, &right_row_accepted_count)) ||
+       (0 != check_side(APP_FALSE, APP_TRUE, &left_column_accepted_count)) ||
+       (0 != check_side(APP_TRUE, APP_TRUE, &right_column_accepted_count)))
     {
+        return 1;
+    }
+    if((LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != left_row_accepted_count) ||
+       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != right_row_accepted_count) ||
+       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != left_column_accepted_count) ||
+       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != right_column_accepted_count))
+    {
+        printf("Grid accepted-point count mismatch (expected %u): left row %u, right row %u, left column %u, right column %u\\n",
+               (unsigned int)LEG_MODEL_GRID_ACCEPTED_POINT_COUNT,
+               (unsigned int)left_row_accepted_count,
+               (unsigned int)right_row_accepted_count,
+               (unsigned int)left_column_accepted_count,
+               (unsigned int)right_column_accepted_count);
         return 1;
     }
     if((APP_TRUE != leg_kinematics_solve(APP_FALSE,

@@ -168,13 +168,50 @@ int main(void)
         fprintf(stderr, "LIKREF setup rejected\n");
         return 1;
     }
-    control_leg_update(0U);
-    if(APP_TRUE != control_leg_set_race_assist_request(0.01f, 2.0f, 2.0f, 1U))
+    for(now_ms = 0U; now_ms <= 1000U; now_ms++)
     {
-        fprintf(stderr, "low positive race request rejected\n");
+        control_leg_update(now_ms);
+    }
+    diag = control_leg_get_diag();
+    if((LEG_MODE_IK_REFERENCE != (leg_mode_enum)diag->mode) ||
+       (APP_TRUE == control_leg_set_race_assist_request(0.0f, 2.0f, 2.0f, 1001U)) ||
+       (LEG_MODE_IK_REFERENCE != (leg_mode_enum)control_leg_get_diag()->mode))
+    {
+        fprintf(stderr, "LIKREF race entry was not fail-closed\n");
         return 2;
     }
-    for(now_ms = 1U; now_ms <= 1000U; now_ms++)
+    if(APP_TRUE != control_leg_set_xy(-18.0f, 47.3567f, 1002U))
+    {
+        fprintf(stderr, "LXY setup rejected\n");
+        return 3;
+    }
+    for(now_ms = 1002U; now_ms <= 3000U; now_ms++)
+    {
+        control_leg_update(now_ms);
+    }
+    diag = control_leg_get_diag();
+    if((LEG_MODE_IK_VALIDATE != (leg_mode_enum)diag->mode) ||
+       (APP_TRUE == control_leg_set_race_assist_request(0.0f, 2.0f, 2.0f, 3001U)) ||
+       (LEG_MODE_IK_VALIDATE != (leg_mode_enum)control_leg_get_diag()->mode))
+    {
+        fprintf(stderr, "completed LXY race entry was not fail-closed\n");
+        return 4;
+    }
+    if(APP_TRUE != control_leg_set_xy(-18.83f, 25.08f, 3002U))
+    {
+        fprintf(stderr, "low-race zero LXY setup rejected\n");
+        return 5;
+    }
+    for(now_ms = 3002U; now_ms <= 5000U; now_ms++)
+    {
+        control_leg_update(now_ms);
+    }
+    if(APP_TRUE != control_leg_set_race_assist_request(0.01f, 2.0f, 2.0f, 5001U))
+    {
+        fprintf(stderr, "settled low-race zero entry rejected\n");
+        return 6;
+    }
+    for(now_ms = 5001U; now_ms <= 6000U; now_ms++)
     {
         control_leg_update(now_ms);
     }
@@ -183,14 +220,14 @@ int main(void)
        (0.005f > diag->race_assist_actual))
     {
         fprintf(stderr, "positive race setup did not settle: %.6f\n", diag->race_assist_actual);
-        return 3;
+        return 7;
     }
-    if(APP_TRUE != control_leg_set_race_assist_request(-1.0f, 2.0f, 2.0f, 1001U))
+    if(APP_TRUE != control_leg_set_race_assist_request(-1.0f, 2.0f, 2.0f, 6001U))
     {
         fprintf(stderr, "negative race request rejected\n");
-        return 4;
+        return 8;
     }
-    for(now_ms = 1001U; now_ms <= 3000U; now_ms++)
+    for(now_ms = 6001U; now_ms <= 8000U; now_ms++)
     {
         control_leg_update(now_ms);
         diag = control_leg_get_diag();
@@ -204,13 +241,13 @@ int main(void)
             if(APP_FALSE == saw_zero_endpoint)
             {
                 fprintf(stderr, "opposite-sign request crossed zero without a zero endpoint\n");
-                return 5;
+                return 9;
             }
             return 0;
         }
     }
     fprintf(stderr, "race reversal did not reach negative request\n");
-    return 6;
+    return 10;
 }
 '@ | Set-Content (Join-Path $Path "race_leg_controller.c") -NoNewline
 }

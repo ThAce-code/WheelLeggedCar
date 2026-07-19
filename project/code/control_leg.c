@@ -449,6 +449,67 @@ static uint8 control_leg_run_enabled(void)
     return ((APP_STATE_STANDBY == state) || (APP_STATE_RUN == state)) ? APP_TRUE : APP_FALSE;
 }
 
+static uint8 control_leg_race_entry_ready(void)
+{
+    float left_planned_x_mm;
+    float left_planned_y_mm;
+    float right_planned_x_mm;
+    float right_planned_y_mm;
+    float left_output_x_mm;
+    float left_output_y_mm;
+    float right_output_x_mm;
+    float right_output_y_mm;
+
+    /* Race starts only from the already-settled low-race Cartesian neutral. */
+    if(APP_TRUE != control_leg_actuator_diag.settled)
+    {
+        return APP_FALSE;
+    }
+    if((APP_TRUE != leg_kinematics_forward_command(APP_FALSE,
+                                                    control_leg_servo_cmd.angle_deg[LEG_SERVO_FL],
+                                                    control_leg_servo_cmd.angle_deg[LEG_SERVO_RL],
+                                                    &left_planned_x_mm,
+                                                    &left_planned_y_mm)) ||
+       (APP_TRUE != leg_kinematics_forward_command(APP_TRUE,
+                                                    control_leg_servo_cmd.angle_deg[LEG_SERVO_FR],
+                                                    control_leg_servo_cmd.angle_deg[LEG_SERVO_RR],
+                                                    &right_planned_x_mm,
+                                                    &right_planned_y_mm)) ||
+       (APP_TRUE != leg_kinematics_forward_command(APP_FALSE,
+                                                    control_leg_actuator_diag.output_deg[LEG_SERVO_FL],
+                                                    control_leg_actuator_diag.output_deg[LEG_SERVO_RL],
+                                                    &left_output_x_mm,
+                                                    &left_output_y_mm)) ||
+       (APP_TRUE != leg_kinematics_forward_command(APP_TRUE,
+                                                    control_leg_actuator_diag.output_deg[LEG_SERVO_FR],
+                                                    control_leg_actuator_diag.output_deg[LEG_SERVO_RR],
+                                                    &right_output_x_mm,
+                                                    &right_output_y_mm)))
+    {
+        return APP_FALSE;
+    }
+    if((APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(left_planned_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(left_planned_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(right_planned_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(right_planned_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(left_output_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(left_output_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(right_output_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_leg_absf(right_output_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
 static void control_leg_write_safe_angles(const leg_config_struct *config)
 {
     uint8 i;
@@ -1581,6 +1642,12 @@ uint8 control_leg_set_race_assist_request(float u_request,
        (APP_FALSE == control_leg_ik_reference_valid) ||
        (LEG_MOTION_FAULT == control_leg_motion_state) ||
        (LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state))
+    {
+        return APP_FALSE;
+    }
+
+    if((LEG_MODE_RACE_ASSIST != control_leg_mode) &&
+       (APP_TRUE != control_leg_race_entry_ready()))
     {
         return APP_FALSE;
     }

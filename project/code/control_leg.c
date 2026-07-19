@@ -449,6 +449,25 @@ static uint8 control_leg_run_enabled(void)
     return ((APP_STATE_STANDBY == state) || (APP_STATE_RUN == state)) ? APP_TRUE : APP_FALSE;
 }
 
+static uint8 control_leg_race_pose_within_zero_tolerance(float x_mm, float y_mm)
+{
+    float dx_mm;
+    float dy_mm;
+    float tolerance_squared_mm;
+
+    if((APP_FALSE == control_leg_is_finite(x_mm)) ||
+       (APP_FALSE == control_leg_is_finite(y_mm)))
+    {
+        return APP_FALSE;
+    }
+    dx_mm = x_mm - APP_RACE_ASSIST_ZERO_X_MM;
+    dy_mm = y_mm - APP_RACE_ASSIST_ZERO_Y_MM;
+    tolerance_squared_mm = APP_RACE_ASSIST_POSE_TOLERANCE_MM *
+                             APP_RACE_ASSIST_POSE_TOLERANCE_MM;
+    return (tolerance_squared_mm >= ((dx_mm * dx_mm) + (dy_mm * dy_mm))) ?
+           APP_TRUE : APP_FALSE;
+}
+
 static uint8 control_leg_race_entry_ready(void)
 {
     float left_planned_x_mm;
@@ -488,22 +507,14 @@ static uint8 control_leg_race_entry_ready(void)
     {
         return APP_FALSE;
     }
-    if((APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(left_planned_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(left_planned_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(right_planned_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(right_planned_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(left_output_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(left_output_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(right_output_x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
-       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
-        control_leg_absf(right_output_y_mm - APP_RACE_ASSIST_ZERO_Y_MM)))
+    if((APP_TRUE != control_leg_race_pose_within_zero_tolerance(left_planned_x_mm,
+                                                                 left_planned_y_mm)) ||
+       (APP_TRUE != control_leg_race_pose_within_zero_tolerance(right_planned_x_mm,
+                                                                 right_planned_y_mm)) ||
+       (APP_TRUE != control_leg_race_pose_within_zero_tolerance(left_output_x_mm,
+                                                                 left_output_y_mm)) ||
+       (APP_TRUE != control_leg_race_pose_within_zero_tolerance(right_output_x_mm,
+                                                                 right_output_y_mm)))
     {
         return APP_FALSE;
     }

@@ -176,8 +176,18 @@ typedef struct
     float speed_ff_rpm;
     float forward_limit_eff_rpm;
     float fast_forward_limit_eff_rpm;
+    float wheel_speed_measured_rpm;
+    float speed_error_rpm;
+    float requested_accel_rpm_s;
+    float race_u_request;
+    float race_balance_limit_rpm;
+    float race_turn_scale;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
+    uint8 race_assist_enable;
+    uint8 race_assist_level;
+    uint8 race_assist_state;
+    uint8 race_assist_fault_reason;
     uint8 enable;
 }chassis_output_struct;
 

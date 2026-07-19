@@ -16,6 +16,10 @@ uint8 control_chassis_set_drive_gain(float speed_kp, float speed_ki, float turn_
 uint8 control_chassis_set_turn_gain(float turn_kp, float turn_ki);
 const chassis_cmd_struct *control_chassis_get_cmd(void);
 void control_chassis_set_fast_enable(uint8 enable);
+uint8 control_chassis_set_race_assist_level(uint8 level, uint32 now_ms);
+uint8 control_chassis_set_race_assist_gains(float accel_gain,
+                                            float error_gain,
+                                            float hold_bias);
 const chassis_output_struct *control_chassis_get_output(void);
 
 #endif

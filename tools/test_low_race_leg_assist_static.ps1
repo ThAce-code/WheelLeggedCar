@@ -30,6 +30,8 @@ function Reject-Pattern {
 $header = "project/code/control_leg.h"
 $source = "project/code/control_leg.c"
 $types = "project/code/app_types.h"
+$chassis = "project/code/control_chassis.c"
+$hostCommand = "project/code/host_command.c"
 
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
     "Race assist leg mode missing."
@@ -78,6 +80,19 @@ Require-Pattern $source 'LEG_MOTION_RACE_ASSIST' `
     "Race trajectory must publish a drive-allowed motion state."
 Require-Pattern $source 'APP_RACE_ASSIST_REQUEST_DEADBAND' `
     "Race request changes must use the specified deadband."
+
+Require-Pattern $chassis 'control_race_assist_update' `
+    "Chassis must run the race supervisor."
+Require-Pattern $chassis 'control_leg_set_race_assist_request' `
+    "Chassis must hand the signed request to the leg controller."
+Require-Pattern $chassis 'LEG_MOTION_RACE_ASSIST' `
+    "Race leg motion must bypass only the generic transition limit."
+Require-Pattern $chassis 'APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG' `
+    "Race mode must use the initial 7 degree virtual-pitch cap."
+Require-Pattern $chassis 'race_input\.leg_path_fault\s*=\s*\(\(LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state\)\s*\|\|\s*\(\(LEG_MOTION_RACE_ASSIST == leg->motion_state\)\s*&&\s*\(APP_FALSE == leg->race_path_valid\)\)\)' `
+    "An unplanned non-race pose must not fault race assist before the entry request."
+Reject-Pattern $hostCommand 'control_leg_set_xy[\s\S]{0,400}control_leg_set_race_assist_request' `
+    "Manual LXY must not become the moving assist path."
 
 $xyStart = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_xy")
 $nextApi = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_race_assist_request", $xyStart)

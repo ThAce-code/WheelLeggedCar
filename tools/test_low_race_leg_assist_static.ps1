@@ -47,6 +47,18 @@ Require-Pattern $hardwareDoc '250 RPM' 'Level-1 ground gate missing.'
 Require-Pattern $hardwareDoc '390--410 RPM' 'Final 400 RPM acceptance band missing.'
 Require-Pattern $hardwareDoc 'three seconds' 'Final dwell requirement missing.'
 Require-Pattern $hardwareDoc 'command estimate' 'Open-loop pose meaning must be explicit.'
+Require-Pattern $hardwareDoc 'motor power physically disconnected' 'Gate 0 must physically disconnect motor power.'
+Require-Pattern $hardwareDoc 'LXY,-20\.83,27\.08' 'Gate 0 must check the rearward manual endpoint.'
+Require-Pattern $hardwareDoc 'LXY,-16\.83,27\.08' 'Gate 0 must check the forward manual endpoint.'
+Require-Pattern $hardwareDoc 'IK valid' 'Gate 0 must require valid IK before accepting each manual endpoint.'
+Require-Pattern $hardwareDoc '(?s)STOP\s*->\s*LIKREF\s*->\s*settled\s*->\s*LXY,-18\.83,25\.08\s*->\s*settled\s*->\s*BRA,0\s*->\s*BRG,0,0,0\s*->\s*BRA,1\s*->\s*B,3' `
+    'Gate 1 must re-enter low race completely before the A run.'
+Require-Pattern $hardwareDoc 'APP_CHASSIS_CMD_TIMEOUT_MS=500' 'Gate 1 must document the chassis command timeout.'
+Require-Pattern $hardwareDoc '100--200 ms heartbeat' 'Gate 1 must require a command heartbeat.'
+Require-Pattern $hardwareDoc '(?s)single `C,250,0`.*30 RPM' 'Gate 1 must reject a one-shot 250 RPM command.'
+Require-Pattern $hardwareDoc 'NOT RUN' 'Hardware status must remain explicit.'
+Reject-Pattern $hardwareDoc 'u=0,\+1,0,-1,0' `
+    'Gate 0 must not claim an unavailable direct-u supervisor sequence.'
 
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
     "Race assist leg mode missing."

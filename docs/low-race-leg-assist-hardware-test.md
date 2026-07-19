@@ -45,8 +45,8 @@ running a speed-level gate.
    the board: `cyt4bb7_cm_7_1`, `cyt4bb7_cm_7_0`, then
    `cyt4bb7_cm_0_plus`. Task-specific code is CM7_0, but the board must carry
    a matched three-core image set.
-2. With the chassis supported, wheel-motor power disconnected, an operator on
-   the physical power cutoff, and no wheel touching the ground, use IAR
+2. With the chassis supported, motor power physically disconnected, an operator
+   on the physical power cutoff, and no wheel touching the ground, use IAR
    download-only in the same order: CM7_1, CM7_0, then CM0+. Do not run the
    target between partial downloads.
 3. Power-cycle only after all three downloads report verification success.
@@ -91,7 +91,7 @@ Before every gate, require all of the following:
 1. A straight, clear lane; no people in the travel path; a tether or support
    operator; charged battery; and a physical power cutoff held by a separate
    operator.
-2. The chassis is supported for the bench gate. Wheel-motor power remains
+2. The chassis is supported for the bench gate. Motor power is physically
    disconnected until that gate passes. The ground gates begin only after the
    chassis has been lowered safely, the lane is clear, and the cutoff operator
    confirms wheel power connection.
@@ -116,62 +116,75 @@ causes the supervisor pitch fault. A margin below `0.02`, changed branch bits,
 leg fault, race fault, stale/offline feedback, or persistent saturation also
 rejects the run.
 
-## Gate 0: motor-disabled supported low-pose and path check
+## Gate 0: motor-disabled stopped-only manual endpoint gate
 
-Keep wheel-motor power disconnected. Send one command at a time, wait for
-`servo_settled=1`, inspect the mechanism, and save the trace:
+Keep the chassis supported and motor power physically disconnected: remove the
+wheel-motor power path rather than relying on a UART stop. No wheel may touch
+the ground. `LIKREF` and `LXY` deliberately remain stopped-only manual
+commands; do not replace them with `LJ`, manual servo angles, a direct-u UART
+command, or a test image.
+
+Send exactly one command at a time. First send `STOP`, then `LIKREF`, and wait
+until `servo_settled=1`. Next run the following manual LXY endpoint/mechanical
+gate in order, waiting for settle and inspecting the linkage after **every**
+point:
 
 ```text
-STOP
-LIKREF
 LXY,-18.83,25.08
-BRA,0
-BRG,0.005,0.005,0.15
-BRA,1
+LXY,-20.83,27.08
+LXY,-18.83,25.08
+LXY,-16.83,27.08
+LXY,-18.83,25.08
 ```
 
-`LIKREF` and `LXY` are stopped-only pose commands. Do not replace this entry
-gate with `LJ` or manual servo angles. `BRA,0` before the gain write proves the
-assist begins disabled; `BRA,1` is allowed only after the low-race command has
-settled and all universal prerequisites are satisfied.
+At each LXY point require `servo_settled=1`, IK valid, both left/right margins
+(channels 69/70) `>=0.02`, zero leg/race fault, and channel-71 branch flags
+equal to the saved neutral baseline. Record the command X/Y and visual
+mechanical result. The three positions are neutral `(-18.83,25.08)`, rearward
+accel endpoint `(-20.83,27.08)`, and forward brake endpoint
+`(-16.83,27.08)`; they remain open-loop command estimates, not measured pose.
 
-Run the engineering-only supervisor sequence that commands `u=0,+1,0,-1,0`
-without connecting wheel power. It is a test-only sequence, not a new public
-UART override. At each settled endpoint, require the command estimates below;
-the values are not physical-position measurements.
+Reject the entire program for no settle, invalid IK, either margin below
+`0.02`, branch-bit change, leg/race fault, or any mechanical interference.
+End the bench gate with `STOP`; do not arm assist during Gate 0.
 
-| u | Required command X/Y (mm) | Required observation |
-| ---: | --- | --- |
-| 0 | `(-18.83,25.08)` | `servo_settled=1`, no fault, baseline branch bits. |
-| +1 | `(-20.83,27.08)` | Rearward assist endpoint; left/right margins both `>=0.02`. |
-| 0 | `(-18.83,25.08)` | Complete return to zero before sign reversal. |
-| -1 | `(-16.83,27.08)` | Forward brake endpoint; no mechanical contact. |
-| 0 | `(-18.83,25.08)` | Final return before disarm. |
-
-Reject the entire program if a target is not reached after settle, if either
-margin is below `0.02`, any `ik_branch_flags` bit changes, leg/race fault is
-nonzero, or any linkage interferes. End the bench sequence with `BRA,0` then
-`STOP`. Passing Gate 0 is command-path evidence only; it does not enable a
-ground run.
+This gate proves only physical endpoints, stopped-only IK acceptance, and
+servo/mechanical direction. It does not test the automatic race supervisor,
+dynamic `u_request/u_actual`, or the automatic race-path S7 execution. Gate 1
+is the first permitted low-speed automatic-supervisor validation.
 
 ## Gate 1: 250 RPM ground A/B comparison
 
 Only after Gate 0 passes, set the vehicle on a clear straight lane with the
-tether/support operator and immediate physical cutoff. Re-establish the
-low-race zero and confirm `servo_settled=1` before each run. A is a zero-race-
-gain control, not an unarmed run: `BRA,1` is present but `BRG,0,0,0` keeps the
-allocation request at zero. B changes only the conservative runtime gains.
-
-Run A and B separately, beginning from stopped and returning to stopped:
+tether/support operator and immediate physical cutoff. Start each A or B run
+from stopped and perform the complete low-race re-entry. The A baseline is
+armed with zero gains; it is not an unarmed `BRA,0` comparison:
 
 ```text
-A: BRG,0,0,0; BRA,1; B,3; C,250,0; C,0,0
-B: BRG,0.005,0.005,0.15; BRA,1; B,3; C,250,0; C,0,0
+STOP -> LIKREF -> settled -> LXY,-18.83,25.08 -> settled -> BRA,0 -> BRG,0,0,0 -> BRA,1 -> B,3
 ```
 
-After each `C,0,0`, wait until measured speed is below 10 RPM, then send
-`BRA,0` and `STOP`. Do not add a gain, speed, leg-travel, balance, PID, or
-turning change to either A or B.
+For B, repeat that complete sequence but set
+`BRG,0.005,0.005,0.15` in place of `BRG,0,0,0`, still before `BRA,1`. Verify
+the low-race point has settled after both `LIKREF` and `LXY`, then verify the
+72-channel trace before requesting wheel motion.
+
+`APP_CHASSIS_CMD_TIMEOUT_MS=500`: a single `C,250,0` expires after 500 ms and
+the normal 60 RPM/s ramp can theoretically reach only about 30 RPM. A single
+command is prohibited for acceptance. Send a `C,250,0` 100--200 ms heartbeat
+throughout acceleration and the 230--250 RPM dwell, which must be sampled for
+at least 1 second. For the stop, send a `C,0,0` 100--200 ms heartbeat until
+measured speed is below 10 RPM; only then send `BRA,0` and `STOP`.
+
+The commands are therefore:
+
+```text
+A: complete re-entry with BRG,0,0,0; C,250,0 heartbeat; 230--250 RPM dwell; C,0,0 heartbeat; <10 RPM; BRA,0; STOP
+B: complete re-entry with BRG,0.005,0.005,0.15; C,250,0 heartbeat; 230--250 RPM dwell; C,0,0 heartbeat; <10 RPM; BRA,0; STOP
+```
+
+Do not add a gain, speed, leg-travel, balance, PID, or turning change to either
+A or B.
 
 For both runs record: time spent in 230--250 RPM, peak absolute pitch, peak
 absolute pitch rate, all periods at or above 95% of the active output cap,
@@ -214,10 +227,11 @@ a fresh three-core build, and a repeat of the supported path gate for the
 candidate image. It is never a runtime tuning action. Until that build is
 installed, levels 2--4 are intentionally unavailable.
 
-Every candidate level is straight-only (`C,<target>,0`), must retain all
-universal accept/reject gates, and must compare a zero-gain A run with the
-same conservative-gain B run before promotion. The following numeric bands
-are mandatory minimum evidence:
+Every candidate level is straight-only and uses a 100--200 ms
+`C,<target>,0` heartbeat rather than a single command. It must retain all
+universal accept/reject gates and compare a zero-gain A run with the same
+conservative-gain B run before promotion. The following numeric bands are
+mandatory minimum evidence:
 
 | Level | Forward / balance cap | Measured-speed acceptance | Stop-time acceptance | Output saturation reject |
 | --- | --- | --- | --- | --- |
@@ -251,7 +265,7 @@ measurement is `NOT RUN`, never pass by inference.
 
 | Gate | Required evidence | Current board result |
 | --- | --- | --- |
-| 0 | Supported motor-disabled path and five settled command estimates | NOT RUN |
+| 0 | Supported motor-disabled five-manual-LXY endpoint trace | NOT RUN |
 | 1 | 250 RPM A/B trace and acceptance fields | NOT RUN — level 1 pending |
 | 2 | Recorded level-1 acceptance plus 300 RPM trace | NOT RUN — compile-gated |
 | 3 | Recorded level-2 acceptance plus 350 RPM trace | NOT RUN — compile-gated |

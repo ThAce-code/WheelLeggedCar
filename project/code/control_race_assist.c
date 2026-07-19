@@ -71,6 +71,7 @@ static uint8 control_race_assist_input_is_valid(const race_assist_input_struct *
        (APP_FALSE == control_race_assist_is_finite(input->pitch_deg)) ||
        (APP_FALSE == control_race_assist_is_finite(input->pitch_rate_dps)) ||
        (APP_FALSE == control_race_assist_is_finite(input->leg_u_actual)) ||
+       (1.0f < control_race_assist_absf(input->leg_u_actual)) ||
        (APP_FALSE == control_race_assist_is_finite(input->dt_s)) ||
        (0.0f >= input->dt_s) ||
        (1.0f < input->dt_s))
@@ -78,6 +79,16 @@ static uint8 control_race_assist_input_is_valid(const race_assist_input_struct *
         return APP_FALSE;
     }
     return APP_TRUE;
+}
+
+static float control_race_assist_safe_hold_u(float leg_u_actual)
+{
+    if((APP_FALSE == control_race_assist_is_finite(leg_u_actual)) ||
+       (1.0f < control_race_assist_absf(leg_u_actual)))
+    {
+        return 0.0f;
+    }
+    return control_race_assist_clamp(leg_u_actual, -1.0f, 1.0f);
 }
 
 static void control_race_assist_apply_level_profile(uint8 level)
@@ -120,8 +131,7 @@ static void control_race_assist_enter_fault(race_assist_fault_reason_enum reason
     control_race_assist_output.requested_accel_rpm_s = 0.0f;
     control_race_assist_output.speed_error_rpm = 0.0f;
     control_race_assist_output.speed_blend = 0.0f;
-    control_race_assist_output.u_request =
-        (APP_TRUE == control_race_assist_is_finite(leg_u_actual)) ? leg_u_actual : 0.0f;
+    control_race_assist_output.u_request = control_race_assist_safe_hold_u(leg_u_actual);
     control_race_assist_output.enable = APP_FALSE;
     control_race_assist_output.leg_command_enable = APP_TRUE;
 }
@@ -147,7 +157,7 @@ static void control_race_assist_update_disable(const race_assist_input_struct *i
     if(APP_RACE_ASSIST_RECENTER_RPM <= control_race_assist_absf(input->measured_rpm))
     {
         control_race_assist_output.state = RACE_ASSIST_RECENTER;
-        control_race_assist_output.u_request = input->leg_u_actual;
+        control_race_assist_output.u_request = control_race_assist_safe_hold_u(input->leg_u_actual);
         control_race_assist_output.leg_command_enable = APP_TRUE;
         return;
     }

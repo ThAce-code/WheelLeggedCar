@@ -165,7 +165,8 @@
 #define APP_RACE_ASSIST_PATH_SAMPLE_COUNT         (21U)
 #define APP_RACE_ASSIST_SERVO_SPEED_DPS           (90.0f)
 
-#define APP_BALANCE_RPM_LIMIT           (300.0f)
+#define APP_BALANCE_RPM_LIMIT                   (460.0f)
+#define APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT   (300.0f)
 #define APP_BALANCE_TEST_PITCH_LIMIT_DEG (45.0f)
 #define APP_BALANCE_PITCH_KP            (18.0f)
 #define APP_BALANCE_PITCH_RATE_KD       (8.0f)

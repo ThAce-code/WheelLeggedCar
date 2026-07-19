@@ -199,6 +199,7 @@ typedef struct
     float chassis_left_rpm;
     float chassis_right_rpm;
     float balance_rpm;
+    float balance_output_limit_rpm;
     float output_left_rpm;
     float output_right_rpm;
     float pitch_kp;

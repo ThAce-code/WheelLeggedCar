@@ -108,6 +108,7 @@ static float control_balance_get_ident_rpm(uint32 now_ms)
 static void control_balance_stop_output(void)
 {
     control_balance_diag.balance_rpm = 0.0f;
+    control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
     control_balance_diag.output_left_rpm = 0.0f;
     control_balance_diag.output_right_rpm = 0.0f;
     control_balance_diag.output_enable = APP_FALSE;
@@ -132,6 +133,7 @@ void control_balance_init(void)
     control_balance_diag.chassis_left_rpm = 0.0f;
     control_balance_diag.chassis_right_rpm = 0.0f;
     control_balance_diag.balance_rpm = 0.0f;
+    control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
     control_balance_diag.output_left_rpm = 0.0f;
     control_balance_diag.output_right_rpm = 0.0f;
     control_balance_pitch_kp = APP_BALANCE_PITCH_KP;
@@ -195,6 +197,7 @@ void control_balance_update(uint32 now_ms)
     float balance_rpm;
     float ident_rpm;
     float pitch_setpoint_deg;
+    float balance_output_limit_rpm;
     float output_left_rpm;
     float output_right_rpm;
     const motor_rpm_loop_diag_struct *rpm_diag;
@@ -271,6 +274,7 @@ void control_balance_update(uint32 now_ms)
     {
         control_balance_diag.safety_blocked = APP_TRUE;
         control_balance_diag.balance_rpm = 0.0f;
+        control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
         control_balance_diag.output_left_rpm = 0.0f;
         control_balance_diag.output_right_rpm = 0.0f;
         control_balance_diag.output_enable = APP_FALSE;
@@ -297,6 +301,11 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == control_balance_is_finite(imu->pitch)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_dps)) ||
        (APP_FALSE == control_balance_is_finite(wheel_speed_rpm)) ||
+       (((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+          (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state)) &&
+         ((APP_TRUE != leg->ik_valid) ||
+          (APP_TRUE != leg->output_enable) ||
+          (APP_TRUE != leg->drive_allowed))) ||
        (APP_BALANCE_TEST_PITCH_LIMIT_DEG < control_balance_absf(imu->pitch)))
     {
         control_balance_diag.safety_blocked = APP_TRUE;
@@ -332,9 +341,17 @@ void control_balance_update(uint32 now_ms)
             legacy_stance_norm = 0.0f;
         }
         legacy_stance_norm = control_balance_clamp01(legacy_stance_norm);
+        if((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+           (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state))
+        {
+            /* The low race pose is Cartesian IK; legacy units are stale here. */
+            legacy_stance_norm = 0.0f;
+        }
 
         if(((LEG_MOTION_TRANSITION == leg->motion_state) ||
-            (LEG_MOTION_STABLE == leg->motion_state)) &&
+            (LEG_MOTION_STABLE == leg->motion_state) ||
+            (LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+            (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state)) &&
            (APP_TRUE == leg->ik_valid) &&
            (APP_TRUE == leg->output_enable) &&
            (APP_TRUE == leg->drive_allowed))
@@ -391,7 +408,17 @@ void control_balance_update(uint32 now_ms)
                   ff_term_rpm;
     ident_rpm = control_balance_get_ident_rpm(now_ms);
     balance_rpm += ident_rpm;
-    balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
+    balance_output_limit_rpm = chassis->race_balance_limit_rpm;
+    if((APP_FALSE == control_balance_is_finite(balance_output_limit_rpm)) ||
+       (0.0f >= balance_output_limit_rpm))
+    {
+        balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
+    }
+    if(APP_BALANCE_RPM_LIMIT < balance_output_limit_rpm)
+    {
+        balance_output_limit_rpm = APP_BALANCE_RPM_LIMIT;
+    }
+    balance_rpm = control_balance_limit_abs(balance_rpm, balance_output_limit_rpm);
 
     output_left_rpm = balance_rpm - chassis->turn_rpm;
     output_right_rpm = balance_rpm + chassis->turn_rpm;
@@ -406,6 +433,7 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == control_balance_is_finite(speed_term_rpm)) ||
        (APP_FALSE == control_balance_is_finite(pos_term_rpm)) ||
        (APP_FALSE == control_balance_is_finite(ff_term_rpm)) ||
+       (APP_FALSE == control_balance_is_finite(balance_output_limit_rpm)) ||
        (APP_FALSE == control_balance_is_finite(balance_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_left_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_right_rpm)))
@@ -423,6 +451,7 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.pos_term_rpm = pos_term_rpm;
     control_balance_diag.ff_term_rpm = ff_term_rpm;
     control_balance_diag.balance_rpm = balance_rpm;
+    control_balance_diag.balance_output_limit_rpm = balance_output_limit_rpm;
     control_balance_diag.output_left_rpm = output_left_rpm;
     control_balance_diag.output_right_rpm = output_right_rpm;
     control_balance_diag.output_enable = APP_TRUE;

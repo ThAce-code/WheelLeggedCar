@@ -206,14 +206,14 @@ static void control_chassis_clear_output(void)
     control_chassis_output.speed_integral = 0.0f;
     control_chassis_output.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
     control_chassis_output.speed_ff_rpm = 0.0f;
-    /* Cleared output is a fail-closed publication; a healthy update fills caps. */
+    /* Cleared output is fail-closed; balance retains its validated normal cap. */
     control_chassis_output.forward_limit_eff_rpm = 0.0f;
     control_chassis_output.fast_forward_limit_eff_rpm = 0.0f;
     control_chassis_output.wheel_speed_measured_rpm = 0.0f;
     control_chassis_output.speed_error_rpm = 0.0f;
     control_chassis_output.requested_accel_rpm_s = 0.0f;
     control_chassis_output.race_u_request = 0.0f;
-    control_chassis_output.race_balance_limit_rpm = 0.0f;
+    control_chassis_output.race_balance_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
     control_chassis_output.race_turn_scale = 0.0f;
     control_chassis_output.imu_age_ms = 0U;
     control_chassis_output.wheel_age_ms = 0U;
@@ -258,6 +258,7 @@ void control_chassis_update(uint32 now_ms)
     float target_forward_rpm;
     float target_turn_dps;
     float forward_max_delta;
+    float forward_before_ramp_rpm;
     float turn_max_delta;
     float speed_error_rpm;
     float speed_pitch_offset_deg;
@@ -363,8 +364,9 @@ void control_chassis_update(uint32 now_ms)
     forward_max_delta = APP_CHASSIS_FORWARD_RAMP_RPM_S * dt_s;
     turn_max_delta = APP_CHASSIS_TURN_RATE_RAMP_DPS_S * dt_s;
 
+    forward_before_ramp_rpm = control_chassis_cmd.actual_forward_rpm;
     control_chassis_cmd.actual_forward_rpm =
-        control_chassis_ramp_toward(control_chassis_cmd.actual_forward_rpm,
+        control_chassis_ramp_toward(forward_before_ramp_rpm,
                                     target_forward_rpm,
                                     forward_max_delta);
 
@@ -416,9 +418,13 @@ void control_chassis_update(uint32 now_ms)
     if(RACE_ASSIST_FAULT_HOLD == race_output->state)
     {
         control_chassis_cmd.target_forward_rpm = 0.0f;
-        control_chassis_cmd.actual_forward_rpm = 0.0f;
+        control_chassis_cmd.actual_forward_rpm =
+            control_chassis_ramp_toward(forward_before_ramp_rpm,
+                                        0.0f,
+                                        forward_max_delta);
         control_chassis_cmd.fast_blend = 0.0f;
         control_chassis_cmd.speed_ff_rpm = 0.0f;
+        control_chassis_cmd.speed_pitch_limit_deg = APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG;
         stance_forward_limit_rpm = 0.0f;
         stance_fast_forward_limit_rpm = 0.0f;
         effective_fast_enable = APP_FALSE;
@@ -446,7 +452,11 @@ void control_chassis_update(uint32 now_ms)
                                     raw_fast_blend,
                                     APP_CHASSIS_FAST_BLEND_RAMP_S * dt_s);
 
-    if(APP_TRUE == race_output->enable)
+    if(RACE_ASSIST_FAULT_HOLD == race_output->state)
+    {
+        speed_pitch_limit_deg = APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG;
+    }
+    else if(APP_TRUE == race_output->enable)
     {
         speed_pitch_limit_deg =
             control_chassis_lerp(APP_CHASSIS_SPEED_PITCH_LIMIT_DEG,

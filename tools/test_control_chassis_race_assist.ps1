@@ -150,6 +150,7 @@ void control_leg_disable_race_assist(uint32 now_ms)
 #include <math.h>
 #include <stdio.h>
 
+#include "app_config.h"
 #include "control_chassis.h"
 #include "control_race_assist.h"
 
@@ -226,6 +227,83 @@ static int check_rejected_leg_request_stops_same_cycle(void)
     return expect_zero_forward_output("rejected race leg request");
 }
 
+static int check_rejected_leg_request_decelerates_bounded(void)
+{
+    const chassis_cmd_struct *cmd;
+    const chassis_output_struct *output;
+    float forward_before_fault;
+    float fault_ramp_delta;
+
+    host_chassis_reset(100U, LEG_MOTION_STABLE);
+    control_chassis_init();
+    if(APP_TRUE != control_chassis_set_race_assist_level(1U, 100U))
+    {
+        return 1;
+    }
+    control_chassis_set_fast_enable(APP_TRUE);
+    control_chassis_set_cmd(200.0f, 0.0f, APP_TRUE, 100U);
+    for(uint32 now_ms = 100U; now_ms <= 600U; now_ms += 5U)
+    {
+        host_set_feedback_healthy(APP_TRUE, now_ms);
+        control_chassis_set_cmd(200.0f, 0.0f, APP_TRUE, now_ms);
+        control_chassis_update(now_ms);
+    }
+    cmd = control_chassis_get_cmd();
+    forward_before_fault = cmd->actual_forward_rpm;
+    fault_ramp_delta = APP_CHASSIS_FORWARD_RAMP_RPM_S * 0.005f;
+    if(1.0f >= forward_before_fault)
+    {
+        fprintf(stderr,
+                "race setup did not create a nonzero ramped forward target: actual %.3f target %.3f\n",
+                forward_before_fault,
+                cmd->target_forward_rpm);
+        return 1;
+    }
+
+    host_race_request_accept = APP_FALSE;
+    host_set_feedback_healthy(APP_TRUE, 605U);
+    control_chassis_set_cmd(200.0f, 0.0f, APP_TRUE, 605U);
+    control_chassis_update(605U);
+    cmd = control_chassis_get_cmd();
+    output = control_chassis_get_output();
+    if(expect_near(cmd->target_forward_rpm, 0.0f, 0.001f) ||
+       expect_near(output->forward_limit_eff_rpm, 0.0f, 0.001f) ||
+       expect_near(output->fast_forward_limit_eff_rpm, 0.0f, 0.001f) ||
+       expect_near(cmd->actual_forward_rpm,
+                   forward_before_fault - fault_ramp_delta,
+                   0.001f) ||
+       expect_near(output->forward_target_rpm, cmd->actual_forward_rpm, 0.001f) ||
+       (0.0f >= cmd->actual_forward_rpm) ||
+       expect_near(output->speed_pitch_limit_deg,
+                   APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG,
+                   0.001f))
+    {
+        fprintf(stderr,
+                "race fault policy mismatch: before %.3f target %.3f actual %.3f caps %.3f %.3f output %.3f pitchcap %.3f\n",
+                forward_before_fault,
+                cmd->target_forward_rpm,
+                cmd->actual_forward_rpm,
+                output->forward_limit_eff_rpm,
+                output->fast_forward_limit_eff_rpm,
+                output->forward_target_rpm,
+                output->speed_pitch_limit_deg);
+        return 1;
+    }
+
+    host_set_feedback_healthy(APP_TRUE, 610U);
+    control_chassis_update(610U);
+    cmd = control_chassis_get_cmd();
+    if((0.0f >= cmd->actual_forward_rpm) ||
+       expect_near(cmd->actual_forward_rpm,
+                   forward_before_fault - (2.0f * fault_ramp_delta),
+                   0.001f))
+    {
+        fprintf(stderr, "race fault forward target did not decelerate within the configured ramp bound\n");
+        return 1;
+    }
+    return 0;
+}
+
 static int check_unhealthy_feedback_publishes_zero_caps(void)
 {
     host_chassis_reset(15U, LEG_MOTION_STABLE);
@@ -266,6 +344,7 @@ int main(void)
 {
     if(check_requested_fast_reaches_supervisor() ||
        check_rejected_leg_request_stops_same_cycle() ||
+       check_rejected_leg_request_decelerates_bounded() ||
        check_unhealthy_feedback_publishes_zero_caps() ||
        check_transition_remains_30_rpm())
     {

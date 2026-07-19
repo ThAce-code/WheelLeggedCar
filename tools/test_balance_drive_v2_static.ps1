@@ -153,6 +153,22 @@ Assert-Contains "project/code/control_balance.c" "ff_term_rpm" "Balance loop mus
 Assert-Contains "project/code/control_balance.c" "chassis->speed_ff_rpm" "Balance loop must consume chassis speed feedforward."
 Assert-Contains "project/code/control_balance.c" "drive_fast_blend" "Balance diagnostics must copy fast blend."
 
+# --- Task 4: runtime race balance authority ---
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_RPM_LIMIT\s+\(460\.0f\)" "Hard balance ceiling must preserve the 400 RPM correction reserve."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT\s+\(300\.0f\)" "Normal balance must retain the validated 300 RPM cap."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_SPEED_KI\s+\(0\.0f\)" "Race authority must not enable speed integral action."
+Assert-Contains "project/code/app_config.h" "APP_BALANCE_FAST_SPEED_FF_GAIN\s+\(0\.0f\)" "Race authority must not enable speed feedforward."
+Assert-Contains "project/code/app_config.h" "APP_RACE_ASSIST_GAIN_A_DEFAULT\s+\(0\.0f\)" "Race leg acceleration gain must remain opt-in."
+Assert-Contains "project/code/app_config.h" "APP_RACE_ASSIST_GAIN_E_DEFAULT\s+\(0\.0f\)" "Race leg error gain must remain opt-in."
+Assert-Contains "project/code/app_types.h" "balance_output_limit_rpm" "Balance diagnostics must expose the active runtime cap."
+Assert-Contains "project/code/control_balance.c" "chassis->race_balance_limit_rpm" "Balance must use the chassis-published race cap."
+Assert-Contains "project/code/control_balance.c" "APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT" "Invalid runtime caps must fall back to the validated default."
+Assert-Contains "project/code/control_balance.c" "LEG_MOTION_RACE_ASSIST" "Race assist must be an explicit drive-allowed balance state."
+Assert-Contains "project/code/control_balance.c" "LEG_MOTION_RACE_FAULT_HOLD" "Race fault hold must retain balance authority during deceleration."
+Assert-Contains "project/code/control_balance.c" "balance_output_limit_rpm" "Balance must clamp and publish the chosen runtime cap."
+Assert-Contains "project/code/control_chassis.c" "control_chassis_output.race_balance_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT" "Disabled and unhealthy chassis output must retain the default balance cap."
+Assert-Contains "project/code/control_chassis.c" "forward_before_ramp_rpm" "Race fault must enter a bounded forward deceleration."
+
 # --- Task 4: B,3 host command ---
 Assert-Contains "project/code/host_command.c" "BALANCE_MODE_BALANCE_FAST" "B,3 must enter fast balance mode."
 Assert-Contains "project/code/host_command.c" "control_chassis_set_fast_enable\(APP_TRUE\)" "B,3 must enable chassis fast mode."

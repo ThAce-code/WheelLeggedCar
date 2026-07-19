@@ -31,6 +31,8 @@ $header = "project/code/control_leg.h"
 $source = "project/code/control_leg.c"
 $types = "project/code/app_types.h"
 $chassis = "project/code/control_chassis.c"
+$config = "project/code/app_config.h"
+$balance = "project/code/control_balance.c"
 $hostCommand = "project/code/host_command.c"
 
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
@@ -59,6 +61,12 @@ Require-Pattern $types 'uint8 ik_branch_flags;' `
     "IK branch diagnostic flags missing."
 Require-Pattern $types 'uint8 race_path_valid;' `
     "Race path-valid diagnostic missing."
+Require-Pattern $config 'APP_BALANCE_RPM_LIMIT\s+\(460\.0f\)' `
+    "Hard balance ceiling must leave 400 RPM correction reserve."
+Require-Pattern $config 'APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT\s+\(300\.0f\)' `
+    "Non-assisted balance must retain the validated 300 RPM runtime cap."
+Require-Pattern $types 'balance_output_limit_rpm' `
+    "Active balance cap must be observable."
 
 Require-Pattern $source 'LEG_TRAJECTORY_RACE_ASSIST' `
     "Dedicated Cartesian race trajectory mode missing."
@@ -91,8 +99,39 @@ Require-Pattern $chassis 'APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG' `
     "Race mode must use the initial 7 degree virtual-pitch cap."
 Require-Pattern $chassis 'race_input\.leg_path_fault\s*=\s*\(\(LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state\)\s*\|\|\s*\(\(LEG_MOTION_RACE_ASSIST == leg->motion_state\)\s*&&\s*\(APP_FALSE == leg->race_path_valid\)\)\)' `
     "An unplanned non-race pose must not fault race assist before the entry request."
+Require-Pattern $balance 'race_balance_limit_rpm' `
+    "Balance must consume the runtime race cap."
+Require-Pattern $balance 'LEG_MOTION_RACE_FAULT_HOLD' `
+    "Race fault hold must preserve balance while the target ramps down."
+Require-Pattern $balance 'LEG_MOTION_RACE_ASSIST' `
+    "Race assist must select the low-pose gain schedule."
+Require-Pattern $balance 'legacy_stance_norm\s*=\s*0\.0f' `
+    "Race pose must use the low-pose gain schedule rather than a stale legacy scalar."
+Require-Pattern $chassis 'control_chassis_output\.race_balance_limit_rpm\s*=\s*APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT' `
+    "Disabled or unhealthy chassis output must publish the default balance cap."
+Require-Pattern $chassis 'forward_before_ramp_rpm\s*=\s*control_chassis_cmd\.actual_forward_rpm' `
+    "Race fault deceleration must retain the pre-ramp forward target."
 Reject-Pattern $hostCommand 'control_leg_set_xy[\s\S]{0,400}control_leg_set_race_assist_request' `
     "Manual LXY must not become the moving assist path."
+
+$raceFaultStart = (Get-Content -Raw $chassis).IndexOf("if(RACE_ASSIST_FAULT_HOLD == race_output->state)")
+$raceFaultEnd = (Get-Content -Raw $chassis).IndexOf("if(APP_TRUE == race_output->enable)", $raceFaultStart)
+if(($raceFaultStart -lt 0) -or ($raceFaultEnd -lt 0)) {
+    throw "Unable to isolate race fault deceleration policy."
+}
+$raceFaultPolicy = (Get-Content -Raw $chassis).Substring($raceFaultStart, $raceFaultEnd - $raceFaultStart)
+if($raceFaultPolicy -notmatch 'control_chassis_cmd\.target_forward_rpm\s*=\s*0\.0f') {
+    throw "Race fault must remove forward authority in the detection cycle."
+}
+if($raceFaultPolicy -match 'control_chassis_cmd\.actual_forward_rpm\s*=\s*0\.0f') {
+    throw "Race fault must not hard-zero the ramped forward target."
+}
+if($raceFaultPolicy -notmatch 'control_chassis_ramp_toward\(\s*forward_before_ramp_rpm,\s*0\.0f,\s*forward_max_delta\s*\)') {
+    throw "Race fault must ramp the forward target down rather than hard-zero it."
+}
+if($raceFaultPolicy -notmatch 'APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG') {
+    throw "Race fault deceleration must retain the 7 degree virtual-pitch cap."
+}
 
 $xyStart = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_xy")
 $nextApi = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_race_assist_request", $xyStart)

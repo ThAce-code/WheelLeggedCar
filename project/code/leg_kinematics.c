@@ -315,6 +315,7 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
                                         float x_mm,
                                         float y_mm,
                                         const leg_ik_result_struct *previous,
+                                        uint8 preserve_previous_branch,
                                         leg_ik_result_struct *result)
 {
     const leg_kinematics_config_struct *cfg;
@@ -348,6 +349,8 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     result->alpha_rad = 0.0f;
     result->beta_rad = 0.0f;
     result->singularity_margin = 0.0f;
+    result->alpha_branch = LEG_IK_BRANCH_PLUS;
+    result->beta_branch = LEG_IK_BRANCH_PLUS;
     result->valid = APP_FALSE;
 
     cfg = leg_config_get_kinematics();
@@ -399,6 +402,13 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     }
     reference_alpha_rad = cfg->alpha_reference_deg * LEG_KINEMATICS_PI / 180.0f;
     reference_beta_rad = cfg->beta_reference_deg * LEG_KINEMATICS_PI / 180.0f;
+    if((NULL != previous) && (APP_TRUE == previous->valid) &&
+       (APP_TRUE == preserve_previous_branch) &&
+       ((LEG_IK_BRANCH_MINUS < previous->alpha_branch) ||
+        (LEG_IK_BRANCH_MINUS < previous->beta_branch)))
+    {
+        return APP_FALSE;
+    }
     best_candidate.valid = APP_FALSE;
 
     for(alpha_branch = LEG_IK_BRANCH_PLUS; alpha_branch <= LEG_IK_BRANCH_MINUS; alpha_branch++)
@@ -413,6 +423,13 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
             candidate.beta_rad = (LEG_IK_BRANCH_PLUS == beta_branch) ? beta_plus_rad : beta_minus_rad;
             candidate.alpha_branch = alpha_branch;
             candidate.beta_branch = beta_branch;
+            if((NULL != previous) && (APP_TRUE == previous->valid) &&
+               (APP_TRUE == preserve_previous_branch) &&
+               ((candidate.alpha_branch != previous->alpha_branch) ||
+                (candidate.beta_branch != previous->beta_branch)))
+            {
+                continue;
+            }
             candidate.valid = leg_kinematics_map_candidate(right_side,
                                                             candidate.alpha_rad,
                                                             candidate.beta_rad,
@@ -454,6 +471,8 @@ static uint8 leg_kinematics_solve_model(uint8 right_side,
     result->servo_deg[1] = leg_kinematics_rad_to_deg(best_candidate.beta_rad);
     result->alpha_rad = best_candidate.alpha_rad;
     result->beta_rad = best_candidate.beta_rad;
+    result->alpha_branch = best_candidate.alpha_branch;
+    result->beta_branch = best_candidate.beta_branch;
     result->valid = APP_TRUE;
     return APP_TRUE;
 }
@@ -475,11 +494,13 @@ uint8 leg_kinematics_target_valid(float x_mm, float y_mm)
                                                  model_x_mm,
                                                  model_y_mm,
                                                  NULL,
+                                                 APP_TRUE,
                                                  &left)) ||
        (APP_FALSE == leg_kinematics_solve_model(APP_TRUE,
                                                  model_x_mm,
                                                  model_y_mm,
                                                  NULL,
+                                                 APP_TRUE,
                                                  &right)))
     {
         return APP_FALSE;
@@ -505,6 +526,8 @@ uint8 leg_kinematics_solve(uint8 right_side,
     result->alpha_rad = 0.0f;
     result->beta_rad = 0.0f;
     result->singularity_margin = 0.0f;
+    result->alpha_branch = LEG_IK_BRANCH_PLUS;
+    result->beta_branch = LEG_IK_BRANCH_PLUS;
     result->valid = APP_FALSE;
 
     if(APP_FALSE == leg_kinematics_physical_to_model(x_mm, y_mm,
@@ -517,6 +540,7 @@ uint8 leg_kinematics_solve(uint8 right_side,
                                        model_x_mm,
                                        model_y_mm,
                                        previous,
+                                       APP_TRUE,
                                        result);
 }
 
@@ -665,12 +689,14 @@ uint8 leg_kinematics_forward(uint8 right_side,
     input_pose.alpha_rad = alpha_rad;
     input_pose.beta_rad = beta_rad;
     input_pose.singularity_margin = 1.0f;
+    input_pose.alpha_branch = LEG_IK_BRANCH_PLUS;
+    input_pose.beta_branch = LEG_IK_BRANCH_PLUS;
     input_pose.valid = APP_TRUE;
     plus_match = APP_FALSE;
     minus_match = APP_FALSE;
     if((APP_TRUE == plus_valid) &&
        (APP_TRUE == leg_kinematics_solve_model(right_side, plus_x, plus_y,
-                                                &input_pose, &plus_pose)) &&
+                                                &input_pose, APP_FALSE, &plus_pose)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >=
         leg_kinematics_wrapped_distance(alpha_rad, plus_pose.alpha_rad)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >=
@@ -680,7 +706,7 @@ uint8 leg_kinematics_forward(uint8 right_side,
     }
     if((APP_TRUE == minus_valid) &&
        (APP_TRUE == leg_kinematics_solve_model(right_side, minus_x, minus_y,
-                                                &input_pose, &minus_pose)) &&
+                                                &input_pose, APP_FALSE, &minus_pose)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >=
         leg_kinematics_wrapped_distance(alpha_rad, minus_pose.alpha_rad)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >=

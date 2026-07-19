@@ -1166,13 +1166,26 @@ uint8 control_leg_set_ik_reference(uint32 now_ms)
 
 uint8 control_leg_set_xy(float x_mm, float y_mm, uint32 now_ms)
 {
+    leg_ik_result_struct left_target;
+    leg_ik_result_struct right_target;
+
     (void)now_ms;
     if((LEG_MOTION_FAULT == control_leg_motion_state) ||
        (APP_FALSE == control_leg_ik_reference_valid))
     {
         return APP_FALSE;
     }
-    if(APP_FALSE == leg_kinematics_target_valid(x_mm, y_mm))
+    if((APP_FALSE == leg_kinematics_target_valid(x_mm, y_mm)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                          x_mm,
+                                          y_mm,
+                                          &control_leg_ik_previous_left,
+                                          &left_target)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                          x_mm,
+                                          y_mm,
+                                          &control_leg_ik_previous_right,
+                                          &right_target)))
     {
         return APP_FALSE;
     }

@@ -15,6 +15,8 @@ typedef struct
     float alpha_rad;
     float beta_rad;
     float singularity_margin;
+    leg_ik_branch_enum alpha_branch;
+    leg_ik_branch_enum beta_branch;
     uint8 valid;
 }leg_ik_result_struct;
 

@@ -47,12 +47,25 @@ Multiple inverse solutions can describe the same wheel-centre coordinate.
 Candidate selection follows this order:
 
 1. discard non-finite, below-margin, and servo-limit-invalid candidates;
-2. when a valid previous IK result exists, select the candidate with the
-   smallest total wrapped joint-angle movement from that result;
-3. without a previous result, prefer the configured normal branch combination;
-4. if the configured combination is unavailable, select the valid candidate
+2. when a valid previous IK result exists, require its stored alpha/beta branch
+   identities to be valid and select only that same identity combination;
+3. if the stored identity is invalid or its candidate is no longer command
+   valid, fail closed instead of changing branches automatically;
+4. without a previous result, prefer the configured normal branch combination;
+5. if the configured combination is unavailable, select the valid candidate
    nearest the calibrated reference pose;
-5. break exact score ties deterministically by candidate enumeration order.
+6. break exact score ties deterministically by candidate enumeration order.
+
+The branch lock prevents a marginal nearest-angle advantage from switching to
+a root that is about to leave a servo limit.  For example, on the
+right leg at `Y=28 mm`, the reverse `X=-13 -> -14 mm` path must retain the
+alpha PLUS identity instead of selecting MINUS for a temporary `0.45 deg`
+score advantage and then jumping back when MINUS exceeds `175 deg`.  If a
+persisted branch later leaves its servo limit, the inverse solve is rejected;
+an automatic branch change requires a separate, explicitly controlled path.
+Forward kinematics root matching is a private geometric operation and
+continues to match the supplied raw joint angles rather than inventing previous
+branch identity.
 
 The low-race target near `BODY_WHEEL=(-18.83,25.08) mm` has two close beta
 solutions, mapping to approximately `140 deg` and `137.2 deg`.  In the unified
@@ -82,6 +95,11 @@ Before an `LXY` target is applied, the command layer continues to stop chassis
 motion, disable balance output, and stop the wheel motors.  Accepted targets
 continue through the shared S7 leg trajectory and the 300 Hz servo executor.
 
+Before changing the stored active target, `control_leg_set_xy()` also preflights
+the target for both sides against the current persisted branch identities.
+Failure to preserve either side's branch rejects the command and leaves the old
+target and previous results unchanged.
+
 Rejected targets do not alter the active leg target and continue to publish the
 existing IK-valid, IK-margin, motion-state, and fault-reason diagnostics.  NaN,
 infinity, unreachable geometry, singularity margin below `0.02`, and servo
@@ -106,8 +124,9 @@ The numeric tests will:
    in-range servo commands;
 5. require every rejected target to fail for geometry, margin, lower-half-plane,
    or servo-limit reasons rather than its relation to the old hull;
-6. check adjacent accepted targets for bounded branch movement when a previous
-   result is supplied;
+6. check adjacent accepted targets for bounded mapped-servo movement in each
+   side's `+X`, `-X`, `+Y`, and `-Y` directions when a previous result is
+   supplied, clearing previous state across independently rejected gaps;
 7. preserve the all-90-degree reference pose and forward/inverse round trips;
 8. keep the low-race coordinate accepted without requiring an exact beta
    command of `140 deg`;
@@ -117,6 +136,13 @@ Static contract tests will reject residual production references to the old
 hull and `experimental_race_*` configuration.  Existing coordinate-contract,
 zero-calibration, physical-IK, transition, 300 Hz servo integration, and legacy
 height-control tests must remain green.  All three IAR projects must build.
+
+The grid reachability oracle is independent of the production validation and
+solve APIs: the harness itself transforms the point, calculates both roots for
+each driven joint, evaluates `Y > 0` and the `0.02` margin, maps all four root
+combinations through left/right servo calibration and limits, and then compares
+that per-point classification with `leg_kinematics_target_valid()`.  The fixed
+`5637 / 6561` accepted count remains a second-layer baseline, not the oracle.
 
 ## Hardware validation boundary
 

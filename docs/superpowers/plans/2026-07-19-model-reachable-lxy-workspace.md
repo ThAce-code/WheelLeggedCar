@@ -14,7 +14,7 @@
 - Keep the fitted similarity transform and all-90-degree `LIKREF` reference unchanged.
 - Reachability requires real roots, model-space `Y > 0`, margin `>= 0.02`, and an in-range solution for both sides.
 - Remove the hull, 2 mm inset, all `experimental_race_*` fields, and X/Y rectangle gates from production reachability.
-- Prefer previous-result continuity; without previous state prefer configured branches, then proximity to the calibrated reference.
+- Lock valid previous alpha/beta branch identities and fail closed if that combination becomes command-invalid; without previous state prefer configured branches, then proximity to the calibrated reference.
 - Keep the low-race coordinate valid without requiring beta to equal exactly `140 deg`.
 - Preserve wheel/balance stop gating, S7 smoothing, 300 Hz execution, diagnostics, and fail-closed behavior.
 - Do not flash, enable powered wheel motion, change balance/LQR, or touch unrelated untracked data.
@@ -122,11 +122,18 @@ Implement `leg_kinematics_map_candidate(uint8 right_side, float alpha_rad, float
 
 Refactor `leg_kinematics_solve_model()` to reject non-finite inputs and `Y <= 0`, calculate plus/minus roots once, publish the smaller alpha/beta margin, and reject margin below `profile->ik_min_margin`. Enumerate `{PLUS,MINUS} x {PLUS,MINUS}` and discard candidates rejected by `leg_kinematics_map_candidate()`.
 
-Use this scoring contract:
+Store the selected alpha/beta identities in `leg_ik_result_struct`.  A valid
+previous result with an out-of-range or command-invalid identity fails closed;
+do not select a different identity automatically.  Use this selection contract:
 
 ```c
 if((NULL != previous) && (APP_TRUE == previous->valid))
 {
+    if((alpha_branch != previous->alpha_branch) ||
+       (beta_branch != previous->beta_branch))
+    {
+        continue;
+    }
     score = leg_kinematics_wrapped_distance(alpha_rad, previous->alpha_rad) +
             leg_kinematics_wrapped_distance(beta_rad, previous->beta_rad);
 }
@@ -142,7 +149,12 @@ else
 }
 ```
 
-Retain the first candidate on an exact score tie. Delete point-specific race logic and `leg_kinematics_select_angle()`. Leave rectangular helpers only for the existing forward-kinematics path until Task 2.
+With previous state, only the stored branch combination can win; if it is not
+command-valid, the solve returns false.  Without previous state, use the
+configured/reference score above.  Retain the first candidate on an exact tie.
+Delete point-specific race logic and
+`leg_kinematics_select_angle()`. Leave rectangular helpers only for the existing
+forward-kinematics path until Task 2.
 
 Because the old FK intersection resolver calls the branch-selecting private IK solver, replace only that recursive root-identification step with a raw geometric-root matcher. Keep the existing FK rectangle clamps in Task 1; Task 2 removes those gates and adds the complete grid/continuity contract.
 
@@ -173,7 +185,11 @@ git commit -m "Use model reachability for LXY targets"
 
 **Files:**
 - Modify: `tools/test_leg_transition_numeric.ps1`
+- Modify: `project/code/leg_kinematics.h`
 - Modify: `project/code/leg_kinematics.c`
+- Modify: `project/code/control_leg.c`
+- Modify: `docs/superpowers/specs/2026-07-19-model-reachable-lxy-workspace-design.md`
+- Modify: `docs/superpowers/plans/2026-07-19-model-reachable-lxy-workspace.md`
 
 **Interfaces:**
 - Consumes: Task 1 candidate engine.
@@ -181,7 +197,21 @@ git commit -m "Use model reachability for LXY targets"
 
 - [ ] **Step 1: Write a failing grid-continuity test**
 
-Add row-major and column-major host C loops over physical `Y=20..100 mm` and `X=-60..20 mm` in `1 mm` steps for both sides. Every traversal must accept exactly `5637` of `6561` points. For every accepted point require margin `>=0.02`, FK round-trip error `<=0.5 mm`, and margin-aware wrapped continuity. Clear `previous.valid` across rejected gaps.
+Build an independent per-point oracle over physical `Y=20..100 mm` and
+`X=-60..20 mm` in `1 mm` steps.  The harness itself transforms coordinates,
+calculates the four real root combinations, checks model `Y > 0`, margin
+`>=0.02`, and both sides' mapped servo limits.  Compare every classification
+with `leg_kinematics_target_valid()`; never use the production validator to
+decide whether the oracle accepts or skips a point.  Retain `5637 / 6561` as a
+second-layer count baseline.
+
+For each side, sweep every scanline in `+X`, `-X`, `+Y`, and `-Y`.  Every one of
+the eight side/direction traversals must accept exactly `5637` points.  For every
+accepted point require margin `>=0.02`, FK round-trip error `<=0.5 mm`, and
+margin-aware wrapped continuity of the independently mapped servo commands.
+Clear all previous state across oracle-rejected gaps.  On failure, print both
+endpoints, margins, branch identities, candidate masks, mapped commands,
+per-servo deltas, and the applicable limit.
 
 The central assertion is:
 
@@ -189,8 +219,8 @@ The central assertion is:
 continuity_limit_deg = ((0.05f > previous.singularity_margin) ||
                         (0.05f > result.singularity_margin)) ? 16.0f : 13.0f;
 if((APP_TRUE == previous.valid) &&
-   ((continuity_limit_deg < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
-    (continuity_limit_deg < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+   ((continuity_limit_deg < wrapped_delta_deg(command_deg[0], previous_command_deg[0])) ||
+    (continuity_limit_deg < wrapped_delta_deg(command_deg[1], previous_command_deg[1]))))
 {
     printf("model branch discontinuity %.1f %.1f\n", physical_x, physical_y);
     return 1;
@@ -213,10 +243,25 @@ input_pose.servo_deg[1] = servo_b_deg;
 input_pose.alpha_rad = alpha_rad;
 input_pose.beta_rad = beta_rad;
 input_pose.singularity_margin = 1.0f;
+input_pose.alpha_branch = LEG_IK_BRANCH_PLUS;
+input_pose.beta_branch = LEG_IK_BRANCH_PLUS;
 input_pose.valid = APP_TRUE;
 ```
 
 Retain `LEG_KINEMATICS_FK_MATCH_EPS`; if both intersections match, keep the deterministic choice nearest `model_reference_x_mm`.
+
+Pass an explicit private mode so this FK root match minimizes raw input-angle
+distance without treating its synthetic `input_pose` as persisted branch
+identity.  Public inverse solves lock the persisted branch and fail closed if
+it becomes command-invalid.  The corrected
+right-leg reverse path at `Y=28 mm`, `X=-13 -> -14 mm` must remain on alpha
+PLUS; it must not take the `0.45 deg` nearer MINUS root at `X=-13` and then jump
+when that root maps beyond the `175 deg` servo limit.
+
+In `control_leg_set_xy()`, preflight both left and right solves with the current
+persisted results before writing `control_leg_ik_target_x_mm` or
+`control_leg_ik_target_y_mm`.  If either stored branch cannot solve the new
+target, return false with the old active target and previous results untouched.
 
 - [ ] **Step 4: Verify GREEN**
 
@@ -227,13 +272,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_transition_nu
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_ik_zero_calibration_static.ps1
 ```
 
-Expected: both exit `0`; grid round trips stay within `0.5 mm`; all four traversals accept exactly `5637` points; adjacent motion stays within `13 deg` when both margins are at least `0.05`, or `16 deg` when either endpoint margin is below `0.05`. The wider low-margin allowance covers the verified continuous transition at `(-12,29) mm` (`15.707 deg`, margins `0.02874 -> 0.30851`) without weakening the normal workspace threshold.
+Expected: both exit `0`; the independent oracle and production validator agree
+point by point; grid round trips stay within `0.5 mm`; all eight side/direction
+traversals accept exactly `5637` points; adjacent mapped-servo motion stays
+within `13 deg` when both margins are at least `0.05`, or `16 deg` when either
+endpoint margin is below `0.05`. The wider low-margin allowance covers the
+verified continuous transition at `(-12,29) mm` (`15.707 deg`, margins
+`0.02874 -> 0.30851`) without weakening the normal workspace threshold.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add -- project/code/leg_kinematics.c tools/test_leg_transition_numeric.ps1
-git commit -m "Keep model workspace branches continuous"
+git add -- project/code/control_leg.c project/code/leg_kinematics.h project/code/leg_kinematics.c tools/test_leg_transition_numeric.ps1 docs/superpowers/specs/2026-07-19-model-reachable-lxy-workspace-design.md docs/superpowers/plans/2026-07-19-model-reachable-lxy-workspace.md
+git commit -m "Preserve model workspace branch identity"
 ```
 
 ---

@@ -352,6 +352,24 @@ function Assert-LegacyStanceCommandRange {
     }
 }
 
+function Assert-LxyBranchPreflight {
+    $text = Get-Content "project/code/control_leg.c" -Raw
+    $start = $text.IndexOf("uint8 control_leg_set_xy")
+    $end = $text.IndexOf("uint8 control_leg_set_fast_legacy_stance", $start)
+    if(($start -lt 0) -or ($end -le $start)) {
+        throw "Unable to locate control_leg_set_xy for branch preflight check."
+    }
+
+    $body = $text.Substring($start, $end - $start)
+    $leftSolve = $body.IndexOf("leg_kinematics_solve(APP_FALSE")
+    $rightSolve = $body.IndexOf("leg_kinematics_solve(APP_TRUE")
+    $targetWrite = $body.IndexOf("control_leg_ik_target_x_mm = x_mm;")
+    if(($leftSolve -lt 0) -or ($rightSolve -lt 0) -or ($targetWrite -lt 0) -or
+       ($leftSolve -gt $targetWrite) -or ($rightSolve -gt $targetWrite)) {
+        throw "LXY must preflight both persisted branches before changing the active target."
+    }
+}
+
 function Get-LegTransitionConfig {
     $text = Get-Content "project/code/leg_config.c" -Raw
     $names = @(
@@ -429,6 +447,46 @@ function New-NumericHarness {
 #include <stdio.h>
 
 #define LEG_MODEL_GRID_ACCEPTED_POINT_COUNT (5637U)
+#define LEG_MODEL_GRID_POINT_COUNT          (6561U)
+#define LEG_MODEL_MIN_MARGIN                (0.02f)
+#define LEG_ORACLE_EPS                      (0.000001f)
+#define LEG_ORACLE_PI                       (3.14159265358979323846f)
+#define LEG_ORACLE_TWO_PI                   (6.28318530717958647692f)
+
+typedef enum
+{
+    LEG_SWEEP_X = 0,
+    LEG_SWEEP_Y = 1
+}leg_sweep_axis_enum;
+
+typedef enum
+{
+    LEG_ORACLE_ACCEPT = 0,
+    LEG_ORACLE_REJECT_NONFINITE,
+    LEG_ORACLE_REJECT_TRANSFORM,
+    LEG_ORACLE_REJECT_MODEL_Y,
+    LEG_ORACLE_REJECT_ALPHA_GEOMETRY,
+    LEG_ORACLE_REJECT_BETA_GEOMETRY,
+    LEG_ORACLE_REJECT_MARGIN,
+    LEG_ORACLE_REJECT_LEFT_LIMIT,
+    LEG_ORACLE_REJECT_RIGHT_LIMIT
+}leg_oracle_reason_enum;
+
+typedef struct
+{
+    float model_x_mm;
+    float model_y_mm;
+    float alpha_rad[2];
+    float beta_rad[2];
+    float alpha_discriminant;
+    float beta_discriminant;
+    float alpha_margin;
+    float beta_margin;
+    float singularity_margin;
+    uint8 side_candidate_mask[2];
+    leg_oracle_reason_enum reason;
+    uint8 valid;
+}leg_oracle_result_struct;
 
 static float wrapped_delta_deg(float current_deg, float previous_deg)
 {
@@ -449,43 +507,587 @@ static float adjacent_motion_limit_deg(const leg_ik_result_struct *previous,
     return 13.0f;
 }
 
-static int check_side(uint8 right_side, uint8 column_major, uint32 *accepted_count)
+static float oracle_wrap_positive(float angle_rad)
+{
+    while(0.0f > angle_rad) { angle_rad += LEG_ORACLE_TWO_PI; }
+    while(LEG_ORACLE_TWO_PI <= angle_rad) { angle_rad -= LEG_ORACLE_TWO_PI; }
+    return angle_rad;
+}
+
+static float oracle_wrapped_delta(float target_rad, float reference_rad)
+{
+    float delta = oracle_wrap_positive(target_rad - reference_rad);
+    if(LEG_ORACLE_PI < delta) { delta -= LEG_ORACLE_TWO_PI; }
+    return delta;
+}
+
+static int oracle_solve_roots(float a,
+                              float b,
+                              float c,
+                              float roots_rad[2],
+                              float *margin,
+                              float *discriminant)
+{
+    float magnitude;
+    float root;
+    float phase_rad;
+    float offset_rad;
+
+    if((NULL == roots_rad) || (NULL == margin) || (NULL == discriminant) ||
+       (!isfinite(a)) || (!isfinite(b)) || (!isfinite(c)))
+    {
+        return 0;
+    }
+    *discriminant = (a * a) + (b * b) - (c * c);
+    magnitude = sqrtf((a * a) + (b * b));
+    if((0.0f > *discriminant) || (LEG_ORACLE_EPS > magnitude))
+    {
+        return 0;
+    }
+    root = sqrtf(*discriminant);
+    *margin = root / magnitude;
+    phase_rad = atan2f(b, a);
+    offset_rad = atan2f(root, c);
+    roots_rad[LEG_IK_BRANCH_PLUS] = oracle_wrap_positive(phase_rad + offset_rad);
+    roots_rad[LEG_IK_BRANCH_MINUS] = oracle_wrap_positive(phase_rad - offset_rad);
+    return (isfinite(*margin) &&
+            isfinite(roots_rad[LEG_IK_BRANCH_PLUS]) &&
+            isfinite(roots_rad[LEG_IK_BRANCH_MINUS]) &&
+            (0.0f <= *margin) && (1.0f >= *margin));
+}
+
+static int oracle_map_root(uint8 servo_index,
+                           float reference_deg,
+                           float root_rad,
+                           float *command_deg)
+{
+    const leg_servo_config_struct *servo = leg_config_get_servo(servo_index);
+    float command;
+
+    if((NULL == servo) || (NULL == command_deg) ||
+       (!isfinite(reference_deg)) || (!isfinite(root_rad)))
+    {
+        return 0;
+    }
+    command = servo->neutral_deg +
+              (servo->direction *
+               (oracle_wrapped_delta(root_rad,
+                                     reference_deg * LEG_ORACLE_PI / 180.0f) *
+                180.0f / LEG_ORACLE_PI)) +
+              servo->ik_offset_deg;
+    if((!isfinite(command)) ||
+       (servo->min_deg > command) || (servo->max_deg < command))
+    {
+        return 0;
+    }
+    *command_deg = command;
+    return 1;
+}
+
+static uint8 oracle_side_candidate_mask(uint8 right_side,
+                                        const leg_oracle_result_struct *oracle)
+{
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    const uint8 alpha_servo = (APP_TRUE == right_side) ? LEG_SERVO_FR : LEG_SERVO_FL;
+    const uint8 beta_servo = (APP_TRUE == right_side) ? LEG_SERVO_RR : LEG_SERVO_RL;
+    uint8 mask = 0U;
+    int alpha_branch;
+
+    if((NULL == cfg) || (NULL == oracle))
+    {
+        return 0U;
+    }
+    for(alpha_branch = LEG_IK_BRANCH_PLUS;
+        alpha_branch <= LEG_IK_BRANCH_MINUS;
+        alpha_branch++)
+    {
+        int beta_branch;
+        float alpha_command_deg;
+
+        if(0 == oracle_map_root(alpha_servo,
+                                cfg->alpha_reference_deg,
+                                oracle->alpha_rad[alpha_branch],
+                                &alpha_command_deg))
+        {
+            continue;
+        }
+        for(beta_branch = LEG_IK_BRANCH_PLUS;
+            beta_branch <= LEG_IK_BRANCH_MINUS;
+            beta_branch++)
+        {
+            float beta_command_deg;
+
+            if(0 != oracle_map_root(beta_servo,
+                                    cfg->beta_reference_deg,
+                                    oracle->beta_rad[beta_branch],
+                                    &beta_command_deg))
+            {
+                mask |= (uint8)(1U << ((2 * alpha_branch) + beta_branch));
+            }
+        }
+    }
+    return mask;
+}
+
+static int oracle_classify(float physical_x_mm,
+                           float physical_y_mm,
+                           leg_oracle_result_struct *oracle)
+{
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    float delta_x;
+    float delta_y;
+    float a;
+    float b;
+    float c;
+    float d;
+    float e;
+    float f;
+
+    if(NULL == oracle)
+    {
+        return 0;
+    }
+    oracle->model_x_mm = 0.0f;
+    oracle->model_y_mm = 0.0f;
+    oracle->alpha_rad[0] = 0.0f;
+    oracle->alpha_rad[1] = 0.0f;
+    oracle->beta_rad[0] = 0.0f;
+    oracle->beta_rad[1] = 0.0f;
+    oracle->alpha_discriminant = 0.0f;
+    oracle->beta_discriminant = 0.0f;
+    oracle->alpha_margin = 0.0f;
+    oracle->beta_margin = 0.0f;
+    oracle->singularity_margin = 0.0f;
+    oracle->side_candidate_mask[APP_FALSE] = 0U;
+    oracle->side_candidate_mask[APP_TRUE] = 0U;
+    oracle->reason = LEG_ORACLE_REJECT_NONFINITE;
+    oracle->valid = APP_FALSE;
+
+    if((NULL == cfg) || (!isfinite(physical_x_mm)) || (!isfinite(physical_y_mm)))
+    {
+        return 0;
+    }
+    oracle->reason = LEG_ORACLE_REJECT_TRANSFORM;
+    if((!isfinite(cfg->model_to_physical_scale)) ||
+       (LEG_ORACLE_EPS > cfg->model_to_physical_scale))
+    {
+        return 0;
+    }
+    delta_x = (physical_x_mm - cfg->physical_reference_x_mm) /
+              cfg->model_to_physical_scale;
+    delta_y = (physical_y_mm - cfg->physical_reference_y_mm) /
+              cfg->model_to_physical_scale;
+    oracle->model_x_mm = cfg->model_reference_x_mm +
+                         (cfg->model_to_physical_m00 * delta_x) +
+                         (cfg->model_to_physical_m10 * delta_y);
+    oracle->model_y_mm = cfg->model_reference_y_mm +
+                         (cfg->model_to_physical_m01 * delta_x) +
+                         (cfg->model_to_physical_m11 * delta_y);
+    if((!isfinite(oracle->model_x_mm)) || (!isfinite(oracle->model_y_mm)))
+    {
+        return 0;
+    }
+    oracle->reason = LEG_ORACLE_REJECT_MODEL_Y;
+    if(0.0f >= oracle->model_y_mm)
+    {
+        return 0;
+    }
+
+    a = 2.0f * oracle->model_x_mm * cfg->l1_mm;
+    b = 2.0f * oracle->model_y_mm * cfg->l1_mm;
+    c = (oracle->model_x_mm * oracle->model_x_mm) +
+        (oracle->model_y_mm * oracle->model_y_mm) +
+        (cfg->l1_mm * cfg->l1_mm) - (cfg->l2_mm * cfg->l2_mm);
+    d = 2.0f * (oracle->model_x_mm - cfg->l5_mm) * cfg->l4_mm;
+    e = 2.0f * oracle->model_y_mm * cfg->l4_mm;
+    f = ((oracle->model_x_mm - cfg->l5_mm) *
+         (oracle->model_x_mm - cfg->l5_mm)) +
+        (oracle->model_y_mm * oracle->model_y_mm) +
+        (cfg->l4_mm * cfg->l4_mm) - (cfg->l3_mm * cfg->l3_mm);
+    oracle->reason = LEG_ORACLE_REJECT_ALPHA_GEOMETRY;
+    if(0 == oracle_solve_roots(a, b, c,
+                               oracle->alpha_rad,
+                               &oracle->alpha_margin,
+                               &oracle->alpha_discriminant))
+    {
+        return 0;
+    }
+    oracle->reason = LEG_ORACLE_REJECT_BETA_GEOMETRY;
+    if(0 == oracle_solve_roots(d, e, f,
+                               oracle->beta_rad,
+                               &oracle->beta_margin,
+                               &oracle->beta_discriminant))
+    {
+        return 0;
+    }
+    oracle->singularity_margin = (oracle->alpha_margin < oracle->beta_margin) ?
+                                 oracle->alpha_margin : oracle->beta_margin;
+    oracle->reason = LEG_ORACLE_REJECT_MARGIN;
+    if(LEG_MODEL_MIN_MARGIN > oracle->singularity_margin)
+    {
+        return 0;
+    }
+    oracle->side_candidate_mask[APP_FALSE] =
+        oracle_side_candidate_mask(APP_FALSE, oracle);
+    oracle->side_candidate_mask[APP_TRUE] =
+        oracle_side_candidate_mask(APP_TRUE, oracle);
+    oracle->reason = LEG_ORACLE_REJECT_LEFT_LIMIT;
+    if(0U == oracle->side_candidate_mask[APP_FALSE])
+    {
+        return 0;
+    }
+    oracle->reason = LEG_ORACLE_REJECT_RIGHT_LIMIT;
+    if(0U == oracle->side_candidate_mask[APP_TRUE])
+    {
+        return 0;
+    }
+    oracle->reason = LEG_ORACLE_ACCEPT;
+    oracle->valid = APP_TRUE;
+    return 1;
+}
+
+static const char *oracle_reason_name(leg_oracle_reason_enum reason)
+{
+    switch(reason)
+    {
+        case LEG_ORACLE_ACCEPT: return "accept";
+        case LEG_ORACLE_REJECT_NONFINITE: return "nonfinite";
+        case LEG_ORACLE_REJECT_TRANSFORM: return "transform";
+        case LEG_ORACLE_REJECT_MODEL_Y: return "model-y";
+        case LEG_ORACLE_REJECT_ALPHA_GEOMETRY: return "alpha-geometry";
+        case LEG_ORACLE_REJECT_BETA_GEOMETRY: return "beta-geometry";
+        case LEG_ORACLE_REJECT_MARGIN: return "margin";
+        case LEG_ORACLE_REJECT_LEFT_LIMIT: return "left-limit";
+        case LEG_ORACLE_REJECT_RIGHT_LIMIT: return "right-limit";
+        default: return "unknown";
+    }
+}
+
+static const char *oracle_branch_name(int branch)
+{
+    return (LEG_IK_BRANCH_PLUS == branch) ? "PLUS" : "MINUS";
+}
+
+static int oracle_selected_commands(uint8 right_side,
+                                    const leg_oracle_result_struct *oracle,
+                                    const leg_ik_result_struct *result,
+                                    float command_deg[2],
+                                    int branch[2])
+{
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    const uint8 alpha_servo = (APP_TRUE == right_side) ? LEG_SERVO_FR : LEG_SERVO_FL;
+    const uint8 beta_servo = (APP_TRUE == right_side) ? LEG_SERVO_RR : LEG_SERVO_RL;
+    float plus_delta;
+    float minus_delta;
+    uint8 candidate_bit;
+
+    if((NULL == cfg) || (NULL == oracle) || (NULL == result) ||
+       (NULL == command_deg) || (NULL == branch))
+    {
+        return 0;
+    }
+    plus_delta = fabsf(oracle_wrapped_delta(result->alpha_rad,
+                                             oracle->alpha_rad[LEG_IK_BRANCH_PLUS]));
+    minus_delta = fabsf(oracle_wrapped_delta(result->alpha_rad,
+                                              oracle->alpha_rad[LEG_IK_BRANCH_MINUS]));
+    branch[0] = (plus_delta <= minus_delta) ? LEG_IK_BRANCH_PLUS : LEG_IK_BRANCH_MINUS;
+    plus_delta = fabsf(oracle_wrapped_delta(result->beta_rad,
+                                             oracle->beta_rad[LEG_IK_BRANCH_PLUS]));
+    minus_delta = fabsf(oracle_wrapped_delta(result->beta_rad,
+                                              oracle->beta_rad[LEG_IK_BRANCH_MINUS]));
+    branch[1] = (plus_delta <= minus_delta) ? LEG_IK_BRANCH_PLUS : LEG_IK_BRANCH_MINUS;
+    candidate_bit = (uint8)(1U << ((2 * branch[0]) + branch[1]));
+    if((result->alpha_branch != branch[0]) ||
+       (result->beta_branch != branch[1]) ||
+       (0U == (oracle->side_candidate_mask[right_side] & candidate_bit)) ||
+       (0 == oracle_map_root(alpha_servo,
+                             cfg->alpha_reference_deg,
+                             oracle->alpha_rad[branch[0]],
+                             &command_deg[0])) ||
+       (0 == oracle_map_root(beta_servo,
+                             cfg->beta_reference_deg,
+                             oracle->beta_rad[branch[1]],
+                             &command_deg[1])))
+    {
+        return 0;
+    }
+    return 1;
+}
+
+static int check_oracle_grid(void)
+{
+    uint32 oracle_accepted_count = 0U;
+    uint32 production_accepted_count = 0U;
+    uint32 point_count = 0U;
+    int physical_y_i;
+
+    for(physical_y_i = 20; physical_y_i <= 100; physical_y_i++)
+    {
+        int physical_x_i;
+
+        for(physical_x_i = -60; physical_x_i <= 20; physical_x_i++)
+        {
+            const float physical_x = (float)physical_x_i;
+            const float physical_y = (float)physical_y_i;
+            leg_oracle_result_struct oracle;
+            const uint8 oracle_valid = (0 != oracle_classify(physical_x,
+                                                              physical_y,
+                                                              &oracle)) ? APP_TRUE : APP_FALSE;
+            const uint8 production_valid = leg_kinematics_target_valid(physical_x,
+                                                                        physical_y);
+            uint8 side;
+
+            point_count++;
+            if(APP_TRUE == oracle_valid) { oracle_accepted_count++; }
+            if(APP_TRUE == production_valid) { production_accepted_count++; }
+            if(oracle_valid != production_valid)
+            {
+                printf("reachability oracle mismatch physical %.1f %.1f model %.6f %.6f oracle %u production %u reason %s discriminants %.6f/%.6f margins %.8f/%.8f/min %.8f masks 0x%02x/0x%02x\n",
+                       physical_x, physical_y,
+                       oracle.model_x_mm, oracle.model_y_mm,
+                       (unsigned int)oracle_valid,
+                       (unsigned int)production_valid,
+                       oracle_reason_name(oracle.reason),
+                       oracle.alpha_discriminant,
+                       oracle.beta_discriminant,
+                       oracle.alpha_margin,
+                       oracle.beta_margin,
+                       oracle.singularity_margin,
+                       (unsigned int)oracle.side_candidate_mask[APP_FALSE],
+                       (unsigned int)oracle.side_candidate_mask[APP_TRUE]);
+                return 1;
+            }
+            for(side = APP_FALSE; side <= APP_TRUE; side++)
+            {
+                leg_ik_result_struct result = {0};
+                float command_deg[2];
+                int branch[2];
+                const uint8 expected_side_valid =
+                    (0U != oracle.side_candidate_mask[side]) ? APP_TRUE : APP_FALSE;
+                const uint8 solve_return = leg_kinematics_solve(side,
+                                                                 physical_x,
+                                                                 physical_y,
+                                                                 NULL,
+                                                                 &result);
+
+                if(((APP_TRUE == expected_side_valid) &&
+                    ((APP_TRUE != solve_return) || (APP_TRUE != result.valid))) ||
+                   ((APP_FALSE == expected_side_valid) &&
+                    ((APP_FALSE != solve_return) || (APP_FALSE != result.valid))))
+                {
+                    printf("side oracle mismatch side %u physical %.1f %.1f reason %s expected %u solve %u/result %u margin %.8f mask 0x%02x\n",
+                           (unsigned int)side, physical_x, physical_y,
+                           oracle_reason_name(oracle.reason),
+                           (unsigned int)expected_side_valid,
+                           (unsigned int)solve_return,
+                           (unsigned int)result.valid,
+                           oracle.singularity_margin,
+                           (unsigned int)oracle.side_candidate_mask[side]);
+                    return 1;
+                }
+                if((APP_TRUE == expected_side_valid) &&
+                   (0 == oracle_selected_commands(side,
+                                                   &oracle,
+                                                   &result,
+                                                   command_deg,
+                                                   branch)))
+                {
+                    printf("production solution is not an oracle candidate side %u physical %.1f %.1f raw %.6f/%.6f mask 0x%02x\n",
+                           (unsigned int)side, physical_x, physical_y,
+                           result.alpha_rad, result.beta_rad,
+                           (unsigned int)oracle.side_candidate_mask[side]);
+                    return 1;
+                }
+            }
+        }
+    }
+    if((LEG_MODEL_GRID_POINT_COUNT != point_count) ||
+       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != oracle_accepted_count) ||
+       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != production_accepted_count))
+    {
+        printf("Grid baseline mismatch: points %u/%u oracle accepted %u/%u production accepted %u/%u\n",
+               (unsigned int)point_count,
+               (unsigned int)LEG_MODEL_GRID_POINT_COUNT,
+               (unsigned int)oracle_accepted_count,
+               (unsigned int)LEG_MODEL_GRID_ACCEPTED_POINT_COUNT,
+               (unsigned int)production_accepted_count,
+               (unsigned int)LEG_MODEL_GRID_ACCEPTED_POINT_COUNT);
+        return 1;
+    }
+    return 0;
+}
+
+static int check_branch_metadata_fail_closed(void)
+{
+    leg_ik_result_struct previous = {0};
+    leg_ik_result_struct result = {0};
+
+    if(APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                        -13.0f,
+                                        28.0f,
+                                        NULL,
+                                        &previous))
+    {
+        printf("unable to establish previous branch for fail-closed test\n");
+        return 1;
+    }
+    previous.alpha_branch = (leg_ik_branch_enum)2;
+    if((APP_FALSE != leg_kinematics_solve(APP_TRUE,
+                                          -14.0f,
+                                          28.0f,
+                                          &previous,
+                                          &result)) ||
+       (APP_FALSE != result.valid))
+    {
+        printf("invalid previous branch metadata did not fail closed\n");
+        return 1;
+    }
+    if(APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                        -13.0f,
+                                        28.0f,
+                                        NULL,
+                                        &previous))
+    {
+        printf("unable to establish servo-limit branch test state\n");
+        return 1;
+    }
+    previous.alpha_branch = LEG_IK_BRANCH_MINUS;
+    if((APP_FALSE != leg_kinematics_solve(APP_TRUE,
+                                          -14.0f,
+                                          28.0f,
+                                          &previous,
+                                          &result)) ||
+       (APP_FALSE != result.valid))
+    {
+        printf("unavailable previous branch identity did not fail closed\n");
+        return 1;
+    }
+    return 0;
+}
+
+static int check_oracle_rejections(void)
+{
+    static const struct
+    {
+        float physical_x;
+        float physical_y;
+        leg_oracle_reason_enum expected_reason;
+        const char *name;
+    }cases[] =
+    {
+        {NAN, 55.0f, LEG_ORACLE_REJECT_NONFINITE, "NaN"},
+        {INFINITY, 55.0f, LEG_ORACLE_REJECT_NONFINITE, "infinity"},
+        {0.0f, 0.0f, LEG_ORACLE_REJECT_MODEL_Y, "model Y <= 0"},
+        {-55.0f, 27.0f, LEG_ORACLE_REJECT_MARGIN, "margin below 0.02"}
+    };
+    uint32 i;
+
+    for(i = 0U; i < (sizeof(cases) / sizeof(cases[0])); i++)
+    {
+        leg_oracle_result_struct oracle;
+
+        if((0 != oracle_classify(cases[i].physical_x,
+                                 cases[i].physical_y,
+                                 &oracle)) ||
+           (cases[i].expected_reason != oracle.reason) ||
+           (APP_FALSE != leg_kinematics_target_valid(cases[i].physical_x,
+                                                      cases[i].physical_y)))
+        {
+            printf("oracle rejection mismatch %s: reason %s expected %s production %u model %.6f %.6f discriminants %.6f/%.6f margins %.8f/%.8f/min %.8f masks 0x%02x/0x%02x\n",
+                   cases[i].name,
+                   oracle_reason_name(oracle.reason),
+                   oracle_reason_name(cases[i].expected_reason),
+                   (unsigned int)leg_kinematics_target_valid(cases[i].physical_x,
+                                                              cases[i].physical_y),
+                   oracle.model_x_mm, oracle.model_y_mm,
+                   oracle.alpha_discriminant, oracle.beta_discriminant,
+                   oracle.alpha_margin, oracle.beta_margin,
+                   oracle.singularity_margin,
+                   (unsigned int)oracle.side_candidate_mask[APP_FALSE],
+                   (unsigned int)oracle.side_candidate_mask[APP_TRUE]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int check_side(uint8 right_side,
+                      leg_sweep_axis_enum axis,
+                      int direction,
+                      uint32 *accepted_count)
 {
     int outer_i;
-    int inner_i;
 
-    if(NULL == accepted_count)
+    if((NULL == accepted_count) ||
+       ((LEG_SWEEP_X != axis) && (LEG_SWEEP_Y != axis)) ||
+       ((1 != direction) && (-1 != direction)))
     {
         return 1;
     }
     *accepted_count = 0U;
 
-    for(outer_i = (APP_TRUE == column_major) ? -60 : 20;
-        outer_i <= ((APP_TRUE == column_major) ? 20 : 100);
+    for(outer_i = (LEG_SWEEP_X == axis) ? 20 : -60;
+        outer_i <= ((LEG_SWEEP_X == axis) ? 100 : 20);
         outer_i++)
     {
         leg_ik_result_struct previous = {0};
+        leg_oracle_result_struct previous_oracle;
+        float previous_command_deg[2] = {0.0f, 0.0f};
+        int previous_branch[2] = {LEG_IK_BRANCH_PLUS, LEG_IK_BRANCH_PLUS};
+        float previous_x = 0.0f;
+        float previous_y = 0.0f;
+        int step;
 
-        for(inner_i = (APP_TRUE == column_major) ? 20 : -60;
-            inner_i <= ((APP_TRUE == column_major) ? 100 : 20);
-            inner_i++)
+        for(step = 0; step <= 80; step++)
         {
-            const float physical_x = (float)((APP_TRUE == column_major) ? outer_i : inner_i);
-            const float physical_y = (float)((APP_TRUE == column_major) ? inner_i : outer_i);
+            const int swept_value = (LEG_SWEEP_X == axis) ?
+                                    ((0 < direction) ? (-60 + step) : (20 - step)) :
+                                    ((0 < direction) ? (20 + step) : (100 - step));
+            const float physical_x = (float)((LEG_SWEEP_X == axis) ? swept_value : outer_i);
+            const float physical_y = (float)((LEG_SWEEP_X == axis) ? outer_i : swept_value);
             float x_mm;
             float y_mm;
             leg_ik_result_struct result;
+            leg_oracle_result_struct oracle;
+            float command_deg[2];
+            int branch[2];
+            const uint8 oracle_valid = (0 != oracle_classify(physical_x,
+                                                              physical_y,
+                                                              &oracle)) ? APP_TRUE : APP_FALSE;
+            const uint8 production_valid = leg_kinematics_target_valid(physical_x,
+                                                                        physical_y);
 
-            if(APP_TRUE != leg_kinematics_target_valid(physical_x, physical_y))
+            if(oracle_valid != production_valid)
+            {
+                printf("reachability mismatch during sweep side %u axis %c direction %+d physical %.1f %.1f oracle %u production %u reason %s margin %.8f masks 0x%02x/0x%02x\n",
+                       (unsigned int)right_side,
+                       (LEG_SWEEP_X == axis) ? 'X' : 'Y', direction,
+                       physical_x, physical_y,
+                       (unsigned int)oracle_valid,
+                       (unsigned int)production_valid,
+                       oracle_reason_name(oracle.reason),
+                       oracle.singularity_margin,
+                       (unsigned int)oracle.side_candidate_mask[APP_FALSE],
+                       (unsigned int)oracle.side_candidate_mask[APP_TRUE]);
+                return 1;
+            }
+            if(APP_TRUE != oracle_valid)
             {
                 previous.valid = APP_FALSE;
+                previous_oracle.valid = APP_FALSE;
+                previous_command_deg[0] = 0.0f;
+                previous_command_deg[1] = 0.0f;
+                previous_branch[0] = LEG_IK_BRANCH_PLUS;
+                previous_branch[1] = LEG_IK_BRANCH_PLUS;
+                previous_x = 0.0f;
+                previous_y = 0.0f;
                 continue;
             }
             if((APP_TRUE != leg_kinematics_solve(right_side, physical_x, physical_y,
                                                   &previous, &result)) ||
                (APP_TRUE != result.valid))
             {
-                printf("IK rejected side %u physical %.1f %.1f\\n",
+                printf("IK rejected side %u physical %.1f %.1f\n",
                        (unsigned int)right_side, physical_x, physical_y);
                 return 1;
             }
@@ -493,27 +1095,65 @@ static int check_side(uint8 right_side, uint8 column_major, uint32 *accepted_cou
             if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
                (!isfinite(result.singularity_margin)) || (0.02f > result.singularity_margin))
             {
-                printf("IK margin/output invalid side %u physical %.1f %.1f\\n",
+                printf("IK margin/output invalid side %u physical %.1f %.1f\n",
                        (unsigned int)right_side, physical_x, physical_y);
+                return 1;
+            }
+            if(0 == oracle_selected_commands(right_side,
+                                              &oracle,
+                                              &result,
+                                              command_deg,
+                                              branch))
+            {
+                printf("sweep solution is not an oracle candidate side %u axis %c direction %+d physical %.1f %.1f raw %.6f/%.6f mask 0x%02x\n",
+                       (unsigned int)right_side,
+                       (LEG_SWEEP_X == axis) ? 'X' : 'Y', direction,
+                       physical_x, physical_y,
+                       result.alpha_rad, result.beta_rad,
+                       (unsigned int)oracle.side_candidate_mask[right_side]);
                 return 1;
             }
             if((APP_TRUE == previous.valid) &&
                ((adjacent_motion_limit_deg(&previous, &result) <
-                 wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
+                 wrapped_delta_deg(command_deg[0], previous_command_deg[0])) ||
                 (adjacent_motion_limit_deg(&previous, &result) <
-                 wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+                 wrapped_delta_deg(command_deg[1], previous_command_deg[1]))))
             {
-                printf("model branch discontinuity %.1f %.1f\\n", physical_x, physical_y);
+                printf("model branch discontinuity side %u axis %c direction %+d endpoints (%.1f,%.1f)->(%.1f,%.1f) margins %.8f->%.8f branches %s/%s->%s/%s raw %.6f/%.6f->%.6f/%.6f commands %.6f/%.6f->%.6f/%.6f deltas %.6f/%.6f masks 0x%02x->0x%02x limit %.1f\n",
+                       (unsigned int)right_side,
+                       (LEG_SWEEP_X == axis) ? 'X' : 'Y', direction,
+                       previous_x, previous_y, physical_x, physical_y,
+                       previous.singularity_margin, result.singularity_margin,
+                       oracle_branch_name(previous_branch[0]),
+                       oracle_branch_name(previous_branch[1]),
+                       oracle_branch_name(branch[0]),
+                       oracle_branch_name(branch[1]),
+                       previous.alpha_rad, previous.beta_rad,
+                       result.alpha_rad, result.beta_rad,
+                       previous_command_deg[0], previous_command_deg[1],
+                       command_deg[0], command_deg[1],
+                       wrapped_delta_deg(command_deg[0], previous_command_deg[0]),
+                       wrapped_delta_deg(command_deg[1], previous_command_deg[1]),
+                       (unsigned int)previous_oracle.side_candidate_mask[right_side],
+                       (unsigned int)oracle.side_candidate_mask[right_side],
+                       adjacent_motion_limit_deg(&previous, &result));
                 return 1;
             }
             if((APP_TRUE != leg_kinematics_forward(right_side, result.servo_deg[0], result.servo_deg[1], &x_mm, &y_mm)) ||
                (0.5f < fabsf(x_mm - physical_x)) || (0.5f < fabsf(y_mm - physical_y)))
             {
-                printf("FK mismatch side %u physical %.1f %.1f: %.3f, %.3f\\n",
+                printf("FK mismatch side %u physical %.1f %.1f: %.3f, %.3f\n",
                        (unsigned int)right_side, physical_x, physical_y, x_mm, y_mm);
                 return 1;
             }
             previous = result;
+            previous_oracle = oracle;
+            previous_command_deg[0] = command_deg[0];
+            previous_command_deg[1] = command_deg[1];
+            previous_branch[0] = branch[0];
+            previous_branch[1] = branch[1];
+            previous_x = physical_x;
+            previous_y = physical_y;
         }
     }
     return 0;
@@ -524,10 +1164,7 @@ int main(void)
     leg_ik_result_struct left_reference = {0};
     leg_ik_result_struct right_reference = {0};
     const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
-    uint32 left_row_accepted_count;
-    uint32 right_row_accepted_count;
-    uint32 left_column_accepted_count;
-    uint32 right_column_accepted_count;
+    uint32 accepted_count[2][2][2];
     float servo_deg[LEG_SERVO_COUNT];
     float forward_x_mm;
     float forward_y_mm;
@@ -535,25 +1172,50 @@ int main(void)
     {
         return 1;
     }
-    if((0 != check_side(APP_FALSE, APP_FALSE, &left_row_accepted_count)) ||
-       (0 != check_side(APP_TRUE, APP_FALSE, &right_row_accepted_count)) ||
-       (0 != check_side(APP_FALSE, APP_TRUE, &left_column_accepted_count)) ||
-       (0 != check_side(APP_TRUE, APP_TRUE, &right_column_accepted_count)))
+    if((0 != check_branch_metadata_fail_closed()) ||
+       (0 != check_oracle_rejections()) ||
+       (0 != check_oracle_grid()))
     {
         return 1;
     }
-    if((LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != left_row_accepted_count) ||
-       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != right_row_accepted_count) ||
-       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != left_column_accepted_count) ||
-       (LEG_MODEL_GRID_ACCEPTED_POINT_COUNT != right_column_accepted_count))
+    if((0 != check_side(APP_FALSE, LEG_SWEEP_X, 1, &accepted_count[APP_FALSE][LEG_SWEEP_X][1])) ||
+       (0 != check_side(APP_FALSE, LEG_SWEEP_X, -1, &accepted_count[APP_FALSE][LEG_SWEEP_X][0])) ||
+       (0 != check_side(APP_FALSE, LEG_SWEEP_Y, 1, &accepted_count[APP_FALSE][LEG_SWEEP_Y][1])) ||
+       (0 != check_side(APP_FALSE, LEG_SWEEP_Y, -1, &accepted_count[APP_FALSE][LEG_SWEEP_Y][0])) ||
+       (0 != check_side(APP_TRUE, LEG_SWEEP_X, 1, &accepted_count[APP_TRUE][LEG_SWEEP_X][1])) ||
+       (0 != check_side(APP_TRUE, LEG_SWEEP_X, -1, &accepted_count[APP_TRUE][LEG_SWEEP_X][0])) ||
+       (0 != check_side(APP_TRUE, LEG_SWEEP_Y, 1, &accepted_count[APP_TRUE][LEG_SWEEP_Y][1])) ||
+       (0 != check_side(APP_TRUE, LEG_SWEEP_Y, -1, &accepted_count[APP_TRUE][LEG_SWEEP_Y][0])))
     {
-        printf("Grid accepted-point count mismatch (expected %u): left row %u, right row %u, left column %u, right column %u\\n",
-               (unsigned int)LEG_MODEL_GRID_ACCEPTED_POINT_COUNT,
-               (unsigned int)left_row_accepted_count,
-               (unsigned int)right_row_accepted_count,
-               (unsigned int)left_column_accepted_count,
-               (unsigned int)right_column_accepted_count);
         return 1;
+    }
+    {
+        uint8 side;
+
+        for(side = APP_FALSE; side <= APP_TRUE; side++)
+        {
+            int axis;
+
+            for(axis = LEG_SWEEP_X; axis <= LEG_SWEEP_Y; axis++)
+            {
+                int direction_index;
+
+                for(direction_index = 0; direction_index <= 1; direction_index++)
+                {
+                    if(LEG_MODEL_GRID_ACCEPTED_POINT_COUNT !=
+                       accepted_count[side][axis][direction_index])
+                    {
+                        printf("Sweep accepted-point count mismatch side %u axis %c direction %+d: %u/%u\n",
+                               (unsigned int)side,
+                               (LEG_SWEEP_X == axis) ? 'X' : 'Y',
+                               (0 == direction_index) ? -1 : 1,
+                               (unsigned int)accepted_count[side][axis][direction_index],
+                               (unsigned int)LEG_MODEL_GRID_ACCEPTED_POINT_COUNT);
+                        return 1;
+                    }
+                }
+            }
+        }
     }
     if((APP_TRUE != leg_kinematics_solve(APP_FALSE,
                                          cfg->physical_reference_x_mm,
@@ -577,18 +1239,18 @@ int main(void)
        (0.5f < fabsf(forward_x_mm - cfg->physical_reference_x_mm)) ||
        (0.5f < fabsf(forward_y_mm - cfg->physical_reference_y_mm)))
     {
-        printf("Physical reference equivalence failed: %.3f, %.3f\\n",
+        printf("Physical reference equivalence failed: %.3f, %.3f\n",
                forward_x_mm, forward_y_mm);
         return 1;
     }
     if(APP_TRUE != leg_kinematics_target_valid(0.0f, 55.0f))
     {
-        printf("Model-reachable X=0 target rejected\\n");
+        printf("Model-reachable X=0 target rejected\n");
         return 1;
     }
     if(APP_TRUE != leg_kinematics_target_valid(-40.620f, 47.370f))
     {
-        printf("Model-reachable hull vertex rejected\\n");
+        printf("Model-reachable hull vertex rejected\n");
         return 1;
     }
     return 0;
@@ -611,6 +1273,7 @@ Assert-Equal -Actual $config["fast_stance_transition_ms"] -Expected 500.0 -Messa
 Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.02 -Message "IK minimum margin"
 Assert-Equal -Actual $config["legacy_safe_support_units"] -Expected 55.0 -Message "Empirical Phase 1 safe support legacy stance"
 Assert-LegacyStanceCommandRange -Config $config
+Assert-LxyBranchPreflight
 
 Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
 Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."

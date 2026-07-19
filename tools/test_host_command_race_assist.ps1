@@ -336,6 +336,78 @@ static int check_brg_is_bounded_and_atomic(void)
     return 0;
 }
 
+static int check_bra_requires_lexical_integer(void)
+{
+    const char *invalid_commands[] =
+    {
+        "BRA,0.99999999\n",
+        "BRA,1.00000001\n",
+        "BRA,+1\n",
+        "BRA,-0\n",
+        "BRA,1.0\n",
+        "BRA,01\n",
+        "BRA,NaN\n",
+        "BRA,Inf\n",
+        "BRA,1,0\n",
+        "BRA,\n"
+    };
+    uint8 expected_level = host_race_level;
+    float expected_accel_gain = host_accel_gain;
+    float expected_error_gain = host_error_gain;
+    float expected_hold_bias = host_hold_bias;
+    uint32 index;
+
+    send_command("BRA, 1\n", 22U);
+    if((APP_FALSE != host_last_command_error) || (1U != host_race_level))
+    {
+        fprintf(stderr, "existing whitespace normalization changed for BRA\n");
+        return 1;
+    }
+
+    for(index = 0U; index < (sizeof(invalid_commands) / sizeof(invalid_commands[0])); index++)
+    {
+        send_command(invalid_commands[index], 23U + index);
+        if((APP_TRUE != host_last_command_error) ||
+           (expected_level != host_race_level) ||
+           expect_near(expected_accel_gain, host_accel_gain) ||
+           expect_near(expected_error_gain, host_error_gain) ||
+           expect_near(expected_hold_bias, host_hold_bias))
+        {
+            fprintf(stderr, "non-lexical BRA changed runtime state: %s", invalid_commands[index]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int check_brg_rejects_nonfinite_or_extra_fields(void)
+{
+    const char *invalid_commands[] =
+    {
+        "BRG,NaN,0,0\n",
+        "BRG,Inf,0,0\n",
+        "BRG,0.01,0.02,0.03,0.04\n"
+    };
+    float expected_accel_gain = host_accel_gain;
+    float expected_error_gain = host_error_gain;
+    float expected_hold_bias = host_hold_bias;
+    uint32 index;
+
+    for(index = 0U; index < (sizeof(invalid_commands) / sizeof(invalid_commands[0])); index++)
+    {
+        send_command(invalid_commands[index], 40U + index);
+        if((APP_TRUE != host_last_command_error) ||
+           expect_near(expected_accel_gain, host_accel_gain) ||
+           expect_near(expected_error_gain, host_error_gain) ||
+           expect_near(expected_hold_bias, host_hold_bias))
+        {
+            fprintf(stderr, "non-finite or extra-field BRG changed gains: %s", invalid_commands[index]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int check_partial_command_times_out_without_update(void)
 {
     uint8 level_before_timeout;
@@ -410,6 +482,8 @@ int main(void)
 {
     if(check_bra_valid_and_rejected() ||
        check_brg_is_bounded_and_atomic() ||
+       check_bra_requires_lexical_integer() ||
+       check_brg_rejects_nonfinite_or_extra_fields() ||
        check_partial_command_times_out_without_update() ||
        check_stop_and_balance_commands_disarm())
     {

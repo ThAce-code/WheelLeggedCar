@@ -117,8 +117,14 @@ Require-Pattern $hostCommand "'B' == line\[0\].*'R' == line\[1\].*'A' == line\[2
     "BRA command parser missing."
 Require-Pattern $hostCommand 'control_chassis_set_race_assist_level' `
     "BRA must call the level setter."
-Require-Pattern $hostCommand "'A' == line\[2\][\s\S]{0,300}\(0\.0f <= value\)[\s\S]{0,100}\(value == \(float\)\(\(uint8\)value\)\)" `
-    "BRA must range-check before converting the level to uint8."
+Require-Pattern $hostCommand 'static uint8 host_command_parse_race_assist_level' `
+    "BRA must use a dedicated lexical level parser."
+Require-Pattern $hostCommand 'host_command_parse_race_assist_level\(&line\[4\], &race_level\)' `
+    "BRA must validate the lexical level before calling the setter."
+Require-Pattern $hostCommand "host_command_parse_race_assist_level[\s\S]{0,300}\('\\0' != text\[1\]\)[\s\S]{0,200}\('0' > text\[0\]\)[\s\S]{0,200}\('4' < text\[0\]\)" `
+    "BRA lexical parser must accept exactly one digit from 0 through 4."
+Reject-Pattern $hostCommand "'A' == line\[2\][\s\S]{0,300}host_command_parse_number\(&line\[4\], &value\)" `
+    "BRA must not use float equality to recognize an integer level."
 Require-Pattern $hostCommand "'B' == line\[0\].*'R' == line\[1\].*'G' == line\[2\]" `
     "BRG command parser missing."
 Require-Pattern $hostCommand 'control_chassis_set_race_assist_gains' `

@@ -86,6 +86,20 @@ static uint8 host_command_parse_number(const char *text, float *value)
     return APP_TRUE;
 }
 
+static uint8 host_command_parse_race_assist_level(const char *text, uint8 *level)
+{
+    if(('\0' == text[0]) ||
+       ('\0' != text[1]) ||
+       ('0' > text[0]) ||
+       ('4' < text[0]))
+    {
+        return APP_FALSE;
+    }
+
+    *level = (uint8)(text[0] - '0');
+    return APP_TRUE;
+}
+
 static uint8 host_command_parse_two_numbers(const char *text, float *first, float *second)
 {
     char number_text[16];
@@ -310,6 +324,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float pos_kp;
     float fourth;
     float period_ms_f;
+    uint8 race_level;
     uint8 read_index = 0;
     uint8 write_index = 0;
 
@@ -491,12 +506,9 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(('B' == line[0]) && ('R' == line[1]) && ('A' == line[2]) &&
        (',' == line[3]) &&
-       (APP_TRUE == host_command_parse_number(&line[4], &value)) &&
-       (0.0f <= value) &&
-       (4.0f >= value) &&
-       (value == (float)((uint8)value)))
+       (APP_TRUE == host_command_parse_race_assist_level(&line[4], &race_level)))
     {
-        if(APP_TRUE == control_chassis_set_race_assist_level((uint8)value, now_ms))
+        if(APP_TRUE == control_chassis_set_race_assist_level(race_level, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;

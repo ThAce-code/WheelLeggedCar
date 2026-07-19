@@ -1,0 +1,280 @@
+$ErrorActionPreference = "Stop"
+
+function Require-Pattern {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if(-not (Test-Path $Path)) {
+        throw ("Missing file: {0}" -f $Path)
+    }
+    if((Get-Content -Raw $Path) -notmatch $Pattern) {
+        throw $Message
+    }
+}
+
+function Reject-Pattern {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if((Get-Content -Raw $Path) -match $Pattern) {
+        throw $Message
+    }
+}
+
+$header = "project/code/control_leg.h"
+$source = "project/code/control_leg.c"
+$types = "project/code/app_types.h"
+
+Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
+    "Race assist leg mode missing."
+Require-Pattern $header 'control_leg_set_race_assist_request\(float u_request,\s*float dx_mm,\s*float dy_mm,\s*uint32 now_ms\)' `
+    "Race assist request API missing."
+Require-Pattern $header 'control_leg_disable_race_assist\(uint32 now_ms\)' `
+    "Race assist disable API missing."
+Require-Pattern $types 'LEG_MOTION_RACE_ASSIST' `
+    "Drive-allowed race motion state missing."
+Require-Pattern $types 'LEG_MOTION_RACE_FAULT_HOLD' `
+    "Race-specific fault hold state missing."
+Require-Pattern $types 'float race_assist_request;' `
+    "Race request diagnostic missing."
+Require-Pattern $types 'float race_assist_actual;' `
+    "Race actual diagnostic missing."
+Require-Pattern $types 'float race_target_x_mm;' `
+    "Race Cartesian X diagnostic missing."
+Require-Pattern $types 'float race_target_y_mm;' `
+    "Race Cartesian Y diagnostic missing."
+Require-Pattern $types 'float left_ik_margin;' `
+    "Left IK margin diagnostic missing."
+Require-Pattern $types 'float right_ik_margin;' `
+    "Right IK margin diagnostic missing."
+Require-Pattern $types 'uint8 ik_branch_flags;' `
+    "IK branch diagnostic flags missing."
+Require-Pattern $types 'uint8 race_path_valid;' `
+    "Race path-valid diagnostic missing."
+
+Require-Pattern $source 'LEG_TRAJECTORY_RACE_ASSIST' `
+    "Dedicated Cartesian race trajectory mode missing."
+Require-Pattern $source 'APP_RACE_ASSIST_ZERO_X_MM\s*-\s*\(control_leg_race_dx_mm\s*\*\s*control_leg_race_u_actual\)' `
+    "Race X trajectory must originate at BODY_WHEEL (-18.83, 25.08)."
+Require-Pattern $source 'APP_RACE_ASSIST_ZERO_Y_MM\s*\+\s*\(control_leg_race_dy_mm\s*\*\s*control_leg_absf\(control_leg_race_u_actual\)\)' `
+    "Race Y trajectory must use the signed-path absolute lift."
+Require-Pattern $source '2\.1875f\s*\*\s*max_delta_deg.*APP_RACE_ASSIST_SERVO_SPEED_DPS' `
+    "Race trajectory must use the S7 90 deg/s duration limit."
+Require-Pattern $source '(?s)control_leg_race_solve_target\(.*&control_leg_ik_previous_left' `
+    "Race trajectory must solve the left persisted IK branch."
+Require-Pattern $source '(?s)control_leg_race_solve_target\(.*&control_leg_ik_previous_right' `
+    "Race trajectory must solve the right persisted IK branch."
+Require-Pattern $source 'control_leg_enter_race_fault_hold' `
+    "Race failures must enter the dedicated fault hold."
+Require-Pattern $source 'LEG_MOTION_RACE_FAULT_HOLD' `
+    "Race fault hold must preserve planned commands."
+Require-Pattern $source 'LEG_MOTION_RACE_ASSIST' `
+    "Race trajectory must publish a drive-allowed motion state."
+Require-Pattern $source 'APP_RACE_ASSIST_REQUEST_DEADBAND' `
+    "Race request changes must use the specified deadband."
+
+$xyStart = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_xy")
+$nextApi = (Get-Content -Raw $source).IndexOf("uint8 control_leg_set_race_assist_request", $xyStart)
+if(($xyStart -lt 0) -or ($nextApi -lt 0)) {
+    throw "Unable to isolate LXY API."
+}
+$xyApi = (Get-Content -Raw $source).Substring($xyStart, $nextApi - $xyStart)
+if($xyApi -notmatch 'LEG_MODE_IK_VALIDATE') {
+    throw "Manual LXY must remain stopped-only IK validation mode."
+}
+if($xyApi -match 'LEG_MODE_RACE_ASSIST') {
+    throw "Manual LXY must not enter the drive-allowed race mode."
+}
+$disableStart = (Get-Content -Raw $source).IndexOf("void control_leg_disable_race_assist")
+$nextDisableApi = (Get-Content -Raw $source).IndexOf("const leg_diag_struct *control_leg_get_diag", $disableStart)
+if(($disableStart -lt 0) -or ($nextDisableApi -lt 0)) {
+    throw "Unable to isolate race disable API."
+}
+$disableApi = (Get-Content -Raw $source).Substring($disableStart, $nextDisableApi - $disableStart)
+if($disableApi -match 'control_leg_write_safe_angles|legacy_safe_support_units|control_leg_set_ik_reference') {
+    throw "Race disable must recenter at u=0, not substitute the 90-degree or legacy reference."
+}
+
+function Write-ControllerHarness {
+    param([string]$Path)
+
+    @'
+#include "app_state.h"
+#include "app_safety.h"
+#include "actuator_servo.h"
+
+static actuator_servo_diag_struct host_diag;
+
+void app_state_init(void) {}
+void app_state_set(app_run_state_enum state) { (void)state; }
+app_run_state_enum app_state_get(void) { return APP_STATE_STANDBY; }
+uint8 app_state_is_run_enabled(void) { return APP_TRUE; }
+
+void app_safety_init(void) {}
+void app_safety_update(uint32 now_ms) { (void)now_ms; }
+uint8 app_safety_is_fault(void) { return APP_FALSE; }
+void app_safety_force_fault(void) {}
+
+void actuator_servo_init(void) {}
+void actuator_servo_enable(void) {}
+void actuator_servo_disable(void) {}
+uint32 actuator_servo_angle_to_duty(float angle_deg) { (void)angle_deg; return 0U; }
+float actuator_servo_get_current_angle(uint8 index) { return host_diag.output_deg[index]; }
+void actuator_servo_publish_cmd(const servo_cmd_struct *cmd,
+                                float speed_limit_dps,
+                                uint8 direct_bypass)
+{
+    uint8 i;
+    (void)speed_limit_dps;
+    (void)direct_bypass;
+    for(i = 0U; i < 4U; i++)
+    {
+        host_diag.target_deg[i] = cmd->angle_deg[i];
+        host_diag.output_deg[i] = cmd->angle_deg[i];
+        host_diag.filtered_deg[i] = cmd->angle_deg[i];
+    }
+    host_diag.settled = APP_TRUE;
+}
+void actuator_servo_tick_300hz(void) {}
+void actuator_servo_get_diag(actuator_servo_diag_struct *diag)
+{
+    *diag = host_diag;
+}
+uint8 actuator_servo_is_settled(void) { return APP_TRUE; }
+uint32 actuator_servo_get_tick_count(void) { return 0U; }
+'@ | Set-Content (Join-Path $Path "host_support.c") -NoNewline
+
+    @'
+#include <math.h>
+#include <stdio.h>
+
+#include "control_leg.h"
+
+int main(void)
+{
+    const leg_diag_struct *diag;
+    uint32 now_ms;
+    uint8 saw_zero_endpoint = APP_FALSE;
+
+    control_leg_init();
+    if(APP_TRUE != control_leg_set_ik_reference(0U))
+    {
+        fprintf(stderr, "LIKREF setup rejected\n");
+        return 1;
+    }
+    control_leg_update(0U);
+    if(APP_TRUE != control_leg_set_race_assist_request(0.01f, 2.0f, 2.0f, 1U))
+    {
+        fprintf(stderr, "low positive race request rejected\n");
+        return 2;
+    }
+    for(now_ms = 1U; now_ms <= 1000U; now_ms++)
+    {
+        control_leg_update(now_ms);
+    }
+    diag = control_leg_get_diag();
+    if((LEG_MODE_RACE_ASSIST != (leg_mode_enum)diag->mode) ||
+       (0.005f > diag->race_assist_actual))
+    {
+        fprintf(stderr, "positive race setup did not settle: %.6f\n", diag->race_assist_actual);
+        return 3;
+    }
+    if(APP_TRUE != control_leg_set_race_assist_request(-1.0f, 2.0f, 2.0f, 1001U))
+    {
+        fprintf(stderr, "negative race request rejected\n");
+        return 4;
+    }
+    for(now_ms = 1001U; now_ms <= 3000U; now_ms++)
+    {
+        control_leg_update(now_ms);
+        diag = control_leg_get_diag();
+        if((0.0001f >= fabsf(diag->race_assist_actual)) &&
+           (0.01f >= diag->servo_s7_progress))
+        {
+            saw_zero_endpoint = APP_TRUE;
+        }
+        if(-0.001f > diag->race_assist_actual)
+        {
+            if(APP_FALSE == saw_zero_endpoint)
+            {
+                fprintf(stderr, "opposite-sign request crossed zero without a zero endpoint\n");
+                return 5;
+            }
+            return 0;
+        }
+    }
+    fprintf(stderr, "race reversal did not reach negative request\n");
+    return 6;
+}
+'@ | Set-Content (Join-Path $Path "race_leg_controller.c") -NoNewline
+}
+
+$controllerTempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("race-leg-controller-" + [Guid]::NewGuid().ToString())
+$controllerOriginalPath = $null
+New-Item -ItemType Directory -Path $controllerTempPath | Out-Null
+try {
+    @'
+#ifndef _zf_common_headfile_h_
+#define _zf_common_headfile_h_
+#include <stddef.h>
+#include <stdint.h>
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef int16_t int16;
+#endif
+'@ | Set-Content (Join-Path $controllerTempPath "zf_common_headfile.h") -NoNewline
+    Write-ControllerHarness $controllerTempPath
+    Copy-Item "project/code/app_types.h" $controllerTempPath
+    Copy-Item "project/code/app_config.h" $controllerTempPath
+    Copy-Item "project/code/app_state.h" $controllerTempPath
+    Copy-Item "project/code/app_safety.h" $controllerTempPath
+    Copy-Item "project/code/actuator_servo.h" $controllerTempPath
+    Copy-Item "project/code/control_leg.h" $controllerTempPath
+    Copy-Item "project/code/control_leg.c" $controllerTempPath
+    Copy-Item "project/code/leg_config.h" $controllerTempPath
+    Copy-Item "project/code/leg_config.c" $controllerTempPath
+    Copy-Item "project/code/leg_kinematics.h" $controllerTempPath
+    Copy-Item "project/code/leg_kinematics.c" $controllerTempPath
+
+    $compiler = (Get-Command gcc -ErrorAction Stop).Source
+    $compilerDirectory = Split-Path $compiler
+    $controllerOriginalPath = $env:PATH
+    $env:PATH = $compilerDirectory + [System.IO.Path]::PathSeparator + $env:PATH
+    $controllerBinary = Join-Path $controllerTempPath "race_leg_controller.exe"
+    $controllerErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $controllerCompile = & $compiler -std=c99 -Wall -Wextra -Werror -I $controllerTempPath `
+        (Join-Path $controllerTempPath "leg_config.c") `
+        (Join-Path $controllerTempPath "leg_kinematics.c") `
+        (Join-Path $controllerTempPath "control_leg.c") `
+        (Join-Path $controllerTempPath "host_support.c") `
+        (Join-Path $controllerTempPath "race_leg_controller.c") `
+        -lm -o $controllerBinary 2>&1
+    $controllerCompileExit = $LASTEXITCODE
+    $ErrorActionPreference = $controllerErrorAction
+    if(0 -ne $controllerCompileExit) {
+        $controllerCompile | Write-Host
+        throw "Unable to compile race leg controller harness."
+    }
+    & $controllerBinary
+    if(0 -ne $LASTEXITCODE) {
+        throw "Race leg controller reversal harness failed."
+    }
+}
+finally {
+    if($null -ne $controllerOriginalPath) {
+        $env:PATH = $controllerOriginalPath
+    }
+    if(Test-Path $controllerTempPath) {
+        Remove-Item -Recurse -Force $controllerTempPath
+    }
+}
+
+Write-Host "low-race leg assist static checks passed"

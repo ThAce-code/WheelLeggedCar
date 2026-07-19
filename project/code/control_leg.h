@@ -18,7 +18,8 @@ typedef enum
     LEG_MODE_FAST_LEGACY_STANCE,
     LEG_MODE_DIRECT_LEGACY_STANCE,
     LEG_MODE_IK_REFERENCE,
-    LEG_MODE_IK_VALIDATE
+    LEG_MODE_IK_VALIDATE,
+    LEG_MODE_RACE_ASSIST
 }leg_mode_enum;
 
 void control_leg_init(void);
@@ -32,6 +33,11 @@ uint8 control_leg_set_fast_legacy_stance(float stance_units, uint32 now_ms);
 uint8 control_leg_set_direct_legacy_stance(float stance_units, uint32 now_ms);
 uint8 control_leg_set_ik_reference(uint32 now_ms);
 uint8 control_leg_set_xy(float x_mm, float y_mm, uint32 now_ms);
+uint8 control_leg_set_race_assist_request(float u_request,
+                                          float dx_mm,
+                                          float dy_mm,
+                                          uint32 now_ms);
+void control_leg_disable_race_assist(uint32 now_ms);
 uint8 control_leg_set_calib_angles(float servo0_deg,
                                    float servo1_deg,
                                    float servo2_deg,

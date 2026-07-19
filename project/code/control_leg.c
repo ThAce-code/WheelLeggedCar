@@ -40,6 +40,16 @@ static leg_ik_result_struct control_leg_ik_reference_right;
 static leg_ik_result_struct control_leg_ik_previous_left;
 static leg_ik_result_struct control_leg_ik_previous_right;
 static uint8               control_leg_ik_reference_valid;
+static float               control_leg_race_u_start;
+static float               control_leg_race_u_target;
+static float               control_leg_race_u_pending;
+static float               control_leg_race_u_actual;
+static float               control_leg_race_dx_mm;
+static float               control_leg_race_dy_mm;
+static uint32              control_leg_race_start_ms;
+static uint32              control_leg_race_duration_ms;
+static uint8               control_leg_race_pending_valid;
+static uint8               control_leg_race_path_valid;
 
 #define CONTROL_LEG_LEGACY_CENTER_UNITS          (55.0f)
 #define CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG   (90.0f)
@@ -115,7 +125,8 @@ typedef enum
 {
     LEG_TRAJECTORY_NONE = 0,
     LEG_TRAJECTORY_FAST_LEGACY_STANCE,
-    LEG_TRAJECTORY_POSE
+    LEG_TRAJECTORY_POSE,
+    LEG_TRAJECTORY_RACE_ASSIST
 }leg_trajectory_mode_enum;
 
 static float control_leg_pose_start_deg[APP_SERVO_COUNT];
@@ -286,6 +297,7 @@ static void control_leg_publish_command_pose(uint8 right_side,
 static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 {
     uint8 i;
+    uint8 race_cmd_valid;
     const leg_stance_profile_struct *profile;
     float configured_forward_limit_rpm;
 
@@ -323,10 +335,26 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
         profile->chassis_forward_limit_low_rpm +
         ((profile->chassis_forward_limit_high_rpm - profile->chassis_forward_limit_low_rpm) *
          control_leg_diag.legacy_stance_norm);
+    race_cmd_valid = APP_TRUE;
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        if(APP_FALSE == control_leg_is_finite(control_leg_servo_cmd.angle_deg[i]))
+        {
+            race_cmd_valid = APP_FALSE;
+            break;
+        }
+    }
     if((LEG_MOTION_FAULT == control_leg_motion_state) ||
        (LEG_MODE_DIRECT_LEGACY_STANCE == control_leg_mode))
     {
         control_leg_diag.drive_allowed = APP_FALSE;
+        control_leg_diag.drive_forward_limit_rpm = 0.0f;
+    }
+    else if(LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state)
+    {
+        /* Preserve the finite held command while making the chassis ramp down. */
+        control_leg_diag.drive_allowed =
+            ((APP_TRUE == output_enable) && (APP_TRUE == race_cmd_valid)) ? APP_TRUE : APP_FALSE;
         control_leg_diag.drive_forward_limit_rpm = 0.0f;
     }
     else
@@ -340,6 +368,11 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
         else if(LEG_MOTION_TRANSITION == control_leg_motion_state)
         {
             control_leg_diag.drive_forward_limit_rpm = profile->transition_forward_limit_rpm;
+        }
+        else if(LEG_MOTION_RACE_ASSIST == control_leg_motion_state)
+        {
+            /* Task 3 supplies the race-speed cap; this leg mode only authorizes drive. */
+            control_leg_diag.drive_forward_limit_rpm = 0.0f;
         }
         else
         {
@@ -448,6 +481,308 @@ static void control_leg_enter_fault(leg_fault_reason_enum reason)
     control_leg_write_safe_angles(config);
 }
 
+static uint8 control_leg_race_solve_target(float u,
+                                            const leg_ik_result_struct *left_previous,
+                                            const leg_ik_result_struct *right_previous,
+                                            leg_ik_result_struct *left_target,
+                                            leg_ik_result_struct *right_target,
+                                            float servo_deg[LEG_SERVO_COUNT])
+{
+    float x_mm;
+    float y_mm;
+
+    if((APP_FALSE == control_leg_is_finite(u)) ||
+       (APP_FALSE == control_leg_is_finite(control_leg_race_dx_mm)) ||
+       (APP_FALSE == control_leg_is_finite(control_leg_race_dy_mm)) ||
+       (0.0f >= control_leg_race_dx_mm) ||
+       (0.0f >= control_leg_race_dy_mm) ||
+       (NULL == left_previous) ||
+       (NULL == right_previous) ||
+       (NULL == left_target) ||
+       (NULL == right_target) ||
+       (NULL == servo_deg) ||
+       (APP_FALSE == left_previous->valid) ||
+       (APP_FALSE == right_previous->valid))
+    {
+        return APP_FALSE;
+    }
+
+    x_mm = APP_RACE_ASSIST_ZERO_X_MM - (control_leg_race_dx_mm * u);
+    y_mm = APP_RACE_ASSIST_ZERO_Y_MM +
+           (control_leg_race_dy_mm * control_leg_absf(u));
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                         x_mm,
+                                         y_mm,
+                                         left_previous,
+                                         left_target)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                         x_mm,
+                                         y_mm,
+                                         right_previous,
+                                         right_target)) ||
+       (left_target->alpha_branch != left_previous->alpha_branch) ||
+       (left_target->beta_branch != left_previous->beta_branch) ||
+       (right_target->alpha_branch != right_previous->alpha_branch) ||
+       (right_target->beta_branch != right_previous->beta_branch) ||
+       (APP_TRUE != leg_kinematics_map_target_pose(&control_leg_ik_reference_left,
+                                                    &control_leg_ik_reference_right,
+                                                    left_target,
+                                                    right_target,
+                                                    servo_deg)))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
+static uint8 control_leg_race_preflight(float dx_mm, float dy_mm)
+{
+    uint8 sign_index;
+
+    if((APP_FALSE == control_leg_ik_reference_valid) ||
+       (APP_FALSE == control_leg_ik_previous_left.valid) ||
+       (APP_FALSE == control_leg_ik_previous_right.valid) ||
+       (APP_FALSE == control_leg_is_finite(dx_mm)) ||
+       (APP_FALSE == control_leg_is_finite(dy_mm)) ||
+       (0.0f >= dx_mm) ||
+       (0.0f >= dy_mm))
+    {
+        return APP_FALSE;
+    }
+
+    for(sign_index = 0U; sign_index < 2U; sign_index++)
+    {
+        leg_ik_result_struct left_previous;
+        leg_ik_result_struct right_previous;
+        int step;
+
+        left_previous = control_leg_ik_previous_left;
+        right_previous = control_leg_ik_previous_right;
+        for(step = 0; step < (int)APP_RACE_ASSIST_PATH_SAMPLE_COUNT; step++)
+        {
+            const float sign = (0U == sign_index) ? 1.0f : -1.0f;
+            const float u = sign * (float)step /
+                            (float)(APP_RACE_ASSIST_PATH_SAMPLE_COUNT - 1U);
+            leg_ik_result_struct left_target;
+            leg_ik_result_struct right_target;
+            float servo_deg[LEG_SERVO_COUNT];
+
+            if(APP_TRUE != control_leg_race_solve_target(u,
+                                                          &left_previous,
+                                                          &right_previous,
+                                                          &left_target,
+                                                          &right_target,
+                                                          servo_deg))
+            {
+                return APP_FALSE;
+            }
+            left_previous = left_target;
+            right_previous = right_target;
+        }
+    }
+    return APP_TRUE;
+}
+
+static uint8 control_leg_race_start_segment(float u_target, uint32 now_ms)
+{
+    leg_ik_result_struct left_start;
+    leg_ik_result_struct right_start;
+    leg_ik_result_struct left_target;
+    leg_ik_result_struct right_target;
+    float start_deg[LEG_SERVO_COUNT];
+    float target_deg[LEG_SERVO_COUNT];
+    float max_delta_deg;
+    float duration_s;
+    uint8 i;
+
+    if((APP_FALSE == control_leg_is_finite(u_target)) ||
+       (1.0f < control_leg_absf(u_target)) ||
+       (APP_TRUE != control_leg_race_solve_target(control_leg_race_u_actual,
+                                                   &control_leg_ik_previous_left,
+                                                   &control_leg_ik_previous_right,
+                                                   &left_start,
+                                                   &right_start,
+                                                   start_deg)) ||
+       (APP_TRUE != control_leg_race_solve_target(u_target,
+                                                   &left_start,
+                                                   &right_start,
+                                                   &left_target,
+                                                   &right_target,
+                                                   target_deg)))
+    {
+        return APP_FALSE;
+    }
+
+    max_delta_deg = 0.0f;
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        const float delta_deg = control_leg_absf(target_deg[i] - start_deg[i]);
+
+        if(delta_deg > max_delta_deg)
+        {
+            max_delta_deg = delta_deg;
+        }
+    }
+    duration_s = (2.1875f * max_delta_deg) / APP_RACE_ASSIST_SERVO_SPEED_DPS;
+    if(duration_s < 0.10f)
+    {
+        duration_s = 0.10f;
+    }
+
+    control_leg_race_u_start = control_leg_race_u_actual;
+    control_leg_race_u_target = u_target;
+    control_leg_race_start_ms = now_ms;
+    control_leg_race_duration_ms = (uint32)((duration_s * 1000.0f) + 0.5f);
+    control_leg_trajectory_mode = LEG_TRAJECTORY_RACE_ASSIST;
+    control_leg_s7_progress = 0.0f;
+    control_leg_s7_remaining_ms = control_leg_race_duration_ms;
+    return APP_TRUE;
+}
+
+static uint8 control_leg_race_sign_change(float current, float requested)
+{
+    if((0.0f < current) && (0.0f > requested))
+    {
+        return APP_TRUE;
+    }
+    if((0.0f > current) && (0.0f < requested))
+    {
+        return APP_TRUE;
+    }
+    return APP_FALSE;
+}
+
+static void control_leg_enter_race_fault_hold(leg_fault_reason_enum reason)
+{
+    control_leg_motion_state = LEG_MOTION_RACE_FAULT_HOLD;
+    control_leg_fault_reason = reason;
+    control_leg_trajectory_mode = LEG_TRAJECTORY_NONE;
+    control_leg_race_u_target = control_leg_race_u_actual;
+    control_leg_race_u_pending = control_leg_race_u_actual;
+    control_leg_race_pending_valid = APP_FALSE;
+    control_leg_race_path_valid = APP_FALSE;
+    control_leg_diag.race_path_valid = APP_FALSE;
+    control_leg_diag.ik_error_count++;
+}
+
+static uint8 control_leg_race_start_pending(uint32 now_ms)
+{
+    const float requested = control_leg_race_u_pending;
+
+    control_leg_race_pending_valid = APP_FALSE;
+    if(APP_TRUE == control_leg_race_sign_change(control_leg_race_u_actual, requested))
+    {
+        control_leg_race_u_pending = requested;
+        control_leg_race_pending_valid = APP_TRUE;
+        return control_leg_race_start_segment(0.0f, now_ms);
+    }
+    return control_leg_race_start_segment(requested, now_ms);
+}
+
+static void control_leg_race_update_diag(const leg_ik_result_struct *left_target,
+                                         const leg_ik_result_struct *right_target,
+                                         float x_mm,
+                                         float y_mm)
+{
+    control_leg_diag.race_assist_request = (APP_TRUE == control_leg_race_pending_valid) ?
+                                           control_leg_race_u_pending : control_leg_race_u_target;
+    control_leg_diag.race_assist_actual = control_leg_race_u_actual;
+    control_leg_diag.race_target_x_mm = x_mm;
+    control_leg_diag.race_target_y_mm = y_mm;
+    control_leg_diag.left_ik_margin = left_target->singularity_margin;
+    control_leg_diag.right_ik_margin = right_target->singularity_margin;
+    control_leg_diag.ik_margin = (left_target->singularity_margin < right_target->singularity_margin) ?
+                                      left_target->singularity_margin : right_target->singularity_margin;
+    control_leg_diag.ik_branch_flags = 0U;
+    if(LEG_IK_BRANCH_MINUS == left_target->alpha_branch)
+    {
+        control_leg_diag.ik_branch_flags |= (1U << 0);
+    }
+    if(LEG_IK_BRANCH_MINUS == left_target->beta_branch)
+    {
+        control_leg_diag.ik_branch_flags |= (1U << 1);
+    }
+    if(LEG_IK_BRANCH_MINUS == right_target->alpha_branch)
+    {
+        control_leg_diag.ik_branch_flags |= (1U << 2);
+    }
+    if(LEG_IK_BRANCH_MINUS == right_target->beta_branch)
+    {
+        control_leg_diag.ik_branch_flags |= (1U << 3);
+    }
+    control_leg_diag.race_path_valid = control_leg_race_path_valid;
+}
+
+static void control_leg_race_update(uint32 now_ms)
+{
+    leg_ik_result_struct left_target;
+    leg_ik_result_struct right_target;
+    float servo_deg[LEG_SERVO_COUNT];
+    float progress;
+    float blend;
+    float x_mm;
+    float y_mm;
+    uint32 elapsed_ms;
+    uint8 i;
+    uint8 output_enable;
+
+    if((APP_FALSE == control_leg_race_path_valid) ||
+       (0U == control_leg_race_duration_ms) ||
+       (APP_FALSE == control_leg_ik_reference_valid))
+    {
+        control_leg_enter_race_fault_hold(LEG_FAULT_IK_INVALID);
+        control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+        return;
+    }
+
+    elapsed_ms = now_ms - control_leg_race_start_ms;
+    progress = control_leg_clamp((float)elapsed_ms / (float)control_leg_race_duration_ms,
+                                 0.0f,
+                                 1.0f);
+    blend = control_leg_s7_blend(progress);
+    control_leg_race_u_actual = control_leg_race_u_start +
+        ((control_leg_race_u_target - control_leg_race_u_start) * blend);
+    x_mm = APP_RACE_ASSIST_ZERO_X_MM -
+           (control_leg_race_dx_mm * control_leg_race_u_actual);
+    y_mm = APP_RACE_ASSIST_ZERO_Y_MM +
+           (control_leg_race_dy_mm * control_leg_absf(control_leg_race_u_actual));
+
+    if(APP_TRUE != control_leg_race_solve_target(control_leg_race_u_actual,
+                                                  &control_leg_ik_previous_left,
+                                                  &control_leg_ik_previous_right,
+                                                  &left_target,
+                                                  &right_target,
+                                                  servo_deg))
+    {
+        control_leg_enter_race_fault_hold(LEG_FAULT_IK_INVALID);
+        control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+        return;
+    }
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        control_leg_servo_cmd.angle_deg[i] = servo_deg[i];
+    }
+    control_leg_ik_previous_left = left_target;
+    control_leg_ik_previous_right = right_target;
+    control_leg_s7_progress = progress;
+    control_leg_s7_remaining_ms = (elapsed_ms < control_leg_race_duration_ms) ?
+                                       (control_leg_race_duration_ms - elapsed_ms) : 0U;
+    control_leg_motion_state = LEG_MOTION_RACE_ASSIST;
+    control_leg_fault_reason = LEG_FAULT_NONE;
+    control_leg_race_update_diag(&left_target, &right_target, x_mm, y_mm);
+
+    if((1.0f <= progress) && (APP_TRUE == control_leg_race_pending_valid) &&
+       (APP_TRUE != control_leg_race_start_pending(now_ms)))
+    {
+        control_leg_enter_race_fault_hold(LEG_FAULT_IK_INVALID);
+        control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+        return;
+    }
+
+    output_enable = control_leg_run_enabled();
+    control_leg_publish_diag(APP_TRUE, output_enable);
+}
+
 void control_leg_init(void)
 {
     uint8 i;
@@ -486,6 +821,16 @@ void control_leg_init(void)
         control_leg_ik_previous_left.valid = APP_FALSE;
         control_leg_ik_previous_right.valid = APP_FALSE;
         control_leg_ik_reference_valid = APP_FALSE;
+        control_leg_race_u_start = 0.0f;
+        control_leg_race_u_target = 0.0f;
+        control_leg_race_u_pending = 0.0f;
+        control_leg_race_u_actual = 0.0f;
+        control_leg_race_dx_mm = 0.0f;
+        control_leg_race_dy_mm = 0.0f;
+        control_leg_race_start_ms = 0U;
+        control_leg_race_duration_ms = 0U;
+        control_leg_race_pending_valid = APP_FALSE;
+        control_leg_race_path_valid = APP_FALSE;
         control_leg_trajectory_mode = LEG_TRAJECTORY_NONE;
         control_leg_s7_progress = 0.0f;
         control_leg_s7_remaining_ms = 0U;
@@ -500,6 +845,14 @@ void control_leg_init(void)
             }
         }
         control_leg_diag.ik_error_count = 0U;
+        control_leg_diag.race_assist_request = 0.0f;
+        control_leg_diag.race_assist_actual = 0.0f;
+        control_leg_diag.race_target_x_mm = APP_RACE_ASSIST_ZERO_X_MM;
+        control_leg_diag.race_target_y_mm = APP_RACE_ASSIST_ZERO_Y_MM;
+        control_leg_diag.left_ik_margin = 0.0f;
+        control_leg_diag.right_ik_margin = 0.0f;
+        control_leg_diag.ik_branch_flags = 0U;
+        control_leg_diag.race_path_valid = APP_FALSE;
         control_leg_diag.left_command_pose_body_mm.source = LEG_POSE_SOURCE_NONE;
         control_leg_diag.left_command_pose_body_mm.valid = APP_FALSE;
         control_leg_diag.right_command_pose_body_mm.source = LEG_POSE_SOURCE_NONE;
@@ -542,6 +895,11 @@ void control_leg_update(uint32 now_ms)
     {
         control_leg_write_safe_angles(config);
         control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
+    }
+    else if(LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state)
+    {
+        /* Race fault hold intentionally retains the last finite planned command. */
+        control_leg_publish_diag(APP_TRUE, control_leg_run_enabled());
     }
     else
     {
@@ -940,6 +1298,12 @@ void control_leg_update(uint32 now_ms)
                 break;
             }
 
+            case LEG_MODE_RACE_ASSIST:
+            {
+                control_leg_race_update(now_ms);
+                break;
+            }
+
             case LEG_MODE_LOCK:
             default:
             {
@@ -996,7 +1360,8 @@ void control_leg_update(uint32 now_ms)
 
         speed_limit_dps = (LEG_MODE_FAST_LEGACY_STANCE == control_leg_mode) ?
                           APP_LEG_FAST_SERVO_MAX_SPEED_DPS :
-                          APP_SERVO_MAX_SPEED_DPS;
+                          ((LEG_MODE_RACE_ASSIST == control_leg_mode) ?
+                           APP_RACE_ASSIST_SERVO_SPEED_DPS : APP_SERVO_MAX_SPEED_DPS);
         direct_bypass = (LEG_MODE_DIRECT_LEGACY_STANCE == control_leg_mode) ? APP_TRUE : APP_FALSE;
         actuator_servo_publish_cmd(&control_leg_servo_cmd,
                                    speed_limit_dps,
@@ -1006,7 +1371,7 @@ void control_leg_update(uint32 now_ms)
 
 void control_leg_set_mode(leg_mode_enum mode)
 {
-    if(mode > LEG_MODE_IK_VALIDATE)
+    if(mode > LEG_MODE_RACE_ASSIST)
     {
         control_leg_mode = LEG_MODE_LOCK;
         return;
@@ -1196,6 +1561,112 @@ uint8 control_leg_set_xy(float x_mm, float y_mm, uint32 now_ms)
     control_leg_fault_reason = LEG_FAULT_NONE;
     control_leg_mode = LEG_MODE_IK_VALIDATE;
     return APP_TRUE;
+}
+
+uint8 control_leg_set_race_assist_request(float u_request,
+                                          float dx_mm,
+                                          float dy_mm,
+                                          uint32 now_ms)
+{
+    float previous_dx_mm;
+    float previous_dy_mm;
+    float requested_before;
+
+    if((APP_FALSE == control_leg_is_finite(u_request)) ||
+       (APP_FALSE == control_leg_is_finite(dx_mm)) ||
+       (APP_FALSE == control_leg_is_finite(dy_mm)) ||
+       (1.0f < control_leg_absf(u_request)) ||
+       (0.0f >= dx_mm) ||
+       (0.0f >= dy_mm) ||
+       (APP_FALSE == control_leg_ik_reference_valid) ||
+       (LEG_MOTION_FAULT == control_leg_motion_state) ||
+       (LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state))
+    {
+        return APP_FALSE;
+    }
+
+    if((LEG_MODE_RACE_ASSIST == control_leg_mode) &&
+       ((0.001f < control_leg_absf(dx_mm - control_leg_race_dx_mm)) ||
+        (0.001f < control_leg_absf(dy_mm - control_leg_race_dy_mm))))
+    {
+        /* A running Cartesian segment never changes geometric scale mid-curve. */
+        return APP_FALSE;
+    }
+
+    previous_dx_mm = control_leg_race_dx_mm;
+    previous_dy_mm = control_leg_race_dy_mm;
+    control_leg_race_dx_mm = dx_mm;
+    control_leg_race_dy_mm = dy_mm;
+    if(APP_TRUE != control_leg_race_preflight(dx_mm, dy_mm))
+    {
+        control_leg_race_dx_mm = previous_dx_mm;
+        control_leg_race_dy_mm = previous_dy_mm;
+        return APP_FALSE;
+    }
+
+    if(LEG_MODE_RACE_ASSIST != control_leg_mode)
+    {
+        control_leg_race_u_start = 0.0f;
+        control_leg_race_u_target = 0.0f;
+        control_leg_race_u_pending = 0.0f;
+        control_leg_race_u_actual = 0.0f;
+        control_leg_race_start_ms = now_ms;
+        control_leg_race_duration_ms = 0U;
+        control_leg_race_pending_valid = APP_FALSE;
+        control_leg_race_path_valid = APP_TRUE;
+        if(APP_TRUE != control_leg_race_start_segment(u_request, now_ms))
+        {
+            control_leg_race_dx_mm = previous_dx_mm;
+            control_leg_race_dy_mm = previous_dy_mm;
+            control_leg_race_path_valid = APP_FALSE;
+            return APP_FALSE;
+        }
+        control_leg_motion_state = LEG_MOTION_RACE_ASSIST;
+        control_leg_fault_reason = LEG_FAULT_NONE;
+        control_leg_mode = LEG_MODE_RACE_ASSIST;
+        return APP_TRUE;
+    }
+
+    requested_before = (APP_TRUE == control_leg_race_pending_valid) ?
+                       control_leg_race_u_pending : control_leg_race_u_target;
+    if(APP_RACE_ASSIST_REQUEST_DEADBAND >
+       control_leg_absf(u_request - requested_before))
+    {
+        return APP_TRUE;
+    }
+
+    control_leg_race_u_pending = u_request;
+    control_leg_race_pending_valid = APP_TRUE;
+    if((0U == control_leg_race_duration_ms) ||
+       ((now_ms - control_leg_race_start_ms) >= control_leg_race_duration_ms))
+    {
+        if(APP_TRUE != control_leg_race_start_pending(now_ms))
+        {
+            control_leg_enter_race_fault_hold(LEG_FAULT_IK_INVALID);
+            return APP_FALSE;
+        }
+    }
+    return APP_TRUE;
+}
+
+void control_leg_disable_race_assist(uint32 now_ms)
+{
+    if((LEG_MODE_RACE_ASSIST != control_leg_mode) ||
+       (LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state))
+    {
+        return;
+    }
+
+    control_leg_race_u_pending = 0.0f;
+    control_leg_race_pending_valid = APP_TRUE;
+    if((0U == control_leg_race_duration_ms) ||
+       ((now_ms - control_leg_race_start_ms) >= control_leg_race_duration_ms))
+    {
+        if(APP_TRUE != control_leg_race_start_pending(now_ms))
+        {
+            control_leg_enter_race_fault_hold(LEG_FAULT_IK_INVALID);
+        }
+    }
 }
 
 uint8 control_leg_set_fast_legacy_stance(float stance_units, uint32 now_ms)

@@ -254,7 +254,9 @@ typedef enum
     LEG_MOTION_LOCKED = 0,
     LEG_MOTION_STABLE,
     LEG_MOTION_TRANSITION,
-    LEG_MOTION_FAULT
+    LEG_MOTION_FAULT,
+    LEG_MOTION_RACE_ASSIST,
+    LEG_MOTION_RACE_FAULT_HOLD
 }leg_motion_state_enum;
 
 typedef enum
@@ -316,6 +318,14 @@ typedef struct
     leg_motion_state_enum motion_state;
     leg_fault_reason_enum fault_reason;
     uint32 ik_error_count;
+    float race_assist_request;
+    float race_assist_actual;
+    float race_target_x_mm;
+    float race_target_y_mm;
+    float left_ik_margin;
+    float right_ik_margin;
+    uint8 ik_branch_flags;
+    uint8 race_path_valid;
 }leg_diag_struct;
 
 #endif

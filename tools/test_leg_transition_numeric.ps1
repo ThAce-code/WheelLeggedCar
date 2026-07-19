@@ -965,6 +965,66 @@ static int check_branch_metadata_fail_closed(void)
     return 0;
 }
 
+static int check_race_path(float sign)
+{
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    leg_ik_result_struct left_reference = {0};
+    leg_ik_result_struct right_reference = {0};
+    leg_ik_result_struct left_previous = {0};
+    leg_ik_result_struct right_previous = {0};
+    int step;
+
+    if((0 == cfg) ||
+       (APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                         cfg->physical_reference_x_mm,
+                                         cfg->physical_reference_y_mm,
+                                         0, &left_reference)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                         cfg->physical_reference_x_mm,
+                                         cfg->physical_reference_y_mm,
+                                         0, &right_reference)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_FALSE, -18.83f, 25.08f,
+                                         0, &left_previous)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE, -18.83f, 25.08f,
+                                         0, &right_previous)))
+    {
+        return 1;
+    }
+
+    for(step = 0; step <= 20; step++)
+    {
+        const float u = sign * (float)step / 20.0f;
+        const float x_mm = -18.83f - (2.0f * u);
+        const float y_mm = 25.08f + (2.0f * fabsf(u));
+        leg_ik_result_struct left;
+        leg_ik_result_struct right;
+        float servo_deg[LEG_SERVO_COUNT];
+
+        if((APP_TRUE != leg_kinematics_solve(APP_FALSE, x_mm, y_mm,
+                                             &left_previous, &left)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_TRUE, x_mm, y_mm,
+                                             &right_previous, &right)) ||
+           (left.alpha_branch != left_previous.alpha_branch) ||
+           (left.beta_branch != left_previous.beta_branch) ||
+           (right.alpha_branch != right_previous.alpha_branch) ||
+           (right.beta_branch != right_previous.beta_branch) ||
+           (0.02f > left.singularity_margin) ||
+           (0.02f > right.singularity_margin) ||
+           (APP_TRUE != leg_kinematics_map_target_pose(&left_reference,
+                                                        &right_reference,
+                                                        &left, &right,
+                                                        servo_deg)))
+        {
+            printf("race path rejected sign %.0f step %d target %.3f %.3f\n",
+                   sign, step, x_mm, y_mm);
+            return 1;
+        }
+        left_previous = left;
+        right_previous = right;
+    }
+    return 0;
+}
+
 static int check_oracle_rejections(void)
 {
     static const struct
@@ -1173,6 +1233,8 @@ int main(void)
         return 1;
     }
     if((0 != check_branch_metadata_fail_closed()) ||
+       (0 != check_race_path(1.0f)) ||
+       (0 != check_race_path(-1.0f)) ||
        (0 != check_oracle_rejections()) ||
        (0 != check_oracle_grid()))
     {

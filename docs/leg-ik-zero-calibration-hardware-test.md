@@ -6,8 +6,8 @@ angle commands. PWM is open loop: telemetry reports a calibrated command
 estimate derived from the actuator output commands, not a measured servo or
 wheel-centre position.
 
-`LH` and `LHF` continue to use the existing empirical height map. Do not use
-this procedure to tune normal height control, PWM frequency, servo slew, roll
+`LH` and `LHF` continue to use the existing legacy stance map. Do not use
+this procedure to tune legacy stance control, PWM frequency, servo slew, roll
 compensation, or balance gains.
 
 ## BODY_WHEEL coordinate contract

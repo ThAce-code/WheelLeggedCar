@@ -28,6 +28,27 @@ Require-Pattern $kinematicsSource 'cfg->beta_reference_deg' `
     "command FK must reconstruct beta from the calibrated reference"
 Require-Pattern $kinematicsSource 'leg_config_get_servo\(servo_a_index\)' `
     "command FK must use the per-servo logical direction"
+Require-Pattern $kinematicsSource 'servo_a_command_deg\s*<\s*servo_a->min_deg' `
+    "command FK must reject servo A below its configured minimum"
+Require-Pattern $kinematicsSource 'servo_a_command_deg\s*>\s*servo_a->max_deg' `
+    "command FK must reject servo A above its configured maximum"
+Require-Pattern $kinematicsSource 'servo_b_command_deg\s*<\s*servo_b->min_deg' `
+    "command FK must reject servo B below its configured minimum"
+Require-Pattern $kinematicsSource 'servo_b_command_deg\s*>\s*servo_b->max_deg' `
+    "command FK must reject servo B above its configured maximum"
+
+$kinematicsText = Get-Content $kinematicsSource -Raw
+$forwardStart = $kinematicsText.IndexOf("uint8 leg_kinematics_forward_command")
+$nextFunction = $kinematicsText.IndexOf("`n}", $forwardStart)
+if($forwardStart -lt 0 -or $nextFunction -lt 0) {
+    throw "could not isolate command FK implementation"
+}
+$forwardCommand = $kinematicsText.Substring($forwardStart, $nextFunction - $forwardStart)
+$rangeCheck = $forwardCommand.IndexOf("servo_a_command_deg < servo_a->min_deg")
+$firstOutputWrite = $forwardCommand.IndexOf("*x_mm =")
+if($rangeCheck -lt 0 -or $firstOutputWrite -lt 0 -or $rangeCheck -gt $firstOutputWrite) {
+    throw "command range rejection must happen before either output is written"
+}
 Require-Pattern $kinematicsHeader '(?s)BODY_WHEEL.*cross-circle.*\+X forward.*\+Y down.*millimetres.*command/model estimates.*not measured feedback' `
     "public physical-coordinate contract comment missing"
 Require-Pattern $configHeader 'LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT\s*=\s*8' `

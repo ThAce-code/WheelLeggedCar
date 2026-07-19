@@ -193,19 +193,26 @@ class RobotGeometry:
 # =======================================================================
 
 DEFAULT_POSES = [
-    (90, 90, 90, 90, "mid_center"),
-    (80, 80, 80, 80, "low_center"),
-    (100, 100, 100, 100, "high_center"),
-    (82, 82, 78, 78, "low_fwd"),
-    (78, 78, 82, 82, "low_bwd"),
-    (92, 92, 88, 88, "mid_fwd"),
-    (88, 88, 92, 92, "mid_bwd"),
-    (102, 102, 98, 98, "high_fwd"),
-    (98, 98, 102, 102, "high_bwd"),
-    (78, 82, 78, 82, "low_left"),
-    (82, 78, 82, 78, "low_right"),
-    (88, 92, 88, 92, "mid_left"),
-    (92, 88, 92, 88, "mid_right"),
+    (90, 90, 90, 90, "ref_start"),
+    (80, 90, 100, 90, "differential_80_100"),
+    (70, 90, 110, 90, "differential_70_110"),
+    (90, 90, 90, 90, "ref_mid"),
+    (100, 90, 80, 90, "differential_100_80"),
+    (110, 90, 70, 90, "differential_110_70"),
+    (120, 90, 60, 90, "differential_120_60"),
+    (120, 90, 80, 90, "asymmetric_120_80"),
+    (120, 90, 100, 90, "asymmetric_120_100"),
+    (120, 90, 110, 90, "asymmetric_120_110"),
+    (120, 90, 120, 90, "common_120"),
+    (110, 90, 120, 90, "asymmetric_110_120"),
+    (100, 90, 120, 90, "asymmetric_100_120"),
+    (100, 90, 110, 90, "asymmetric_100_110"),
+    (110, 90, 110, 90, "common_110"),
+    (110, 90, 100, 90, "asymmetric_110_100"),
+    (100, 90, 100, 90, "common_100"),
+    (90, 90, 100, 90, "asymmetric_90_100"),
+    (80, 90, 80, 90, "common_80"),
+    (90, 90, 90, 90, "ref_end"),
 ]
 
 
@@ -461,7 +468,7 @@ def manual_measure(
             w.writeheader()
             w.writerows(samples)
         print(f"\nSaved {len(samples)} samples -> {out_csv}")
-        print(f"Next: python tools/fit_leg_ik_calibration.py --input {out_csv} --val-split 0.2")
+        print(f"Next: python tools/fit_leg_ik_calibration.py --input {out_csv} --kfold 5")
 
 
 def batch_from_images(

@@ -143,6 +143,15 @@ overall RMSE is at most 2.0 mm, maximum error never exceeds 3.0 mm, and the
 per-position results show no systematic trend across X/Y. Do not run
 `fit_leg_ik_calibration.py` until all four conditions pass.
 
+The active fitter consumes the 20-pose visible-leg sequence emitted by
+`calibrate_with_camera.py`, including exactly one `ref_start`, `ref_mid`, and
+`ref_end`. It reads servo 0/2 `neutral_deg`, `ik_offset_deg`, and `direction`
+from `project/code/leg_config.c`, reconstructs linkage-angle deltas using the
+same formula as firmware, and fits an absolute BODY_WHEEL similarity plus a
+CCW convex workspace hull. Its candidate block contains only current
+`leg_kinematics_config_t` physical/reference/transform/hull fields; it does not
+produce additive offsets or a rectangular physical workspace.
+
 ## Detailed Usage
 
 ### 1. Camera Inspection (`camera_info.py`)
@@ -397,13 +406,16 @@ tools/calibration/
 7. No obvious position-dependent systematic error in the report
    (e.g., errors that grow with distance from image center)
 
-**Running with a validation report:**
+**Running the 20-pose physical fit with a validation report:**
 ```bash
-python tools/fit_leg_ik_calibration.py --input data/ik_calib.csv --validation-report validation_report.json
+python tools/fit_leg_ik_calibration.py --input data/ik_calib.csv --kfold 5 --validation-report validation_report.json
 ```
 
-This prints MAE, RMSE, max error, and repeatability std before fitting,
-so you can verify the measurement system quality.
+This prints MAE, RMSE, max error, and repeatability std before fitting, then
+reports the fixed per-servo command mapping, physical-coordinate fit metrics,
+cross-validation results, and the review-only firmware candidate. A failed
+coverage, reference, command-range, drift, fit-error, or eight-vertex hull gate
+exits without printing a candidate.
 
 **Reference thresholds** (guidance only, not enforced):
 | Metric | Excellent | Usually acceptable | Investigate |
@@ -434,3 +446,4 @@ before proceeding to IK fitting.
 - opencv-python (cv2)
 - opencv-contrib-python (ArUco module)
 - numpy
+- scipy (physical IK least-squares fit)

@@ -767,7 +767,11 @@ uint8 leg_kinematics_forward_command(uint8 right_side,
     if((NULL == cfg) || (NULL == servo_a) || (NULL == servo_b) ||
        (0.0f == servo_a->direction) || (0.0f == servo_b->direction) ||
        (APP_FALSE == leg_kinematics_is_finite(servo_a_command_deg)) ||
-       (APP_FALSE == leg_kinematics_is_finite(servo_b_command_deg)))
+       (APP_FALSE == leg_kinematics_is_finite(servo_b_command_deg)) ||
+       (servo_a_command_deg < servo_a->min_deg) ||
+       (servo_a_command_deg > servo_a->max_deg) ||
+       (servo_b_command_deg < servo_b->min_deg) ||
+       (servo_b_command_deg > servo_b->max_deg))
     {
         return APP_FALSE;
     }

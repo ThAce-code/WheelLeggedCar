@@ -206,8 +206,9 @@ static void control_chassis_clear_output(void)
     control_chassis_output.speed_integral = 0.0f;
     control_chassis_output.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
     control_chassis_output.speed_ff_rpm = 0.0f;
-    control_chassis_output.forward_limit_eff_rpm = APP_CHASSIS_FORWARD_RPM_LIMIT;
-    control_chassis_output.fast_forward_limit_eff_rpm = APP_CHASSIS_FAST_FORWARD_RPM_LIMIT;
+    /* Cleared output is a fail-closed publication; a healthy update fills caps. */
+    control_chassis_output.forward_limit_eff_rpm = 0.0f;
+    control_chassis_output.fast_forward_limit_eff_rpm = 0.0f;
     control_chassis_output.wheel_speed_measured_rpm = 0.0f;
     control_chassis_output.speed_error_rpm = 0.0f;
     control_chassis_output.requested_accel_rpm_s = 0.0f;

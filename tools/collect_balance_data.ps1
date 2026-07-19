@@ -16,7 +16,7 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 55
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_y_mm,leg_right_y_mm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,note"
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_ref_mm,leg_height_norm,leg_pose_status_flags,leg_ik_valid,leg_left_pose_valid,leg_right_pose_valid,leg_left_pose_source,leg_right_pose_source,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_command_x_mm,leg_left_command_y_mm,leg_right_command_x_mm,leg_right_command_y_mm,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -119,6 +119,10 @@ function Pop-BalanceFrames {
                 $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
             }
 
+            $poseStatusFlags = [uint32][Math]::Round($values[16])
+            $leftPoseSource = if(($poseStatusFlags -band (1 -shl 3)) -ne 0) { "measured_calibration" } else { "none" }
+            $rightPoseSource = if(($poseStatusFlags -band (1 -shl 4)) -ne 0) { "mirror_assumption" } else { "none" }
+
             $frames.Add([pscustomobject]@{
                 time_ms = $values[0]
                 balance_mode = $values[1]
@@ -134,9 +138,14 @@ function Pop-BalanceFrames {
                 right_duty = $values[11]
                 leg_mode = $values[12]
                 leg_target_height_mm = $values[13]
-                leg_height_cmd_est_mm = $values[14]
+                leg_height_ref_mm = $values[14]
                 leg_height_norm = $values[15]
-                leg_ik_valid = $values[16]
+                leg_pose_status_flags = $values[16]
+                leg_ik_valid = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
+                leg_left_pose_valid = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
+                leg_right_pose_valid = [double](($poseStatusFlags -band (1 -shl 2)) -ne 0)
+                leg_left_pose_source = $leftPoseSource
+                leg_right_pose_source = $rightPoseSource
                 leg_output_enable = $values[17]
                 servo0_output_deg = $values[18]
                 servo1_output_deg = $values[19]
@@ -153,10 +162,10 @@ function Pop-BalanceFrames {
                 servo_max_error_deg = $values[30]
                 servo_settled = $values[31]
                 servo_s7_progress = $values[32]
-                leg_left_y_mm = $values[33]
-                leg_right_y_mm = $values[34]
-                leg_height_ref_mm = $values[35]
-                leg_height_rate_mm_s = $values[36]
+                leg_left_command_x_mm = $values[33]
+                leg_left_command_y_mm = $values[34]
+                leg_right_command_x_mm = $values[35]
+                leg_right_command_y_mm = $values[36]
                 leg_ik_margin = $values[37]
                 leg_motion_state = $values[38]
                 leg_fault_reason = $values[39]
@@ -286,9 +295,14 @@ try {
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F3}" -f $frame.leg_mode),
                     ("{0:F3}" -f $frame.leg_target_height_mm),
-                    ("{0:F3}" -f $frame.leg_height_cmd_est_mm),
+                    ("{0:F3}" -f $frame.leg_height_ref_mm),
                     ("{0:F6}" -f $frame.leg_height_norm),
+                    ("{0:F0}" -f $frame.leg_pose_status_flags),
                     ("{0:F3}" -f $frame.leg_ik_valid),
+                    ("{0:F3}" -f $frame.leg_left_pose_valid),
+                    ("{0:F3}" -f $frame.leg_right_pose_valid),
+                    $frame.leg_left_pose_source,
+                    $frame.leg_right_pose_source,
                     ("{0:F3}" -f $frame.leg_output_enable),
                     ("{0:F6}" -f $frame.servo0_output_deg),
                     ("{0:F6}" -f $frame.servo1_output_deg),
@@ -305,10 +319,10 @@ try {
                     ("{0:F6}" -f $frame.servo_max_error_deg),
                     ("{0:F3}" -f $frame.servo_settled),
                     ("{0:F6}" -f $frame.servo_s7_progress),
-                    ("{0:F3}" -f $frame.leg_left_y_mm),
-                    ("{0:F3}" -f $frame.leg_right_y_mm),
-                    ("{0:F3}" -f $frame.leg_height_ref_mm),
-                    ("{0:F6}" -f $frame.leg_height_rate_mm_s),
+                    ("{0:F3}" -f $frame.leg_left_command_x_mm),
+                    ("{0:F3}" -f $frame.leg_left_command_y_mm),
+                    ("{0:F3}" -f $frame.leg_right_command_x_mm),
+                    ("{0:F3}" -f $frame.leg_right_command_y_mm),
                     ("{0:F6}" -f $frame.leg_ik_margin),
                     ("{0:F3}" -f $frame.leg_motion_state),
                     ("{0:F3}" -f $frame.leg_fault_reason),

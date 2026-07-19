@@ -33,19 +33,21 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
-# 4 metadata + 55 telemetry + note = 60 fields
-Assert-True (($Fields.Split(",").Count -eq 60)) "CSV header must contain metadata, 55 telemetry fields, and note"
+# One packed status float expands to five decoded status/provenance columns.
+# 4 metadata + 55 wire values + 5 decoded fields + note = 65 fields.
+Assert-True (($Fields.Split(",").Count -eq 65)) "CSV header and decoded telemetry column count must remain synchronized"
 
-# 55-float test frame: indices 0-45 control data, 46-54 timing diagnostics
+# 55-float test frame: indices 0-45 control data, 46-54 timing diagnostics.
+# Pose status 31 sets IK valid, both pose-valid bits, measured-left source,
+# and mirror-assumption right source.
 $values = [single[]](
     1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0,
-    3.0, 100.0, 95.0, 0.3, 1.0, 1.0,
+    3.0, 100.0, 96.5, 0.3, 31.0, 1.0,
     88.0, 92.0, 89.0, 91.0,
     91.0, 89.0, 89.0, 91.0,
     90.5, 89.5, 89.5, 90.5,
     0.5, 0.0, 0.5,
-    95.0, 95.0,
-    96.5, 4.0, 0.42, 2.0, 1.0,
+    -20.75, 47.25, -20.50, 47.00, 0.42, 2.0, 1.0,
     35.0, 1.0, 1.0, 0.0, 2.0, 250.0,
     42.0, 3.0, 7.0, 4.0, 12345.0, 987.0, 2.0, 6.0, -1.75
 )
@@ -78,9 +80,14 @@ Assert-Near $frames[0].right_duty -118.0 0.001 "right_duty"
 # 12-17: leg height/IK
 Assert-Near $frames[0].leg_mode 3.0 0.001 "leg_mode"
 Assert-Near $frames[0].leg_target_height_mm 100.0 0.001 "leg_target_height_mm"
-Assert-Near $frames[0].leg_height_cmd_est_mm 95.0 0.001 "leg_height_cmd_est_mm"
+Assert-Near $frames[0].leg_height_ref_mm 96.5 0.001 "leg_height_ref_mm"
 Assert-Near $frames[0].leg_height_norm 0.3 0.001 "leg_height_norm"
+Assert-Near $frames[0].leg_pose_status_flags 31.0 0.001 "leg_pose_status_flags"
 Assert-Near $frames[0].leg_ik_valid 1.0 0.001 "leg_ik_valid"
+Assert-Near $frames[0].leg_left_pose_valid 1.0 0.001 "leg_left_pose_valid"
+Assert-Near $frames[0].leg_right_pose_valid 1.0 0.001 "leg_right_pose_valid"
+Assert-True ($frames[0].leg_left_pose_source -eq "measured_calibration") "left pose source"
+Assert-True ($frames[0].leg_right_pose_source -eq "mirror_assumption") "right pose source"
 Assert-Near $frames[0].leg_output_enable 1.0 0.001 "leg_output_enable"
 # 18-21: servo output
 Assert-Near $frames[0].servo0_output_deg 88.0 0.001 "servo0_output_deg"
@@ -92,10 +99,13 @@ Assert-Near $frames[0].servo0_filtered_deg 90.5 0.001 "servo0_filtered_deg"
 Assert-Near $frames[0].servo_max_error_deg 0.5 0.001 "servo_max_error_deg"
 Assert-Near $frames[0].servo_settled 0.0 0.001 "servo_settled"
 Assert-Near $frames[0].servo_s7_progress 0.5 0.001 "servo_s7_progress"
-# 35-39: leg motion state
-Assert-Near $frames[0].leg_height_ref_mm 96.5 0.001 "leg_height_ref_mm"
-Assert-Near $frames[0].leg_height_rate_mm_s 4.0 0.001 "leg_height_rate_mm_s"
+# 33-37: physical command poses and IK margin
+Assert-Near $frames[0].leg_left_command_x_mm -20.75 0.001 "leg_left_command_x_mm"
+Assert-Near $frames[0].leg_left_command_y_mm 47.25 0.001 "leg_left_command_y_mm"
+Assert-Near $frames[0].leg_right_command_x_mm -20.50 0.001 "leg_right_command_x_mm"
+Assert-Near $frames[0].leg_right_command_y_mm 47.00 0.001 "leg_right_command_y_mm"
 Assert-Near $frames[0].leg_ik_margin 0.42 0.001 "leg_ik_margin"
+# 38-39: leg motion state
 Assert-Near $frames[0].leg_motion_state 2.0 0.001 "leg_motion_state"
 Assert-Near $frames[0].leg_fault_reason 1.0 0.001 "leg_fault_reason"
 # 40-45: safety and trajectory mode
@@ -123,7 +133,12 @@ Assert-True ($Fields -match "servo_settled") "CSV header must include settled"
 Assert-True ($Fields -match "servo_s7_progress") "CSV header must include S7 progress"
 Assert-True ($Fields -match "leg_drive_allowed") "CSV header must include drive permission"
 Assert-True ($Fields -match "servo_trajectory_mode") "CSV header must include trajectory mode"
+Assert-True ($Fields -match "leg_left_command_x_mm") "CSV header must include left physical X"
+Assert-True ($Fields -match "leg_right_command_y_mm") "CSV header must include right physical Y"
+Assert-True ($Fields -match "leg_left_pose_source") "CSV header must include left pose source"
+Assert-True ($Fields -match "leg_right_pose_source") "CSV header must include right pose source"
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
+Assert-True ($Fields -notmatch "leg_height_cmd_est_mm") "CSV header must not duplicate the legacy height reference"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

@@ -41,6 +41,7 @@ void telemetry_update(uint32 now_ms)
     const balance_diag_struct *balance;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
+    uint32 pose_status_flags;
 #endif
 
     if(APP_TRUE == telemetry_tx_busy)
@@ -56,6 +57,27 @@ void telemetry_update(uint32 now_ms)
     balance = control_balance_get_diag();
     leg = control_leg_get_diag();
     imu = sensor_imu_get_state();
+    pose_status_flags = 0U;
+    if(APP_TRUE == leg->ik_valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_IK_VALID;
+    }
+    if(APP_TRUE == leg->left_command_pose_body_mm.valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_LEFT_VALID;
+    }
+    if(APP_TRUE == leg->right_command_pose_body_mm.valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_RIGHT_VALID;
+    }
+    if(LEG_POSE_SOURCE_MEASURED_CALIBRATION == leg->left_command_pose_body_mm.source)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_LEFT_MEASURED;
+    }
+    if(LEG_POSE_SOURCE_MIRROR_ASSUMPTION == leg->right_command_pose_body_mm.source)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_RIGHT_MIRROR;
+    }
 
     /* 0-11: core motor / balance / IMU */
     vofa_data[0]  = (float)now_ms;
@@ -74,9 +96,9 @@ void telemetry_update(uint32 now_ms)
     /* 12-17: leg height / IK */
     vofa_data[12] = (float)leg->mode;
     vofa_data[13] = leg->target_height_mm;
-    vofa_data[14] = leg->actual_height_mm;
+    vofa_data[14] = leg->height_ref_mm;
     vofa_data[15] = leg->height_norm;
-    vofa_data[16] = (float)leg->ik_valid;
+    vofa_data[16] = (float)pose_status_flags;
     vofa_data[17] = (float)leg->output_enable;
 
     /* 18-21: servo output commands (open-loop PWM) */
@@ -102,14 +124,14 @@ void telemetry_update(uint32 now_ms)
     vofa_data[31] = (float)leg->servo_settled;
     vofa_data[32] = leg->servo_s7_progress;
 
-    /* 33-34: IK target Y (height) for LXY validation */
-    vofa_data[33] = leg->left_y_mm;
-    vofa_data[34] = leg->right_y_mm;
-
-    /* 35-39: leg motion state */
-    vofa_data[35] = leg->height_ref_mm;
-    vofa_data[36] = leg->height_rate_mm_s;
+    /* 33-37: physical command poses and IK margin */
+    vofa_data[33] = leg->left_command_pose_body_mm.x_mm;
+    vofa_data[34] = leg->left_command_pose_body_mm.y_mm;
+    vofa_data[35] = leg->right_command_pose_body_mm.x_mm;
+    vofa_data[36] = leg->right_command_pose_body_mm.y_mm;
     vofa_data[37] = leg->ik_margin;
+
+    /* 38-39: leg motion state */
     vofa_data[38] = (float)leg->motion_state;
     vofa_data[39] = (float)leg->fault_reason;
 

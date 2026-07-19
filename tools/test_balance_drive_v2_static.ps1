@@ -103,6 +103,9 @@ Assert-Contains "project/code/control_chassis.c" "if\(turn_kp != control_chassis
 Assert-Contains "project/code/host_command.c" "drive_turn_kp" "BD parser must not name turn_kp as kd."
 
 Assert-Contains "project/code/telemetry.c" 'float vofa_data\[55\]' "Telemetry must emit 55-channel timing diagnostics frame."
+Assert-Contains "project/code/telemetry.c" 'vofa_data\[16\]\s*=\s*\(float\)pose_status_flags' "Telemetry must pack IK, validity, and provenance status."
+Assert-Contains "project/code/telemetry.c" 'vofa_data\[33\]\s*=\s*leg->left_command_pose_body_mm\.x_mm' "Telemetry must publish left physical command X."
+Assert-Contains "project/code/telemetry.c" 'vofa_data\[36\]\s*=\s*leg->right_command_pose_body_mm\.y_mm' "Telemetry must publish right physical command Y."
 Assert-Contains "tools/collect_balance_data.ps1" '\$FloatCount = 55' "Collector must parse 55-channel telemetry."
 Assert-Contains "tools/collect_balance_data.ps1" "telemetry_drop_count" "Collector must write telemetry drop count."
 Assert-Contains "tools/collect_balance_data.ps1" "scheduler_missed_tick_count" "Collector must write scheduler missed ticks."

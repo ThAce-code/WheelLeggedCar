@@ -265,18 +265,39 @@ typedef enum
     LEG_FAULT_SERVO_LIMIT
 }leg_fault_reason_enum;
 
+typedef enum
+{
+    LEG_POSE_SOURCE_NONE = 0,
+    LEG_POSE_SOURCE_MEASURED_CALIBRATION = 1,
+    LEG_POSE_SOURCE_MIRROR_ASSUMPTION = 2
+}leg_pose_source_enum;
+
+typedef enum
+{
+    LEG_POSE_STATUS_IK_VALID = (1U << 0),
+    LEG_POSE_STATUS_LEFT_VALID = (1U << 1),
+    LEG_POSE_STATUS_RIGHT_VALID = (1U << 2),
+    LEG_POSE_STATUS_LEFT_MEASURED = (1U << 3),
+    LEG_POSE_STATUS_RIGHT_MIRROR = (1U << 4)
+}leg_pose_status_flag_enum;
+
+typedef struct
+{
+    float x_mm;
+    float y_mm;
+    leg_pose_source_enum source;
+    uint8 valid;
+}leg_pose_command_estimate_struct;
+
 typedef struct
 {
     float target_height_mm;
-    float actual_height_mm;
     float height_ref_mm;
     float height_rate_mm_s;
     float height_norm;
     float ik_margin;
-    float left_x_mm;
-    float left_y_mm;
-    float right_x_mm;
-    float right_y_mm;
+    leg_pose_command_estimate_struct left_command_pose_body_mm;
+    leg_pose_command_estimate_struct right_command_pose_body_mm;
     float servo_target_deg[4];
     float servo_actual_deg[4];
     float servo_filtered_deg[4];

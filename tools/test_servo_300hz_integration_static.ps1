@@ -42,6 +42,11 @@ Require-Pattern $servo 'servo_motion_apply_immediate\(' 'Direct-step must synchr
 
 Require-Pattern $config 'APP_TELEMETRY_PERIOD_MS\s+\(10U\)' 'Telemetry generation must run at 10 ms.'
 Require-Pattern $telemetry 'float vofa_data\[55\]' 'Servo validation telemetry must emit 55 floats.'
+Require-Pattern $telemetry 'vofa_data\[33\]\s*=\s*leg->left_command_pose_body_mm\.x_mm' 'Telemetry must expose left physical command X.'
+Require-Pattern $telemetry 'vofa_data\[34\]\s*=\s*leg->left_command_pose_body_mm\.y_mm' 'Telemetry must expose left physical command Y.'
+Require-Pattern $telemetry 'vofa_data\[35\]\s*=\s*leg->right_command_pose_body_mm\.x_mm' 'Telemetry must expose right physical command X.'
+Require-Pattern $telemetry 'vofa_data\[36\]\s*=\s*leg->right_command_pose_body_mm\.y_mm' 'Telemetry must expose right physical command Y.'
+Require-Pattern $telemetry 'vofa_data\[37\]\s*=\s*leg->ik_margin' 'Telemetry must retain IK margin after the pose coordinates.'
 Require-Pattern $telemetry 'vofa_data\[40\]\s*=\s*leg->drive_forward_limit_rpm' 'Telemetry must retain the forward drive limit.'
 Require-Pattern $telemetry 'vofa_data\[41\]\s*=\s*\(float\)leg->drive_allowed' 'Telemetry must retain drive permission.'
 Require-Pattern $telemetry 'vofa_data\[42\]\s*=\s*\(float\)leg->servo_fast_mode' 'Telemetry must expose the active speed profile.'

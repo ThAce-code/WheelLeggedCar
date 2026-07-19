@@ -255,6 +255,34 @@ static uint8 control_leg_motion_can_stabilize(uint8 planner_complete)
     return APP_TRUE;
 }
 
+static void control_leg_publish_command_pose(uint8 right_side,
+                                             leg_pose_source_enum source,
+                                             uint8 servo_a_index,
+                                             uint8 servo_b_index,
+                                             leg_pose_command_estimate_struct *command_pose)
+{
+    float x_mm;
+    float y_mm;
+
+    /* PWM-only forward kinematics is an open-loop command estimate, not feedback. */
+    command_pose->source = source;
+    if(APP_TRUE == leg_kinematics_forward_command(right_side,
+                                                  control_leg_actuator_diag.output_deg[servo_a_index],
+                                                  control_leg_actuator_diag.output_deg[servo_b_index],
+                                                  &x_mm,
+                                                  &y_mm))
+    {
+        command_pose->x_mm = x_mm;
+        command_pose->y_mm = y_mm;
+        command_pose->valid = APP_TRUE;
+    }
+    else
+    {
+        /* Retain the last valid coordinates while explicitly invalidating them. */
+        command_pose->valid = APP_FALSE;
+    }
+}
+
 static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 {
     uint8 i;
@@ -263,8 +291,6 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
 
     profile = leg_config_get_height_profile();
     control_leg_diag.target_height_mm = control_leg_target_height_mm;
-    /* This is an open-loop command estimate; this PWM-only platform has no height feedback. */
-    control_leg_diag.actual_height_mm = control_leg_height_ref_mm;
     control_leg_diag.height_ref_mm = control_leg_height_ref_mm;
     control_leg_diag.height_rate_mm_s = control_leg_height_rate_mm_s;
     if(profile->high_height_mm > profile->low_height_mm)
@@ -283,6 +309,16 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     control_leg_diag.output_enable = output_enable;
     control_leg_diag.motion_state = control_leg_motion_state;
     control_leg_diag.fault_reason = control_leg_fault_reason;
+    control_leg_publish_command_pose(APP_FALSE,
+                                     LEG_POSE_SOURCE_MEASURED_CALIBRATION,
+                                     LEG_SERVO_FL,
+                                     LEG_SERVO_RL,
+                                     &control_leg_diag.left_command_pose_body_mm);
+    control_leg_publish_command_pose(APP_TRUE,
+                                     LEG_POSE_SOURCE_MIRROR_ASSUMPTION,
+                                     LEG_SERVO_FR,
+                                     LEG_SERVO_RR,
+                                     &control_leg_diag.right_command_pose_body_mm);
     configured_forward_limit_rpm =
         profile->chassis_forward_limit_low_rpm +
         ((profile->chassis_forward_limit_high_rpm - profile->chassis_forward_limit_low_rpm) *
@@ -465,10 +501,10 @@ void control_leg_init(void)
             }
         }
         control_leg_diag.ik_error_count = 0U;
-        control_leg_diag.left_x_mm = 0.0f;
-        control_leg_diag.right_x_mm = 0.0f;
-        control_leg_diag.left_y_mm = control_leg_height_ref_mm;
-        control_leg_diag.right_y_mm = control_leg_height_ref_mm;
+        control_leg_diag.left_command_pose_body_mm.source = LEG_POSE_SOURCE_NONE;
+        control_leg_diag.left_command_pose_body_mm.valid = APP_FALSE;
+        control_leg_diag.right_command_pose_body_mm.source = LEG_POSE_SOURCE_NONE;
+        control_leg_diag.right_command_pose_body_mm.valid = APP_FALSE;
     }
 
     control_leg_publish_diag(APP_FALSE, APP_FALSE);
@@ -613,11 +649,6 @@ void control_leg_update(uint32 now_ms)
                     control_leg_height_accel_mm_s2 = 0.0f;
                 }
 
-                control_leg_diag.left_x_mm = 0.0f;
-                control_leg_diag.right_x_mm = 0.0f;
-                control_leg_diag.left_y_mm = control_leg_height_ref_mm;
-                control_leg_diag.right_y_mm = control_leg_height_ref_mm;
-
                 if(APP_TRUE == control_leg_apply_empirical_height(control_leg_height_ref_mm,
                                                                   &servo_fl_deg,
                                                                   &servo_fr_deg,
@@ -732,10 +763,6 @@ void control_leg_update(uint32 now_ms)
                                                 blend_rate * 1000.0f) /
                                                (float)profile->fast_height_transition_ms;
                 control_leg_height_accel_mm_s2 = 0.0f;
-                control_leg_diag.left_x_mm = 0.0f;
-                control_leg_diag.right_x_mm = 0.0f;
-                control_leg_diag.left_y_mm = control_leg_height_ref_mm;
-                control_leg_diag.right_y_mm = control_leg_height_ref_mm;
                 if(APP_TRUE == control_leg_apply_empirical_height(control_leg_height_ref_mm,
                                                                   &servo_fl_deg,
                                                                   &servo_fr_deg,
@@ -786,10 +813,6 @@ void control_leg_update(uint32 now_ms)
 
                 control_leg_height_rate_mm_s = 0.0f;
                 control_leg_height_accel_mm_s2 = 0.0f;
-                control_leg_diag.left_x_mm = 0.0f;
-                control_leg_diag.right_x_mm = 0.0f;
-                control_leg_diag.left_y_mm = control_leg_height_ref_mm;
-                control_leg_diag.right_y_mm = control_leg_height_ref_mm;
                 if(APP_TRUE == control_leg_apply_empirical_height(control_leg_height_ref_mm,
                                                                   &servo_fl_deg,
                                                                   &servo_fr_deg,
@@ -837,10 +860,6 @@ void control_leg_update(uint32 now_ms)
                 }
                 control_leg_pose_start_if_changed(desired_deg, APP_SERVO_MAX_SPEED_DPS, now_ms);
                 control_leg_pose_update(now_ms);
-                control_leg_diag.left_x_mm = kinematics->physical_reference_x_mm;
-                control_leg_diag.left_y_mm = kinematics->physical_reference_y_mm;
-                control_leg_diag.right_x_mm = kinematics->physical_reference_x_mm;
-                control_leg_diag.right_y_mm = kinematics->physical_reference_y_mm;
                 control_leg_diag.ik_margin = (control_leg_ik_reference_left.singularity_margin <
                                                control_leg_ik_reference_right.singularity_margin) ?
                                               control_leg_ik_reference_left.singularity_margin :
@@ -901,10 +920,6 @@ void control_leg_update(uint32 now_ms)
                 control_leg_pose_update(now_ms);
                 control_leg_ik_previous_left = left_target;
                 control_leg_ik_previous_right = right_target;
-                control_leg_diag.left_x_mm = control_leg_ik_target_x_mm;
-                control_leg_diag.left_y_mm = control_leg_ik_target_y_mm;
-                control_leg_diag.right_x_mm = control_leg_ik_target_x_mm;
-                control_leg_diag.right_y_mm = control_leg_ik_target_y_mm;
                 control_leg_diag.ik_margin = (left_target.singularity_margin < right_target.singularity_margin) ?
                                               left_target.singularity_margin : right_target.singularity_margin;
                 if(APP_TRUE == control_leg_motion_can_stabilize(1.0f <= control_leg_s7_progress ? APP_TRUE : APP_FALSE))

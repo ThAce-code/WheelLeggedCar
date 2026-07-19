@@ -74,6 +74,9 @@ Require-Pattern $servoH 'actuator_servo_get_tick_count' 'Servo actuator must exp
 Require-Pattern $telemetry 'float vofa_data\[55\]' 'Timing telemetry must emit 55 floats.'
 Require-Pattern $telemetry 'telemetry_drop_count\+\+' 'Telemetry must count frames skipped under backpressure.'
 Require-Pattern $collector '\$FloatCount\s*=\s*55' 'Collector must parse the timing diagnostics frame.'
+Require-Pattern $collector 'leg_pose_status_flags' 'Collector must retain the packed pose status float.'
+Require-Pattern $collector 'measured_calibration' 'Collector must decode measured-calibration provenance.'
+Require-Pattern $collector 'mirror_assumption' 'Collector must decode mirror-assumption provenance.'
 
 $frameBytes = (55 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0

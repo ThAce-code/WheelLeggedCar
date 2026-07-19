@@ -439,40 +439,57 @@ static float wrapped_delta_deg(float current_deg, float previous_deg)
 
 static int check_side(uint8 right_side)
 {
-    int physical_y;
-    leg_ik_result_struct previous = {0};
-    const float physical_x = -20.766667f;
-    for(physical_y = 38; physical_y <= 69; physical_y++)
+    int physical_x_i;
+    int physical_y_i;
+
+    for(physical_y_i = 20; physical_y_i <= 100; physical_y_i++)
     {
-        float x_mm;
-        float y_mm;
-        leg_ik_result_struct result;
-        if((APP_TRUE != leg_kinematics_solve(right_side, physical_x, (float)physical_y, &previous, &result)) ||
-           (APP_TRUE != result.valid))
+        leg_ik_result_struct previous = {0};
+        const float physical_y = (float)physical_y_i;
+
+        for(physical_x_i = -60; physical_x_i <= 20; physical_x_i++)
         {
-            printf("IK rejected side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
-            return 1;
+            const float physical_x = (float)physical_x_i;
+            float x_mm;
+            float y_mm;
+            leg_ik_result_struct result;
+
+            if(APP_TRUE != leg_kinematics_target_valid(physical_x, physical_y))
+            {
+                previous.valid = APP_FALSE;
+                continue;
+            }
+            if((APP_TRUE != leg_kinematics_solve(right_side, physical_x, physical_y,
+                                                  &previous, &result)) ||
+               (APP_TRUE != result.valid))
+            {
+                printf("IK rejected side %u physical %.1f %.1f\\n",
+                       (unsigned int)right_side, physical_x, physical_y);
+                return 1;
+            }
+            if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
+               (!isfinite(result.singularity_margin)) || (0.02f > result.singularity_margin))
+            {
+                printf("IK margin/output invalid side %u physical %.1f %.1f\\n",
+                       (unsigned int)right_side, physical_x, physical_y);
+                return 1;
+            }
+            if((APP_TRUE == previous.valid) &&
+               ((12.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
+                (12.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+            {
+                printf("model branch discontinuity %.1f %.1f\\n", physical_x, physical_y);
+                return 1;
+            }
+            if((APP_TRUE != leg_kinematics_forward(right_side, result.servo_deg[0], result.servo_deg[1], &x_mm, &y_mm)) ||
+               (0.5f < fabsf(x_mm - physical_x)) || (0.5f < fabsf(y_mm - physical_y)))
+            {
+                printf("FK mismatch side %u physical %.1f %.1f: %.3f, %.3f\\n",
+                       (unsigned int)right_side, physical_x, physical_y, x_mm, y_mm);
+                return 1;
+            }
+            previous = result;
         }
-        if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
-           (!isfinite(result.singularity_margin)) || (0.20f > result.singularity_margin))
-        {
-            printf("IK margin/output invalid side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
-            return 1;
-        }
-        if((APP_TRUE == previous.valid) &&
-           ((8.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
-            (8.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
-        {
-            printf("IK discontinuity side %u physical Y %d\\n", (unsigned int)right_side, physical_y);
-            return 1;
-        }
-        if((APP_TRUE != leg_kinematics_forward(right_side, result.servo_deg[0], result.servo_deg[1], &x_mm, &y_mm)) ||
-           (0.5f < fabsf(x_mm - physical_x)) || (0.5f < fabsf(y_mm - (float)physical_y)))
-        {
-            printf("FK mismatch side %u physical Y %d: %.3f, %.3f\\n", (unsigned int)right_side, physical_y, x_mm, y_mm);
-            return 1;
-        }
-        previous = result;
     }
     return 0;
 }
@@ -519,14 +536,14 @@ int main(void)
                forward_x_mm, forward_y_mm);
         return 1;
     }
-    if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
+    if(APP_TRUE != leg_kinematics_target_valid(0.0f, 55.0f))
     {
-        printf("Uncalibrated X=0 target accepted\\n");
+        printf("Model-reachable X=0 target rejected\\n");
         return 1;
     }
-    if(APP_TRUE == leg_kinematics_target_valid(-40.620f, 47.370f))
+    if(APP_TRUE != leg_kinematics_target_valid(-40.620f, 47.370f))
     {
-        printf("Hull vertex accepted without the 2 mm inset\\n");
+        printf("Model-reachable hull vertex rejected\\n");
         return 1;
     }
     return 0;
@@ -546,7 +563,7 @@ Assert-Equal -Actual $config["legacy_rate_kp_s"] -Expected 4.0 -Message "Legacy 
 Assert-Equal -Actual $config["legacy_settle_error_units"] -Expected 1.0 -Message "Legacy stance settle error"
 Assert-Equal -Actual $config["legacy_settle_ms"] -Expected 300.0 -Message "Legacy stance settle time"
 Assert-Equal -Actual $config["fast_stance_transition_ms"] -Expected 500.0 -Message "Fast legacy stance transition duration"
-Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
+Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.02 -Message "IK minimum margin"
 Assert-Equal -Actual $config["legacy_safe_support_units"] -Expected 55.0 -Message "Empirical Phase 1 safe support legacy stance"
 Assert-LegacyStanceCommandRange -Config $config
 

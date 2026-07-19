@@ -10,7 +10,6 @@
 #define LEG_KINEMATICS_PI        (3.14159265358979323846f)
 #define LEG_KINEMATICS_TWO_PI    (6.28318530717958647692f)
 #define LEG_KINEMATICS_EPS       (0.000001f)
-#define LEG_KINEMATICS_WORKSPACE_EPS (0.01f)
 #define LEG_KINEMATICS_FK_MATCH_EPS (0.001f)
 
 typedef struct
@@ -227,36 +226,6 @@ static uint8 leg_kinematics_solve_angle_candidates(float a,
         return APP_FALSE;
     }
     return APP_TRUE;
-}
-
-static uint8 leg_kinematics_model_workspace_valid_fk(const leg_kinematics_config_struct *cfg,
-                                                     float x_mm,
-                                                     float y_mm)
-{
-    if(((cfg->x_min_mm - LEG_KINEMATICS_WORKSPACE_EPS) > x_mm) ||
-       ((cfg->x_max_mm + LEG_KINEMATICS_WORKSPACE_EPS) < x_mm))
-    {
-        return APP_FALSE;
-    }
-    if(((cfg->y_min_mm - LEG_KINEMATICS_WORKSPACE_EPS) > y_mm) ||
-       ((cfg->y_max_mm + LEG_KINEMATICS_WORKSPACE_EPS) < y_mm))
-    {
-        return APP_FALSE;
-    }
-    return APP_TRUE;
-}
-
-static float leg_kinematics_clamp_fk_workspace(float value, float minimum, float maximum)
-{
-    if((minimum > value) && ((minimum - LEG_KINEMATICS_WORKSPACE_EPS) <= value))
-    {
-        return minimum;
-    }
-    if((maximum < value) && ((maximum + LEG_KINEMATICS_WORKSPACE_EPS) >= value))
-    {
-        return maximum;
-    }
-    return value;
 }
 
 static uint8 leg_kinematics_physical_to_model(float physical_x_mm,
@@ -601,62 +570,6 @@ uint8 leg_kinematics_map_target_pose(const leg_ik_result_struct *left_reference,
     return APP_TRUE;
 }
 
-static uint8 leg_kinematics_model_angles_match(
-    const leg_kinematics_config_struct *cfg,
-    float alpha_rad,
-    float beta_rad,
-    float x_mm,
-    float y_mm)
-{
-    float alpha_plus_rad;
-    float alpha_minus_rad;
-    float beta_plus_rad;
-    float beta_minus_rad;
-    float margin;
-    float a;
-    float b;
-    float c;
-    float d;
-    float e;
-    float f;
-
-    if((NULL == cfg) || (0.0f >= y_mm))
-    {
-        return APP_FALSE;
-    }
-    a = 2.0f * x_mm * cfg->l1_mm;
-    b = 2.0f * y_mm * cfg->l1_mm;
-    c = (x_mm * x_mm) + (y_mm * y_mm) +
-        (cfg->l1_mm * cfg->l1_mm) - (cfg->l2_mm * cfg->l2_mm);
-    d = 2.0f * (x_mm - cfg->l5_mm) * cfg->l4_mm;
-    e = 2.0f * y_mm * cfg->l4_mm;
-    f = ((x_mm - cfg->l5_mm) * (x_mm - cfg->l5_mm)) + (y_mm * y_mm) +
-        (cfg->l4_mm * cfg->l4_mm) - (cfg->l3_mm * cfg->l3_mm);
-    if((APP_FALSE == leg_kinematics_solve_angle_candidates(a, b, c,
-                                                            &alpha_plus_rad,
-                                                            &alpha_minus_rad,
-                                                            &margin)) ||
-       (APP_FALSE == leg_kinematics_solve_angle_candidates(d, e, f,
-                                                            &beta_plus_rad,
-                                                            &beta_minus_rad,
-                                                            &margin)))
-    {
-        return APP_FALSE;
-    }
-    if(((LEG_KINEMATICS_FK_MATCH_EPS >=
-         leg_kinematics_wrapped_distance(alpha_rad, alpha_plus_rad)) ||
-        (LEG_KINEMATICS_FK_MATCH_EPS >=
-         leg_kinematics_wrapped_distance(alpha_rad, alpha_minus_rad))) &&
-       ((LEG_KINEMATICS_FK_MATCH_EPS >=
-         leg_kinematics_wrapped_distance(beta_rad, beta_plus_rad)) ||
-        (LEG_KINEMATICS_FK_MATCH_EPS >=
-         leg_kinematics_wrapped_distance(beta_rad, beta_minus_rad))))
-    {
-        return APP_TRUE;
-    }
-    return APP_FALSE;
-}
-
 uint8 leg_kinematics_forward(uint8 right_side,
                              float servo_a_deg,
                              float servo_b_deg,
@@ -686,6 +599,9 @@ uint8 leg_kinematics_forward(uint8 right_side,
     uint8 minus_valid;
     uint8 plus_match;
     uint8 minus_match;
+    leg_ik_result_struct input_pose;
+    leg_ik_result_struct plus_pose;
+    leg_ik_result_struct minus_pose;
 
     if((NULL == x_mm) || (NULL == y_mm))
     {
@@ -732,41 +648,43 @@ uint8 leg_kinematics_forward(uint8 right_side,
     plus_y = base_y + (dx * height / distance);
     minus_x = base_x + (dy * height / distance);
     minus_y = base_y - (dx * height / distance);
-    plus_x = leg_kinematics_clamp_fk_workspace(plus_x, cfg->x_min_mm, cfg->x_max_mm);
-    plus_y = leg_kinematics_clamp_fk_workspace(plus_y, cfg->y_min_mm, cfg->y_max_mm);
-    minus_x = leg_kinematics_clamp_fk_workspace(minus_x, cfg->x_min_mm, cfg->x_max_mm);
-    minus_y = leg_kinematics_clamp_fk_workspace(minus_y, cfg->y_min_mm, cfg->y_max_mm);
 
     plus_valid = ((APP_TRUE == leg_kinematics_is_finite(plus_x)) &&
                   (APP_TRUE == leg_kinematics_is_finite(plus_y)) &&
-                  (0.0f < plus_y) &&
-                  (APP_TRUE == leg_kinematics_model_workspace_valid_fk(cfg, plus_x, plus_y))) ? APP_TRUE : APP_FALSE;
+                  (0.0f < plus_y)) ? APP_TRUE : APP_FALSE;
     minus_valid = ((APP_TRUE == leg_kinematics_is_finite(minus_x)) &&
                    (APP_TRUE == leg_kinematics_is_finite(minus_y)) &&
-                   (0.0f < minus_y) &&
-                   (APP_TRUE == leg_kinematics_model_workspace_valid_fk(cfg, minus_x, minus_y))) ? APP_TRUE : APP_FALSE;
+                   (0.0f < minus_y)) ? APP_TRUE : APP_FALSE;
     if((APP_FALSE == plus_valid) && (APP_FALSE == minus_valid))
     {
         return APP_FALSE;
     }
 
+    input_pose.servo_deg[0] = servo_a_deg;
+    input_pose.servo_deg[1] = servo_b_deg;
+    input_pose.alpha_rad = alpha_rad;
+    input_pose.beta_rad = beta_rad;
+    input_pose.singularity_margin = 1.0f;
+    input_pose.valid = APP_TRUE;
     plus_match = APP_FALSE;
     minus_match = APP_FALSE;
     if((APP_TRUE == plus_valid) &&
-       (APP_TRUE == leg_kinematics_model_angles_match(cfg,
-                                                       alpha_rad,
-                                                       beta_rad,
-                                                       plus_x,
-                                                       plus_y)))
+       (APP_TRUE == leg_kinematics_solve_model(right_side, plus_x, plus_y,
+                                                &input_pose, &plus_pose)) &&
+       (LEG_KINEMATICS_FK_MATCH_EPS >=
+        leg_kinematics_wrapped_distance(alpha_rad, plus_pose.alpha_rad)) &&
+       (LEG_KINEMATICS_FK_MATCH_EPS >=
+        leg_kinematics_wrapped_distance(beta_rad, plus_pose.beta_rad)))
     {
         plus_match = APP_TRUE;
     }
     if((APP_TRUE == minus_valid) &&
-       (APP_TRUE == leg_kinematics_model_angles_match(cfg,
-                                                       alpha_rad,
-                                                       beta_rad,
-                                                       minus_x,
-                                                       minus_y)))
+       (APP_TRUE == leg_kinematics_solve_model(right_side, minus_x, minus_y,
+                                                &input_pose, &minus_pose)) &&
+       (LEG_KINEMATICS_FK_MATCH_EPS >=
+        leg_kinematics_wrapped_distance(alpha_rad, minus_pose.alpha_rad)) &&
+       (LEG_KINEMATICS_FK_MATCH_EPS >=
+        leg_kinematics_wrapped_distance(beta_rad, minus_pose.beta_rad)))
     {
         minus_match = APP_TRUE;
     }

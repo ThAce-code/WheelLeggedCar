@@ -37,6 +37,16 @@ $hostCommand = "project/code/host_command.c"
 $telemetry = "project/code/telemetry.c"
 $collector = "tools/collect_balance_data.ps1"
 $calibration = "tools/calib_ik_servo.ps1"
+$hardwareDoc = "docs/low-race-leg-assist-hardware-test.md"
+
+Require-Pattern $hardwareDoc 'BRA,0' 'Procedure must start from assist disabled.'
+Require-Pattern $hardwareDoc 'LXY,-18\.83,25\.08' 'Procedure must establish the approved low-race zero.'
+Require-Pattern $hardwareDoc 'BRG,0\.005,0\.005,0\.15' 'Level-1 test must set explicit conservative gains.'
+Require-Pattern $hardwareDoc 'BRA,1' 'Level-1 assist must be enabled explicitly.'
+Require-Pattern $hardwareDoc '250 RPM' 'Level-1 ground gate missing.'
+Require-Pattern $hardwareDoc '390--410 RPM' 'Final 400 RPM acceptance band missing.'
+Require-Pattern $hardwareDoc 'three seconds' 'Final dwell requirement missing.'
+Require-Pattern $hardwareDoc 'command estimate' 'Open-loop pose meaning must be explicit.'
 
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
     "Race assist leg mode missing."

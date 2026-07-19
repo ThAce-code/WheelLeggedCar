@@ -144,6 +144,8 @@ else
 
 Retain the first candidate on an exact score tie. Delete point-specific race logic and `leg_kinematics_select_angle()`. Leave rectangular helpers only for the existing forward-kinematics path until Task 2.
 
+Because the old FK intersection resolver calls the branch-selecting private IK solver, replace only that recursive root-identification step with a raw geometric-root matcher. Keep the existing FK rectangle clamps in Task 1; Task 2 removes those gates and adds the complete grid/continuity contract.
+
 - [ ] **Step 6: Share the solver with public validation**
 
 Make `leg_kinematics_target_valid()` transform physical to model once and call `leg_kinematics_solve_model()` for both left and right with `previous=NULL`. Make `leg_kinematics_solve()` transform once and call the private solver directly, avoiding recursive validation.
@@ -197,7 +199,7 @@ if((APP_TRUE == previous.valid) &&
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_transition_numeric.ps1`.
 
-Expected: nonzero exit because FK still references deleted rectangle fields or an adjacent branch jump is detected.
+Expected: nonzero exit because the new full-grid/continuity contract exposes a rectangle-blocked model point or an adjacent branch jump.
 
 - [ ] **Step 3: Remove rectangular FK filtering**
 

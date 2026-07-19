@@ -52,6 +52,34 @@ function Write-NumericHarness {
 #include <math.h>
 #include <stdio.h>
 
+static int check_model_reachable_commands(void)
+{
+    static const float commands[][2] =
+    {
+        {40.0f, 140.0f}, {45.0f, 135.0f},
+        {50.0f, 130.0f}, {60.0f, 120.0f}
+    };
+    uint32 i;
+    for(i = 0U; i < (sizeof(commands) / sizeof(commands[0])); i++)
+    {
+        float x_mm;
+        float y_mm;
+        leg_ik_result_struct left;
+        leg_ik_result_struct right;
+        if((APP_TRUE != leg_kinematics_forward_command(APP_FALSE,
+                                                       commands[i][0], commands[i][1],
+                                                       &x_mm, &y_mm)) ||
+           (APP_TRUE != leg_kinematics_target_valid(x_mm, y_mm)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_FALSE, x_mm, y_mm, NULL, &left)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_TRUE, x_mm, y_mm, NULL, &right)))
+        {
+            printf("model-reachable command rejected at index %u\n", (unsigned int)i);
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int main(void)
 {
     leg_ik_result_struct left_ref = {0};
@@ -60,10 +88,6 @@ int main(void)
     leg_ik_result_struct right_target = {0};
     float reference_cmd[LEG_SERVO_COUNT];
     float target_cmd[LEG_SERVO_COUNT];
-    float low_left_x;
-    float low_left_y;
-    float low_right_x;
-    float low_right_y;
     static const float physical_points[][2] = {
         {-18.0000f, 47.3567f},
         {-23.5000f, 47.3567f},
@@ -104,64 +128,15 @@ int main(void)
             return (int)(10U + i);
         }
     }
-    if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
+    if(0 != check_model_reachable_commands())
     {
-        return 20;
+        return 30;
     }
-    if((APP_TRUE != leg_kinematics_target_valid(-18.831f, 25.076f)) ||
-       (APP_TRUE != leg_kinematics_target_valid(-18.83f, 25.08f)))
+    if((APP_TRUE == leg_kinematics_target_valid(NAN, 47.3567f)) ||
+       (APP_TRUE == leg_kinematics_target_valid(INFINITY, 47.3567f)) ||
+       (APP_TRUE == leg_kinematics_target_valid(1000.0f, 1000.0f)))
     {
-        return 21;
-    }
-    if((APP_TRUE == leg_kinematics_target_valid(-18.20f, 25.08f)) ||
-       (APP_TRUE == leg_kinematics_target_valid(-18.83f, 24.50f)))
-    {
-        return 22;
-    }
-    if(APP_TRUE != leg_kinematics_solve(APP_FALSE, -18.831f, 25.076f,
-                                        &left_ref, &left_target))
-    {
-        return 23;
-    }
-    if(APP_TRUE != leg_kinematics_solve(APP_TRUE, -18.831f, 25.076f,
-                                        &right_ref, &right_target))
-    {
-        return 24;
-    }
-    if(APP_TRUE != leg_kinematics_map_target_pose(&left_ref, &right_ref,
-                                                   &left_target, &right_target,
-                                                   target_cmd))
-    {
-        return 25;
-    }
-    if((fabsf(target_cmd[LEG_SERVO_FL] - 40.0f) > 0.05f) ||
-       (fabsf(target_cmd[LEG_SERVO_FR] - 140.0f) > 0.05f) ||
-       (fabsf(target_cmd[LEG_SERVO_RL] - 140.0f) > 0.05f) ||
-       (fabsf(target_cmd[LEG_SERVO_RR] - 40.0f) > 0.05f))
-    {
-        fprintf(stderr, "low-race mapped commands: %.6f %.6f %.6f %.6f\n",
-                target_cmd[LEG_SERVO_FL], target_cmd[LEG_SERVO_FR],
-                target_cmd[LEG_SERVO_RL], target_cmd[LEG_SERVO_RR]);
-        return 26;
-    }
-    if((APP_TRUE != leg_kinematics_forward_command(APP_FALSE, 40.0f, 140.0f,
-                                                    &low_left_x, &low_left_y)) ||
-       (APP_TRUE != leg_kinematics_forward_command(APP_TRUE, 140.0f, 40.0f,
-                                                    &low_right_x, &low_right_y)))
-    {
-        return 27;
-    }
-    if((fabsf(low_left_x - (-18.831f)) > 0.01f) ||
-       (fabsf(low_left_y - 25.076f) > 0.01f) ||
-       (fabsf(low_right_x - low_left_x) > 0.01f) ||
-       (fabsf(low_right_y - low_left_y) > 0.01f))
-    {
-        return 28;
-    }
-    if(APP_TRUE == leg_kinematics_forward_command(APP_FALSE, 9.0f, 140.0f,
-                                                   &low_left_x, &low_left_y))
-    {
-        return 29;
+        return 31;
     }
     return 0;
 }

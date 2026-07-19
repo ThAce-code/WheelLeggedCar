@@ -95,11 +95,15 @@ Before every gate, require all of the following:
    disconnected until that gate passes. The ground gates begin only after the
    chassis has been lowered safely, the lane is clear, and the cutoff operator
    confirms wheel power connection.
-3. A fresh, valid trace: channel 7 is 1, IMU age channel 53 is no more than
-   15 ms, leg fault channel 39 is 0, race fault channel 58 is 0, both margins
-   (69/70) are at least `0.02`, and the baseline branch value at 71 is saved.
-4. No branch-bit change, mechanical contact, linkage/end-stop approach,
-   chatter, overheating, supply sag, unexpected motion, or non-finite value.
+3. A fresh trace has IMU age channel 53 no more than 15 ms and leg fault
+   channel 39 equal to 0. Gate 1 and later automatic race-path gates also
+   require channel 7 = 1, race fault channel 58 = 0, both margins (69/70) at
+   least `0.02`, and a saved baseline branch value at 71. Gate 0 instead uses
+   its separate manual LXY channel criteria below.
+4. Stop for mechanical contact, linkage/end-stop approach, chatter,
+   overheating, supply sag, unexpected motion, or a non-finite value. No
+   branch-bit change is required only for Gate 1 and later automatic race-path
+   gates; Gate 0 has no branch-continuity hardware acceptance.
 
 Stop immediately for any exception. First use the physical cutoff if motion is
 unsafe, then send `STOP`, `BRA,0`, and `B,0` when communication is safe. A
@@ -118,11 +122,19 @@ rejects the run.
 
 ## Gate 0: motor-disabled stopped-only manual endpoint gate
 
-Keep the chassis supported and motor power physically disconnected: remove the
-wheel-motor power path rather than relying on a UART stop. No wheel may touch
-the ground. `LIKREF` and `LXY` deliberately remain stopped-only manual
+Keep the chassis supported and motor power physically disconnected. This means
+isolate only the wheel-motor power stage / motor-driver output; BLDC logic,
+UART, and speed feedback remain powered, so channel 7 remains 1. No wheel may
+touch the ground. `LIKREF` and `LXY` deliberately remain stopped-only manual
 commands; do not replace them with `LJ`, manual servo angles, a direct-u UART
 command, or a test image.
+
+If the board cannot isolate the wheel-motor power stage while retaining
+feedback, use a verified firmware/driver output-disabled bench mode. It must
+prove motor torque output is disabled before any LXY command and record the
+exact isolation limitation, firmware SHA, and output-disable evidence. Only
+Gate 0 may waive channel 7 when that fallback itself makes feedback offline;
+the Gate 1 automatic race path never has that waiver.
 
 Send exactly one command at a time. First send `STOP`, then `LIKREF`, and wait
 until `servo_settled=1`. Next run the following manual LXY endpoint/mechanical
@@ -137,21 +149,22 @@ LXY,-16.83,27.08
 LXY,-18.83,25.08
 ```
 
-At each LXY point require `servo_settled=1`, IK valid, both left/right margins
-(channels 69/70) `>=0.02`, zero leg/race fault, and channel-71 branch flags
-equal to the saved neutral baseline. Record the command X/Y and visual
-mechanical result. The three positions are neutral `(-18.83,25.08)`, rearward
-accel endpoint `(-20.83,27.08)`, and forward brake endpoint
-`(-16.83,27.08)`; they remain open-loop command estimates, not measured pose.
+At each LXY point require channel 16 to show IK valid and channel 37 common IK
+margin `>=0.02`. Record channels 22--25 planner target values and channels
+18--21 PWM command values before waiting for channel 31 `servo_settled=1`.
+Reject any no-settle result, invalid IK, common-margin failure, leg fault, no
+large command jump between adjacent manual endpoints, or mechanical
+interference. Record the command X/Y and visual mechanical result. The three
+positions are neutral `(-18.83,25.08)`, rearward accel endpoint
+`(-20.83,27.08)`, and forward brake endpoint `(-16.83,27.08)`; they remain
+open-loop command estimates, not measured pose.
 
-Reject the entire program for no settle, invalid IK, either margin below
-`0.02`, branch-bit change, leg/race fault, or any mechanical interference.
-End the bench gate with `STOP`; do not arm assist during Gate 0.
-
-This gate proves only physical endpoints, stopped-only IK acceptance, and
-servo/mechanical direction. It does not test the automatic race supervisor,
-dynamic `u_request/u_actual`, or the automatic race-path S7 execution. Gate 1
-is the first permitted low-speed automatic-supervisor validation.
+End the bench gate with `STOP`; do not arm assist during Gate 0. Branch
+continuity is proved by software regression, not by this stopped-only manual
+endpoint check. Gate 0 proves only manual endpoint reachability, direction,
+and clearance. It does not test the automatic race supervisor, dynamic
+`u_request/u_actual`, or the automatic race-path S7 execution. Gate 1 is the
+first permitted low-speed automatic-supervisor validation.
 
 ## Gate 1: 250 RPM ground A/B comparison
 
@@ -190,6 +203,9 @@ For both runs record: time spent in 230--250 RPM, peak absolute pitch, peak
 absolute pitch rate, all periods at or above 95% of the active output cap,
 `u_request/u_actual`, command X/Y, branch flags, both margins, feedback/IMU
 freshness, race/leg fault fields, and stop time from `C,0,0` to below 10 RPM.
+For this automatic race path, margins 69/70 and channel-71 branch bits are
+mandatory per-side path evidence; Gate 0's manual endpoint criteria do not
+substitute for them.
 
 Level-1 acceptance is all of the following:
 

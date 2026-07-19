@@ -60,6 +60,57 @@ Require-Pattern $hardwareDoc 'NOT RUN' 'Hardware status must remain explicit.'
 Reject-Pattern $hardwareDoc 'u=0,\+1,0,-1,0' `
     'Gate 0 must not claim an unavailable direct-u supervisor sequence.'
 
+function Require-TextPattern {
+    param(
+        [string]$Text,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    if($Text -notmatch $Pattern) {
+        throw $Message
+    }
+}
+
+$hardwareText = Get-Content -Raw $hardwareDoc
+$gate0Start = $hardwareText.IndexOf("## Gate 0:")
+$gate1Start = $hardwareText.IndexOf("## Gate 1:", $gate0Start)
+if(($gate0Start -lt 0) -or ($gate1Start -lt 0)) {
+    throw "Unable to isolate Gate 0 hardware procedure."
+}
+$gate0Text = $hardwareText.Substring($gate0Start, $gate1Start - $gate0Start)
+$gate1Text = $hardwareText.Substring($gate1Start)
+
+Require-TextPattern $gate0Text '(?s)channel 16.*IK valid' `
+    'Gate 0 must use channel 16 for manual IK validity.'
+Require-TextPattern $gate0Text '(?s)channel 37.*common IK\s+margin.*>=0\.02' `
+    'Gate 0 must use channel 37 common IK margin.'
+Require-TextPattern $gate0Text '(?s)channels\s+22--25.*planner target' `
+    'Gate 0 must record planner targets.'
+Require-TextPattern $gate0Text '(?s)channels\s+18--21.*PWM command' `
+    'Gate 0 must record PWM command outputs.'
+Require-TextPattern $gate0Text '(?s)channel 31.*servo_settled=1' `
+    'Gate 0 must require the settled flag.'
+Require-TextPattern $gate0Text 'no\s+large command jump' `
+    'Gate 0 must reject large manual command jumps.'
+Require-TextPattern $gate0Text '(?s)branch\s+continuity.*software regression' `
+    'Gate 0 must defer branch continuity proof to software regression.'
+if($gate0Text -match '69/70|channel-71|branch flags') {
+    throw "Gate 0 must not use race-only margin or branch telemetry."
+}
+Require-TextPattern $gate1Text '(?s)margins 69/70.*channel-71 branch bits' `
+    'Gate 1 automatic path must retain per-side margins and branch bits.'
+Require-Pattern $hardwareDoc 'wheel-motor power stage' `
+    'Physical disconnection must name the isolated motor power stage.'
+Require-Pattern $hardwareDoc '(?s)BLDC logic,\s*UART, and speed feedback remain powered' `
+    'Gate 0 must retain logic and feedback after power-stage isolation.'
+Require-Pattern $hardwareDoc 'channel 7 remains 1' `
+    'Gate 0 must require live wheel feedback when the power stage is isolated.'
+Require-Pattern $hardwareDoc 'firmware/driver output-disabled bench mode' `
+    'Gate 0 needs an executable fallback when power isolation loses feedback.'
+Require-Pattern $hardwareDoc '(?s)Only\s+Gate 0 may waive channel 7' `
+    'Feedback-waiver scope must be limited to Gate 0.'
+
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
     "Race assist leg mode missing."
 Require-Pattern $header 'control_leg_set_race_assist_request\(float u_request,\s*float dx_mm,\s*float dy_mm,\s*uint32 now_ms\)' `

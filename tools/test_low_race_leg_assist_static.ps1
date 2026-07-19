@@ -113,6 +113,18 @@ Require-Pattern $chassis 'forward_before_ramp_rpm\s*=\s*control_chassis_cmd\.act
     "Race fault deceleration must retain the pre-ramp forward target."
 Reject-Pattern $hostCommand 'control_leg_set_xy[\s\S]{0,400}control_leg_set_race_assist_request' `
     "Manual LXY must not become the moving assist path."
+Require-Pattern $hostCommand "'B' == line\[0\].*'R' == line\[1\].*'A' == line\[2\]" `
+    "BRA command parser missing."
+Require-Pattern $hostCommand 'control_chassis_set_race_assist_level' `
+    "BRA must call the level setter."
+Require-Pattern $hostCommand "'A' == line\[2\][\s\S]{0,300}\(0\.0f <= value\)[\s\S]{0,100}\(value == \(float\)\(\(uint8\)value\)\)" `
+    "BRA must range-check before converting the level to uint8."
+Require-Pattern $hostCommand "'B' == line\[0\].*'R' == line\[1\].*'G' == line\[2\]" `
+    "BRG command parser missing."
+Require-Pattern $hostCommand 'control_chassis_set_race_assist_gains' `
+    "BRG must call the bounded gain setter."
+Require-Pattern $hostCommand 'host_command_match_stop\(line\)[\s\S]*control_chassis_set_race_assist_level\(0U' `
+    "STOP must disarm race assist."
 
 $raceFaultStart = (Get-Content -Raw $chassis).IndexOf("if(RACE_ASSIST_FAULT_HOLD == race_output->state)")
 $raceFaultEnd = (Get-Content -Raw $chassis).IndexOf("if(APP_TRUE == race_output->enable)", $raceFaultStart)

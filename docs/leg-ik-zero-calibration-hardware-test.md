@@ -27,14 +27,16 @@ compensation, or balance gains.
 to the five-bar lower-half-plane with real roots, the IK margin is at least
 `0.02`, and both left and right candidates map to valid commands within the
 configured servo limits. This is a command/model estimate gate, not measured
-feedback or an empirical coordinate boundary. `LXY,0,55` must be rejected.
+feedback or an empirical coordinate boundary. `LXY,0,55` is accepted only
+when the same model-reachable root, margin, and two-sided servo-limit checks
+pass; its coordinates are not pre-rejected.
 
 ### Model-reachable low command example
 
-The hardware-tested mirrored command `LIK,40,140,140,40` places the left-leg
-logical pair at `40,140`. The current model estimates this pose as
-`BODY_WHEEL=(-18.831,25.076) mm`. This is a command/model estimate, not a
-measured wheel-centre calibration sample.
+The model/command example `LIK,40,140,140,40` places the left-leg logical pair
+at `40,140`. The current model estimates this pose as
+`BODY_WHEEL=(-18.831,25.076) mm`. This is not a measured wheel-centre
+calibration sample or hardware acceptance for the full workspace.
 
 With the chassis supported and wheel power disconnected, run one command at a
 time and wait for the output to settle:
@@ -149,13 +151,13 @@ LXY,<P2_X>,<P2_Y>
 STOP
 ```
 
-Then verify the legacy model-space-looking command is rejected without servo
-motion:
+Then verify `LXY,1000,1000`, a truly unreachable command, must be rejected
+without servo motion:
 
 ```text
 STOP
 LIKREF
-LXY,0,55
+LXY,1000,1000
 STOP
 ```
 
@@ -193,9 +195,9 @@ The left leg source is measured calibration. The right leg has mirror
 assumption provenance until it is measured independently at P0, P1, and P2.
 Do not infer right measurements from left values. Dynamic wheel shift remains
 prohibited until those independent right-leg measurements are recorded and
-reviewed. Verify `LXY,0,55` is rejected and produces no servo output change;
-also verify invalid FK clears the relevant validity bit without replacing X/Y
-with a legacy stance value.
+reviewed. Verify `LXY,1000,1000` is rejected and produces no servo output
+change; also verify invalid FK clears the relevant validity bit without
+replacing X/Y with a legacy stance value.
 
 ## Completion record
 

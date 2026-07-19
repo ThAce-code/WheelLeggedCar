@@ -171,9 +171,9 @@ Assert-Contains "project/code/control_balance.c" "LEG_MOTION_TRANSITION" "Balanc
 Assert-Contains "project/code/control_balance.c" "LEG_MOTION_STABLE" "Balance must schedule gains during stable legacy stance control."
 Assert-Contains "project/code/control_balance.c" "legacy_stance_ref_units" "Balance scheduling must use the open-loop legacy stance reference."
 
-Assert-Contains "project/code/telemetry.c" "float vofa_data\[55\]" "Telemetry must emit 55 floats."
-Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 55" "Collector must parse 55 floats."
-Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 55" "Calibration tool must parse 55 floats."
+Assert-Contains "project/code/telemetry.c" "float vofa_data\[72\]" "Telemetry must emit 72 floats."
+Assert-Contains "tools/collect_balance_data.ps1" "\$FloatCount = 72" "Collector must parse 72 floats."
+Assert-Contains "tools/calib_ik_servo.ps1" "\$FloatCount = 72" "Calibration tool must parse 72 floats."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_legacy_stance_ref_units" "Collector must write the legacy stance reference."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_pose_status_flags" "Collector must retain packed pose status."
 Assert-Contains "tools/collect_balance_data.ps1" "leg_left_pose_source" "Collector must decode left pose provenance."

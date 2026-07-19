@@ -66,21 +66,28 @@ Require-Pattern $leg 'servo_target_deg\[i\]\s*=\s*control_leg_actuator_diag\.tar
 Reject-Pattern $leg 'servo_target_deg\[i\]\s*=\s*control_leg_servo_cmd\.angle_deg\[i\]' 'Planner and actuator snapshots must not be mixed in one telemetry frame.'
 
 # The hardware log must make scheduler skips, servo ISR progress and telemetry
-# backpressure observable while keeping the 10 ms UART frame below 50% usage.
+# backpressure observable while keeping the 20 ms UART frame below 50% usage.
+Require-Pattern $config 'APP_TELEMETRY_PERIOD_MS\s+\(20U\)' 'Telemetry period must be 20 ms.'
+Require-Pattern $config 'APP_CHASSIS_PERIOD_MS\s+\(5U\)' 'Chassis control period must remain 5 ms.'
+Require-Pattern $config 'APP_BALANCE_PERIOD_MS\s+\(5U\)' 'Balance control period must remain 5 ms.'
+Require-Pattern $config 'APP_LEG_CONTROL_PERIOD_MS\s+\(10U\)' 'Leg control period must remain 10 ms.'
+Require-Pattern $config 'APP_MOTOR_PERIOD_MS\s+\(1U\)' 'Motor control period must remain 1 ms.'
+Require-Pattern $config 'APP_SERVO_PWM_FREQ_HZ\s+\(300U\)' 'Servo PWM frequency must remain 300 Hz.'
 Require-Pattern $schedulerH 'app_scheduler_get_missed_tick_count' 'Scheduler must expose merged tick count.'
 Require-Pattern $schedulerH 'app_scheduler_get_max_gap_ms' 'Scheduler must expose its maximum service gap.'
 Require-Pattern $scheduler 'app_scheduler_missed_tick_count\s*\+=' 'Scheduler must count merged 1 ms ticks.'
 Require-Pattern $servoH 'actuator_servo_get_tick_count' 'Servo actuator must expose its 300 Hz ISR tick count.'
-Require-Pattern $telemetry 'float vofa_data\[55\]' 'Timing telemetry must emit 55 floats.'
+Require-Pattern $telemetry 'float vofa_data\[72\]' 'Timing telemetry must emit 72 floats.'
 Require-Pattern $telemetry 'telemetry_drop_count\+\+' 'Telemetry must count frames skipped under backpressure.'
-Require-Pattern $collector '\$FloatCount\s*=\s*55' 'Collector must parse the timing diagnostics frame.'
+Require-Pattern $collector '\$FloatCount\s*=\s*72' 'Collector must parse the timing diagnostics frame.'
 Require-Pattern $collector 'leg_pose_status_flags' 'Collector must retain the packed pose status float.'
 Require-Pattern $collector 'measured_calibration' 'Collector must decode measured-calibration provenance.'
 Require-Pattern $collector 'mirror_assumption' 'Collector must decode mirror-assumption provenance.'
 
-$frameBytes = (55 * 4) + 4
+$frameBytes = (72 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0
-if(($txMs / 10.0) -ge 0.5) {
+$occupancy = $txMs / 20.0
+if($occupancy -ge 0.5) {
     throw 'Timing telemetry line utilization must remain below 50 percent.'
 }
 

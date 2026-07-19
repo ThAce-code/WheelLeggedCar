@@ -34,10 +34,12 @@ Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
 # One packed status float expands to five decoded status/provenance columns.
-# 4 metadata + 55 wire values + 5 decoded fields + note = 65 fields.
-Assert-True (($Fields.Split(",").Count -eq 65)) "CSV header and decoded telemetry column count must remain synchronized"
+# 4 metadata + 72 wire values + 5 decoded fields + note = 82 fields.
+Assert-True (($Fields.Split(",").Count -eq 82)) "CSV header and decoded telemetry column count must remain synchronized"
+Assert-True ($FloatCount -eq 72) "collector must decode the 72-float wire contract"
 
-# 55-float test frame: indices 0-45 control data, 46-54 timing diagnostics.
+# 72-float test frame: indices 0-45 control data, 46-54 timing diagnostics,
+# 55-71 race-assist diagnostics.
 # Pose status 31 sets IK valid, both pose-valid bits, measured-left source,
 # and mirror-assumption right source.
 $values = [single[]](
@@ -49,7 +51,9 @@ $values = [single[]](
     0.5, 0.0, 0.5,
     -20.75, 47.25, -20.50, 47.00, 0.42, 2.0, 1.0,
     35.0, 1.0, 1.0, 0.0, 2.0, 250.0,
-    42.0, 3.0, 7.0, 4.0, 12345.0, 987.0, 2.0, 6.0, -1.75
+    42.0, 3.0, 7.0, 4.0, 12345.0, 987.0, 2.0, 6.0, -1.75,
+    1.0, 4.0, 2.0, 3.0, -0.70, -0.60, 125.0, 150.0, 148.0, 140.0,
+    10.0, -1.35, 300.0, 0.80, 0.25, 0.50, 9.0
 )
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
@@ -126,6 +130,25 @@ Assert-Near $frames[0].imu_invalid_count 2.0 0.001 "imu_invalid_count"
 Assert-Near $frames[0].imu_age_ms 6.0 0.001 "imu_age_ms"
 Assert-Near $frames[0].gyro_y_raw_dps -1.75 0.001 "gyro_y_raw_dps"
 
+# 55-71: race-assist diagnostics
+Assert-Near $frames[0].race_assist_enable 1.0 0.001 "race_assist_enable"
+Assert-Near $frames[0].race_assist_level 4.0 0.001 "race_assist_level"
+Assert-Near $frames[0].race_assist_state 2.0 0.001 "race_assist_state"
+Assert-Near $frames[0].race_assist_fault_reason 3.0 0.001 "race_assist_fault_reason"
+Assert-Near $frames[0].race_u_request -0.70 0.001 "race_u_request"
+Assert-Near $frames[0].race_u_actual -0.60 0.001 "race_u_actual"
+Assert-Near $frames[0].requested_accel_rpm_s 125.0 0.001 "requested_accel_rpm_s"
+Assert-Near $frames[0].forward_target_rpm 150.0 0.001 "forward_target_rpm"
+Assert-Near $frames[0].forward_ramped_rpm 148.0 0.001 "forward_ramped_rpm"
+Assert-Near $frames[0].wheel_speed_measured_rpm 140.0 0.001 "wheel_speed_measured_rpm"
+Assert-Near $frames[0].speed_error_rpm 10.0 0.001 "speed_error_rpm"
+Assert-Near $frames[0].pitch_setpoint_deg -1.35 0.001 "pitch_setpoint_deg"
+Assert-Near $frames[0].balance_output_limit_rpm 300.0 0.001 "balance_output_limit_rpm"
+Assert-Near $frames[0].race_turn_scale 0.80 0.001 "race_turn_scale"
+Assert-Near $frames[0].left_ik_margin 0.25 0.001 "left_ik_margin"
+Assert-Near $frames[0].right_ik_margin 0.50 0.001 "right_ik_margin"
+Assert-Near $frames[0].ik_branch_flags 9.0 0.001 "ik_branch_flags"
+
 Assert-True ($Fields -match "servo0_target_deg") "CSV header must include servo target"
 Assert-True ($Fields -match "servo0_filtered_deg") "CSV header must include servo filtered"
 Assert-True ($Fields -match "servo_max_error_deg") "CSV header must include max error"
@@ -140,6 +163,12 @@ Assert-True ($Fields -match "leg_right_pose_source") "CSV header must include ri
 Assert-True ($Fields -match "leg_legacy_stance_target_units") "CSV header must include legacy stance target"
 Assert-True ($Fields -match "leg_legacy_stance_ref_units") "CSV header must include legacy stance reference"
 Assert-True ($Fields -match "leg_legacy_stance_norm") "CSV header must include legacy stance norm"
+Assert-True ($Fields -match "race_assist_enable") "CSV header must include race assist enable"
+Assert-True ($Fields -match "race_u_actual") "CSV header must include race actual request"
+Assert-True ($Fields -match "requested_accel_rpm_s") "CSV header must include requested acceleration"
+Assert-True ($Fields -match "forward_ramped_rpm") "CSV header must include ramped forward target"
+Assert-True ($Fields -match "balance_output_limit_rpm") "CSV header must include balance output limit"
+Assert-True ($Fields -match "ik_branch_flags") "CSV header must include IK branch flags"
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($Fields -notmatch "leg_height_cmd_est_mm") "CSV header must not duplicate the legacy stance reference"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"

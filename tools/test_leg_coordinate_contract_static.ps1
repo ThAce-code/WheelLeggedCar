@@ -36,7 +36,7 @@ Reject-Pattern $leg '(left|right)_x_mm\s*=\s*0\.0f' 'Physical X must never be fa
 Reject-Pattern $leg '(left|right)_y_mm\s*=\s*control_leg_legacy_stance_ref_units' 'Legacy stance must never be copied into physical Y.'
 Reject-Pattern $leg 'actual_height_mm\s*=' 'Legacy stance must not be published as actual height.'
 
-Require-Pattern $telemetry 'float vofa_data\[55\]' 'Telemetry must remain exactly 55 floats.'
+Require-Pattern $telemetry 'float vofa_data\[72\]' 'Telemetry must remain exactly 72 floats.'
 Require-Pattern $telemetry 'vofa_data\[13\]\s*=\s*leg->legacy_stance_target_units' 'Telemetry index 13 must retain legacy_stance_target_units.'
 Require-Pattern $telemetry 'vofa_data\[14\]\s*=\s*leg->legacy_stance_ref_units' 'Telemetry index 14 must retain legacy_stance_ref_units.'
 Require-Pattern $telemetry 'vofa_data\[15\]\s*=\s*leg->legacy_stance_norm' 'Telemetry index 15 must retain legacy_stance_norm.'
@@ -47,9 +47,27 @@ Require-Pattern $telemetry 'vofa_data\[34\]\s*=\s*leg->left_command_pose_body_mm
 Require-Pattern $telemetry 'vofa_data\[35\]\s*=\s*leg->right_command_pose_body_mm\.x_mm' 'Telemetry index 35 must be right command X.'
 Require-Pattern $telemetry 'vofa_data\[36\]\s*=\s*leg->right_command_pose_body_mm\.y_mm' 'Telemetry index 36 must be right command Y.'
 Require-Pattern $telemetry 'vofa_data\[37\]\s*=\s*leg->ik_margin' 'Telemetry index 37 must retain IK margin.'
+Require-Pattern $telemetry 'vofa_data\[55\]\s*=\s*\(float\)chassis->race_assist_enable' 'Telemetry index 55 must publish race enable.'
+Require-Pattern $telemetry 'vofa_data\[56\]\s*=\s*\(float\)chassis->race_assist_level' 'Telemetry index 56 must publish race level.'
+Require-Pattern $telemetry 'vofa_data\[57\]\s*=\s*\(float\)chassis->race_assist_state' 'Telemetry index 57 must publish race state.'
+Require-Pattern $telemetry 'vofa_data\[58\]\s*=\s*\(float\)chassis->race_assist_fault_reason' 'Telemetry index 58 must publish race fault reason.'
+Require-Pattern $telemetry 'vofa_data\[59\]\s*=\s*chassis->race_u_request' 'Telemetry index 59 must publish race request.'
+Require-Pattern $telemetry 'vofa_data\[60\]\s*=\s*leg->race_assist_actual' 'Telemetry index 60 must publish race actual.'
+Require-Pattern $telemetry 'vofa_data\[61\]\s*=\s*chassis->requested_accel_rpm_s' 'Telemetry index 61 must publish requested acceleration.'
+Require-Pattern $telemetry 'vofa_data\[62\]\s*=\s*chassis->forward_target_rpm' 'Telemetry index 62 must publish forward target.'
+Require-Pattern $telemetry 'vofa_data\[63\]\s*=\s*chassis->forward_actual_rpm' 'Telemetry index 63 must publish ramped forward target.'
+Require-Pattern $telemetry 'vofa_data\[64\]\s*=\s*chassis->wheel_speed_measured_rpm' 'Telemetry index 64 must publish measured wheel speed.'
+Require-Pattern $telemetry 'vofa_data\[65\]\s*=\s*chassis->speed_error_rpm' 'Telemetry index 65 must publish speed error.'
+Require-Pattern $telemetry 'vofa_data\[66\]\s*=\s*balance->pitch_setpoint_deg' 'Telemetry index 66 must publish pitch setpoint.'
+Require-Pattern $telemetry 'vofa_data\[67\]\s*=\s*balance->balance_output_limit_rpm' 'Telemetry index 67 must publish balance output limit.'
+Require-Pattern $telemetry 'vofa_data\[68\]\s*=\s*chassis->race_turn_scale' 'Telemetry index 68 must publish race turn scale.'
+Require-Pattern $telemetry 'vofa_data\[69\]\s*=\s*leg->left_ik_margin' 'Telemetry index 69 must publish left IK margin.'
+Require-Pattern $telemetry 'vofa_data\[70\]\s*=\s*leg->right_ik_margin' 'Telemetry index 70 must publish right IK margin.'
+Require-Pattern $telemetry 'vofa_data\[71\]\s*=\s*\(float\)leg->ik_branch_flags' 'Telemetry index 71 must publish IK branch flags.'
 Require-Pattern $telemetry 'LEG_POSE_STATUS_IK_VALID[\s\S]*LEG_POSE_STATUS_LEFT_VALID[\s\S]*LEG_POSE_STATUS_RIGHT_VALID[\s\S]*LEG_POSE_STATUS_LEFT_MEASURED[\s\S]*LEG_POSE_STATUS_RIGHT_MIRROR' 'Telemetry must encode all five pose status bits.'
 
-Require-Pattern $collector '\$FloatCount\s*=\s*55' 'Collector must keep the 55-float wire contract.'
+Require-Pattern $collector '\$FloatCount\s*=\s*72' 'Collector must keep the 72-float wire contract.'
+Require-Pattern $calibration '\$FloatCount\s*=\s*72' 'Calibration tool must keep the 72-float wire contract.'
 Require-Pattern $collector 'leg_left_command_x_mm' 'Collector must decode left physical X.'
 Require-Pattern $collector 'leg_left_command_y_mm' 'Collector must decode left physical Y.'
 Require-Pattern $collector 'leg_right_command_x_mm' 'Collector must decode right physical X.'
@@ -67,6 +85,12 @@ Require-Pattern $calibration 'left_pose_source' 'Calibration CSV must record lef
 Require-Pattern $calibration 'right_pose_source' 'Calibration CSV must record right pose provenance.'
 Require-Pattern $calibration '\$csvFields\s*=[\s\S]*"leg_pose_status_flags"' 'Calibration CSV must record the packed pose status.'
 Require-Pattern $calibration 'legacy_stance_ref_units' 'Calibration CSV must name the legacy stance reference honestly.'
+Require-Pattern $calibration 'race_assist_enable' 'Calibration parser must decode race enable.'
+Require-Pattern $calibration 'race_u_actual' 'Calibration parser must decode race actual.'
+Require-Pattern $calibration 'requested_accel_rpm_s' 'Calibration parser must decode requested acceleration.'
+Require-Pattern $calibration 'forward_ramped_rpm' 'Calibration parser must decode ramped forward target.'
+Require-Pattern $calibration 'balance_output_limit_rpm' 'Calibration parser must decode balance output limit.'
+Require-Pattern $calibration 'ik_branch_flags' 'Calibration parser must decode IK branch flags.'
 
 $runtimeFiles = @(
     "project/code/app_types.h",
@@ -108,8 +132,9 @@ Require-Pattern $ikDoc 'motor-disabled[\s\S]*Target X[\s\S]*Measured X[\s\S]*Err
 Require-Pattern $heightDoc 'legacy stance units' `
     'Height hardware procedure must label LH/LHF inputs as legacy stance units.'
 
-$frameBytes = (55 * 4) + 4
+$frameBytes = (72 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0
-if(($txMs / 10.0) -ge 0.5) { throw 'Telemetry line utilization must remain below 50 percent.' }
+$occupancy = $txMs / 20.0
+if($occupancy -ge 0.5) { throw 'Telemetry line utilization must remain below 50 percent.' }
 
 Write-Host "leg coordinate contract static checks passed"

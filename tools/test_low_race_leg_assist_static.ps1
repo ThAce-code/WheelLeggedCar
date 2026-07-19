@@ -34,6 +34,9 @@ $chassis = "project/code/control_chassis.c"
 $config = "project/code/app_config.h"
 $balance = "project/code/control_balance.c"
 $hostCommand = "project/code/host_command.c"
+$telemetry = "project/code/telemetry.c"
+$collector = "tools/collect_balance_data.ps1"
+$calibration = "tools/calib_ik_servo.ps1"
 
 Require-Pattern $header 'LEG_MODE_RACE_ASSIST' `
     "Race assist leg mode missing."
@@ -67,6 +70,46 @@ Require-Pattern $config 'APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT\s+\(300\.0f\)' `
     "Non-assisted balance must retain the validated 300 RPM runtime cap."
 Require-Pattern $types 'balance_output_limit_rpm' `
     "Active balance cap must be observable."
+Require-Pattern $telemetry 'float vofa_data\[72\]' `
+    "Race diagnostics require the exact 72-float frame."
+Require-Pattern $telemetry 'vofa_data\[55\]\s*=\s*\(float\)chassis->race_assist_enable' `
+    "Race enable must occupy telemetry index 55."
+Require-Pattern $telemetry 'vofa_data\[56\]\s*=\s*\(float\)chassis->race_assist_level' `
+    "Race level must occupy telemetry index 56."
+Require-Pattern $telemetry 'vofa_data\[57\]\s*=\s*\(float\)chassis->race_assist_state' `
+    "Race state must occupy telemetry index 57."
+Require-Pattern $telemetry 'vofa_data\[58\]\s*=\s*\(float\)chassis->race_assist_fault_reason' `
+    "Race fault must occupy telemetry index 58."
+Require-Pattern $telemetry 'vofa_data\[59\]\s*=\s*chassis->race_u_request' `
+    "Race request must occupy telemetry index 59."
+Require-Pattern $telemetry 'vofa_data\[60\]\s*=\s*leg->race_assist_actual' `
+    "Race actual must occupy telemetry index 60."
+Require-Pattern $telemetry 'vofa_data\[61\]\s*=\s*chassis->requested_accel_rpm_s' `
+    "Requested acceleration must occupy telemetry index 61."
+Require-Pattern $telemetry 'vofa_data\[62\]\s*=\s*chassis->forward_target_rpm' `
+    "Forward target must occupy telemetry index 62."
+Require-Pattern $telemetry 'vofa_data\[63\]\s*=\s*chassis->forward_actual_rpm' `
+    "Ramped forward target must occupy telemetry index 63."
+Require-Pattern $telemetry 'vofa_data\[64\]\s*=\s*chassis->wheel_speed_measured_rpm' `
+    "Measured wheel speed must occupy telemetry index 64."
+Require-Pattern $telemetry 'vofa_data\[65\]\s*=\s*chassis->speed_error_rpm' `
+    "Speed error must occupy telemetry index 65."
+Require-Pattern $telemetry 'vofa_data\[66\]\s*=\s*balance->pitch_setpoint_deg' `
+    "Pitch setpoint must occupy telemetry index 66."
+Require-Pattern $telemetry 'vofa_data\[67\]\s*=\s*balance->balance_output_limit_rpm' `
+    "Balance output limit must occupy telemetry index 67."
+Require-Pattern $telemetry 'vofa_data\[68\]\s*=\s*chassis->race_turn_scale' `
+    "Race turn scale must occupy telemetry index 68."
+Require-Pattern $telemetry 'vofa_data\[69\]\s*=\s*leg->left_ik_margin' `
+    "Left IK margin must occupy telemetry index 69."
+Require-Pattern $telemetry 'vofa_data\[70\]\s*=\s*leg->right_ik_margin' `
+    "Right IK margin must occupy telemetry index 70."
+Require-Pattern $telemetry 'vofa_data\[71\]\s*=\s*\(float\)leg->ik_branch_flags' `
+    "IK branch flags must occupy telemetry index 71."
+Require-Pattern $collector '\$FloatCount\s*=\s*72' `
+    "Race collector must parse the 72-float frame."
+Require-Pattern $calibration '\$FloatCount\s*=\s*72' `
+    "Race calibration parser must parse the 72-float frame."
 
 Require-Pattern $source 'LEG_TRAJECTORY_RACE_ASSIST' `
     "Dedicated Cartesian race trajectory mode missing."

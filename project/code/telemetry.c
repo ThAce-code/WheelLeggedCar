@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: telemetry.c
-* Description: VOFA+ telemetry — nonblocking 55-float frame for leg-servo validation.
-*              At 460800 baud / 8N1, 224 bytes (55x4 + 4B tail) is about 4.86 ms per 10 ms frame.
+* Description: VOFA+ telemetry — nonblocking 72-float frame for leg-servo and race validation.
+*              At 460800 baud / 8N1, 292 bytes (72x4 + 4B tail) is about 6.34 ms per 20 ms frame.
 *********************************************************************************************************************/
 
 #include "telemetry.h"
@@ -10,12 +10,13 @@
 #include "actuator_servo.h"
 #include "app_scheduler.h"
 #include "control_balance.h"
+#include "control_chassis.h"
 #include "control_leg.h"
 #include "sensor_imu.h"
 
 static const uint8 telemetry_tail[4] = {0x00, 0x00, 0x80, 0x7F};
 #if APP_TELEMETRY_BALANCE_ENABLE
-static float vofa_data[55];
+static float vofa_data[72];
 #else
 static float vofa_data[8];
 #endif
@@ -39,6 +40,7 @@ void telemetry_update(uint32 now_ms)
     const motor_rpm_loop_diag_struct *rpm_diag;
 #if APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
+    const chassis_output_struct *chassis;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
     uint32 pose_status_flags;
@@ -55,6 +57,7 @@ void telemetry_update(uint32 now_ms)
 
 #if APP_TELEMETRY_BALANCE_ENABLE
     balance = control_balance_get_diag();
+    chassis = control_chassis_get_output();
     leg = control_leg_get_diag();
     imu = sensor_imu_get_state();
     pose_status_flags = 0U;
@@ -153,6 +156,25 @@ void telemetry_update(uint32 now_ms)
     vofa_data[52] = (float)sensor_imu_get_invalid_sample_count();
     vofa_data[53] = (float)(now_ms - imu->timestamp_ms);
     vofa_data[54] = imu->gyro_y_dps;
+
+    /* 55-71: race-assist and bounded-drive diagnostics from this scheduler snapshot */
+    vofa_data[55] = (float)chassis->race_assist_enable;
+    vofa_data[56] = (float)chassis->race_assist_level;
+    vofa_data[57] = (float)chassis->race_assist_state;
+    vofa_data[58] = (float)chassis->race_assist_fault_reason;
+    vofa_data[59] = chassis->race_u_request;
+    vofa_data[60] = leg->race_assist_actual;
+    vofa_data[61] = chassis->requested_accel_rpm_s;
+    vofa_data[62] = chassis->forward_target_rpm;
+    vofa_data[63] = chassis->forward_actual_rpm;
+    vofa_data[64] = chassis->wheel_speed_measured_rpm;
+    vofa_data[65] = chassis->speed_error_rpm;
+    vofa_data[66] = balance->pitch_setpoint_deg;
+    vofa_data[67] = balance->balance_output_limit_rpm;
+    vofa_data[68] = chassis->race_turn_scale;
+    vofa_data[69] = leg->left_ik_margin;
+    vofa_data[70] = leg->right_ik_margin;
+    vofa_data[71] = (float)leg->ik_branch_flags;
     telemetry_frame_sequence++;
 #else
     vofa_data[0] = (float)now_ms;

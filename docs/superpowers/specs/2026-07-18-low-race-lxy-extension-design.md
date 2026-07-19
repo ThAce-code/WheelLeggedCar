@@ -55,11 +55,20 @@ the parser.  It contains:
 - an enable flag;
 - the estimated `BODY_WHEEL` X and Y target;
 - a small X/Y acceptance tolerance;
+- a low-race-only minimum IK margin;
+- explicit low-race alpha/beta branch selection;
 - the minimally extended private-model Y lower bound.
 
 The initial acceptance tolerance is `0.5 mm` per axis.  This permits rounded
 commands such as `LXY,-18.83,25.08` while rejecting unrelated uncalibrated
-coordinates.
+coordinates.  The hardware-tested pose has a minimum geometric IK margin of
+approximately `0.0244`, below the normal `0.20` gate.  The experimental window
+therefore uses a nonzero `0.02` minimum while all normal targets retain `0.20`.
+The tested `40,140` pose uses the `PLUS` beta root rather than the normal
+`MINUS` beta branch.  Inside the narrow experimental window, both alpha and
+beta branches are explicitly `PLUS`, and nearest-root continuity must not
+override them.  The shared S7 command trajectory remains responsible for a
+smooth physical transition.
 
 ## Diagnostics
 

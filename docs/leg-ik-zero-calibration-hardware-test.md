@@ -27,6 +27,26 @@ The command hull is the calibrated convex workspace inset by 2 mm. Select
 test points from that inset hull; it is not a rectangular X/Y limit.
 `LXY,0,55` is outside the calibrated physical workspace and must be rejected.
 
+### Experimental low-race target
+
+The hardware-tested mirrored command `LIK,40,140,140,40` places the left-leg
+logical pair at `40,140`. The current model estimates this pose as
+`BODY_WHEEL=(-18.831,25.076) mm`. This is an experimental command estimate,
+not a measured wheel-centre calibration sample.
+
+With the vehicle supported and wheel-motor power disconnected, run one command
+at a time and wait for the previous trajectory to settle:
+
+```text
+STOP
+LIKREF
+LXY,-18.83,25.08
+```
+
+Require telemetry `servo_settled=1`, `fault_reason=0`, and planner targets near
+`[40,140,140,40]`. Stop immediately for mechanical interference. Passing this
+static gate does not enable dynamic wheel shift or balance fast mode.
+
 ## Safety prerequisites
 
 1. Put the vehicle on a rigid support so neither wheels nor chassis can fall.

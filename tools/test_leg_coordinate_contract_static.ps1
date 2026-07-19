@@ -91,6 +91,10 @@ Require-Pattern $ikDoc 'LIKREF\s*=\s*\(-20\.766667,\s*47\.356667\)' `
     'Exact physical LIKREF point is missing from the IK hardware procedure.'
 Require-Pattern $ikDoc 'LXY,0,55[\s\S]*must be rejected' `
     'The invalid legacy LXY reference command must be rejected in the procedure.'
+Require-Pattern $ikDoc 'Experimental low-race[\s\S]*LXY,-18\.83,25\.08' `
+    'Hardware procedure must document the experimental low-race LXY point.'
+Require-Pattern $ikDoc 'Experimental low-race[\s\S]*LIK,40,140,140,40' `
+    'Hardware procedure must tie the low-race estimate to the tested LIK pose.'
 Require-Pattern $ikDoc 'right leg[\s\S]*mirror\s+assumption[\s\S]*independent' `
     'Right-leg independent validation gate is missing from the IK hardware procedure.'
 Require-Pattern $ikDoc 'motor-disabled[\s\S]*Target X[\s\S]*Measured X[\s\S]*Error X[\s\S]*Pose-status[\s\S]*Servo outputs' `

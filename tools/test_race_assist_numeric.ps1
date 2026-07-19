@@ -352,12 +352,76 @@ static int check_reported_leg_path_fault(void)
     return 0;
 }
 
+static int check_low_pose_is_entry_only(void)
+{
+    const race_assist_output_struct *output;
+    race_assist_input_struct input;
+
+    control_race_assist_init();
+    if((APP_TRUE != control_race_assist_set_gains(0.005f, 0.005f, 0.15f)) ||
+       (APP_TRUE != control_race_assist_set_level(1U)))
+    {
+        return 1;
+    }
+
+    input = healthy_input();
+    control_race_assist_update(&input);
+    input.target_rpm = 240.0f;
+    input.ramped_rpm = 240.0f;
+    input.measured_rpm = 240.0f;
+    control_race_assist_update(&input);
+    if(expect_state(RACE_ASSIST_ARMED))
+    {
+        return 1;
+    }
+
+    input.target_rpm = 250.0f;
+    input.ramped_rpm = 250.0f;
+    input.measured_rpm = 250.0f;
+    control_race_assist_update(&input);
+    output = control_race_assist_get_output();
+    if(expect_state(RACE_ASSIST_BOOST) || (0.0f >= output->u_request))
+    {
+        return 1;
+    }
+
+    /* Moving away from neutral makes the command estimate non-neutral and the
+       open-loop servo planner unsettled.  Those are entry gates, not runtime
+       faults once BOOST/CRUISE/BRAKE has begun. */
+    input.low_pose_ready = APP_FALSE;
+    input.leg_u_actual = 0.35f;
+    control_race_assist_update(&input);
+    output = control_race_assist_get_output();
+    if(expect_state(RACE_ASSIST_CRUISE_HOLD) ||
+       (RACE_ASSIST_FAULT_NONE != output->fault_reason) ||
+       (APP_TRUE != output->enable))
+    {
+        fprintf(stderr, "operational assist incorrectly rechecked the neutral-pose entry gate\n");
+        return 1;
+    }
+
+    input.target_rpm = 230.0f;
+    input.ramped_rpm = 230.0f;
+    input.measured_rpm = 250.0f;
+    control_race_assist_update(&input);
+    output = control_race_assist_get_output();
+    if(expect_state(RACE_ASSIST_BRAKE) ||
+       (RACE_ASSIST_FAULT_NONE != output->fault_reason) ||
+       (0.0f <= output->u_request))
+    {
+        fprintf(stderr, "runtime brake was blocked after leaving the neutral pose\n");
+        return 1;
+    }
+    return 0;
+}
+
 int main(void)
 {
     if(check_level_profiles() ||
        check_fail_closed_transitions() ||
        check_leg_u_actual_bounds() ||
-       check_reported_leg_path_fault())
+       check_reported_leg_path_fault() ||
+       check_low_pose_is_entry_only())
     {
         fprintf(stderr, "race assist numeric check failed\n");
         return 1;

@@ -339,6 +339,7 @@ typedef struct
     float right_ik_margin;
     uint8 ik_branch_flags;
     uint8 race_path_valid;
+    uint8 held_command_valid;
 }leg_diag_struct;
 
 #endif

@@ -50,6 +50,42 @@ static uint32              control_leg_race_start_ms;
 static uint32              control_leg_race_duration_ms;
 static uint8               control_leg_race_pending_valid;
 static uint8               control_leg_race_path_valid;
+static float               control_leg_race_preflight_dx_mm;
+static float               control_leg_race_preflight_dy_mm;
+static uint8               control_leg_race_preflight_branch_flags;
+static uint8               control_leg_race_preflight_cache_valid;
+static uint8               control_leg_race_held_command_valid;
+
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+#define CONTROL_LEG_DEMCR              (*((volatile uint32 *)0xE000EDFCUL))
+#define CONTROL_LEG_DWT_CTRL           (*((volatile uint32 *)0xE0001000UL))
+#define CONTROL_LEG_DWT_CYCCNT         (*((volatile uint32 *)0xE0001004UL))
+#define CONTROL_LEG_DEMCR_TRCENA       (1UL << 24)
+#define CONTROL_LEG_DWT_CYCCNTENA      (1UL << 0)
+
+volatile uint32 control_leg_race_preflight_count = 0U;
+volatile uint32 control_leg_race_preflight_last_cycles = 0U;
+volatile uint32 control_leg_race_preflight_max_cycles = 0U;
+
+static uint32 control_leg_race_preflight_wcet_begin(void)
+{
+    CONTROL_LEG_DEMCR |= CONTROL_LEG_DEMCR_TRCENA;
+    CONTROL_LEG_DWT_CTRL |= CONTROL_LEG_DWT_CYCCNTENA;
+    return CONTROL_LEG_DWT_CYCCNT;
+}
+
+static void control_leg_race_preflight_wcet_end(uint32 start_cycles)
+{
+    const uint32 elapsed_cycles = CONTROL_LEG_DWT_CYCCNT - start_cycles;
+
+    control_leg_race_preflight_count++;
+    control_leg_race_preflight_last_cycles = elapsed_cycles;
+    if(control_leg_race_preflight_max_cycles < elapsed_cycles)
+    {
+        control_leg_race_preflight_max_cycles = elapsed_cycles;
+    }
+}
+#endif
 
 #define CONTROL_LEG_LEGACY_CENTER_UNITS          (55.0f)
 #define CONTROL_LEG_EMPIRICAL_CENTER_SERVO_DEG   (90.0f)
@@ -119,6 +155,56 @@ static uint8 control_leg_servo_angle_valid(uint8 servo_index, float angle_deg)
 static float control_leg_absf(float value)
 {
     return (0.0f > value) ? -value : value;
+}
+
+static void control_leg_race_preflight_cache_invalidate(void)
+{
+    control_leg_race_preflight_cache_valid = APP_FALSE;
+}
+
+static uint8 control_leg_race_branch_flags(uint8 *branch_flags)
+{
+    uint8 flags = 0U;
+
+    if((NULL == branch_flags) ||
+       (APP_TRUE != control_leg_ik_previous_left.valid) ||
+       (APP_TRUE != control_leg_ik_previous_right.valid))
+    {
+        return APP_FALSE;
+    }
+    if(LEG_IK_BRANCH_MINUS == control_leg_ik_previous_left.alpha_branch)
+    {
+        flags |= (1U << 0);
+    }
+    if(LEG_IK_BRANCH_MINUS == control_leg_ik_previous_left.beta_branch)
+    {
+        flags |= (1U << 1);
+    }
+    if(LEG_IK_BRANCH_MINUS == control_leg_ik_previous_right.alpha_branch)
+    {
+        flags |= (1U << 2);
+    }
+    if(LEG_IK_BRANCH_MINUS == control_leg_ik_previous_right.beta_branch)
+    {
+        flags |= (1U << 3);
+    }
+    *branch_flags = flags;
+    return APP_TRUE;
+}
+
+static uint8 control_leg_race_command_valid(void)
+{
+    uint8 i;
+
+    for(i = 0U; i < APP_SERVO_COUNT; i++)
+    {
+        if(APP_TRUE != control_leg_servo_angle_valid(i,
+                                                     control_leg_servo_cmd.angle_deg[i]))
+        {
+            return APP_FALSE;
+        }
+    }
+    return APP_TRUE;
 }
 
 typedef enum
@@ -321,6 +407,7 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     control_leg_diag.output_enable = output_enable;
     control_leg_diag.motion_state = control_leg_motion_state;
     control_leg_diag.fault_reason = control_leg_fault_reason;
+    control_leg_diag.held_command_valid = control_leg_race_held_command_valid;
     control_leg_publish_command_pose(APP_FALSE,
                                      LEG_POSE_SOURCE_MEASURED_CALIBRATION,
                                      LEG_SERVO_FL,
@@ -354,7 +441,9 @@ static void control_leg_publish_diag(uint8 ik_valid, uint8 output_enable)
     {
         /* Preserve the finite held command while making the chassis ramp down. */
         control_leg_diag.drive_allowed =
-            ((APP_TRUE == output_enable) && (APP_TRUE == race_cmd_valid)) ? APP_TRUE : APP_FALSE;
+            ((APP_TRUE == output_enable) &&
+             (APP_TRUE == race_cmd_valid) &&
+             (APP_TRUE == control_leg_race_held_command_valid)) ? APP_TRUE : APP_FALSE;
         control_leg_diag.drive_forward_limit_rpm = 0.0f;
     }
     else
@@ -548,6 +637,8 @@ static void control_leg_enter_fault(leg_fault_reason_enum reason)
     control_leg_trajectory_mode = LEG_TRAJECTORY_NONE;
     control_leg_s7_progress = 0.0f;
     control_leg_s7_remaining_ms = 0U;
+    control_leg_race_held_command_valid = APP_FALSE;
+    control_leg_race_preflight_cache_invalidate();
     control_leg_diag.ik_error_count++;
     /* Keep PWM enabled when the application is otherwise runnable; actuator_servo limits this move. */
     control_leg_write_safe_angles(config);
@@ -610,6 +701,10 @@ static uint8 control_leg_race_solve_target(float u,
 static uint8 control_leg_race_preflight(float dx_mm, float dy_mm)
 {
     uint8 sign_index;
+    uint8 branch_flags;
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+    uint32 wcet_start_cycles;
+#endif
 
     if((APP_FALSE == control_leg_ik_reference_valid) ||
        (APP_FALSE == control_leg_ik_previous_left.valid) ||
@@ -621,6 +716,22 @@ static uint8 control_leg_race_preflight(float dx_mm, float dy_mm)
     {
         return APP_FALSE;
     }
+
+    if(APP_TRUE != control_leg_race_branch_flags(&branch_flags))
+    {
+        return APP_FALSE;
+    }
+    if((APP_TRUE == control_leg_race_preflight_cache_valid) &&
+       (0.001f >= control_leg_absf(dx_mm - control_leg_race_preflight_dx_mm)) &&
+       (0.001f >= control_leg_absf(dy_mm - control_leg_race_preflight_dy_mm)) &&
+       (branch_flags == control_leg_race_preflight_branch_flags))
+    {
+        return APP_TRUE;
+    }
+
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+    wcet_start_cycles = control_leg_race_preflight_wcet_begin();
+#endif
 
     for(sign_index = 0U; sign_index < 2U; sign_index++)
     {
@@ -646,12 +757,23 @@ static uint8 control_leg_race_preflight(float dx_mm, float dy_mm)
                                                           &right_target,
                                                           servo_deg))
             {
+                control_leg_race_preflight_cache_invalidate();
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+                control_leg_race_preflight_wcet_end(wcet_start_cycles);
+#endif
                 return APP_FALSE;
             }
             left_previous = left_target;
             right_previous = right_target;
         }
     }
+    control_leg_race_preflight_dx_mm = dx_mm;
+    control_leg_race_preflight_dy_mm = dy_mm;
+    control_leg_race_preflight_branch_flags = branch_flags;
+    control_leg_race_preflight_cache_valid = APP_TRUE;
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+    control_leg_race_preflight_wcet_end(wcet_start_cycles);
+#endif
     return APP_TRUE;
 }
 
@@ -726,6 +848,9 @@ static uint8 control_leg_race_sign_change(float current, float requested)
 
 static void control_leg_enter_race_fault_hold(leg_fault_reason_enum reason)
 {
+    control_leg_race_held_command_valid =
+        ((APP_TRUE == control_leg_race_held_command_valid) &&
+         (APP_TRUE == control_leg_race_command_valid())) ? APP_TRUE : APP_FALSE;
     control_leg_motion_state = LEG_MOTION_RACE_FAULT_HOLD;
     control_leg_fault_reason = reason;
     control_leg_trajectory_mode = LEG_TRAJECTORY_NONE;
@@ -733,6 +858,7 @@ static void control_leg_enter_race_fault_hold(leg_fault_reason_enum reason)
     control_leg_race_u_pending = control_leg_race_u_actual;
     control_leg_race_pending_valid = APP_FALSE;
     control_leg_race_path_valid = APP_FALSE;
+    control_leg_race_preflight_cache_invalidate();
     control_leg_diag.race_path_valid = APP_FALSE;
     control_leg_diag.ik_error_count++;
 }
@@ -834,6 +960,7 @@ static void control_leg_race_update(uint32 now_ms)
     {
         control_leg_servo_cmd.angle_deg[i] = servo_deg[i];
     }
+    control_leg_race_held_command_valid = APP_TRUE;
     control_leg_ik_previous_left = left_target;
     control_leg_ik_previous_right = right_target;
     control_leg_s7_progress = progress;
@@ -903,6 +1030,16 @@ void control_leg_init(void)
         control_leg_race_duration_ms = 0U;
         control_leg_race_pending_valid = APP_FALSE;
         control_leg_race_path_valid = APP_FALSE;
+        control_leg_race_preflight_dx_mm = 0.0f;
+        control_leg_race_preflight_dy_mm = 0.0f;
+        control_leg_race_preflight_branch_flags = 0U;
+        control_leg_race_preflight_cache_valid = APP_FALSE;
+        control_leg_race_held_command_valid = APP_FALSE;
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+        control_leg_race_preflight_count = 0U;
+        control_leg_race_preflight_last_cycles = 0U;
+        control_leg_race_preflight_max_cycles = 0U;
+#endif
         control_leg_trajectory_mode = LEG_TRAJECTORY_NONE;
         control_leg_s7_progress = 0.0f;
         control_leg_s7_remaining_ms = 0U;
@@ -971,7 +1108,7 @@ void control_leg_update(uint32 now_ms)
     else if(LEG_MOTION_RACE_FAULT_HOLD == control_leg_motion_state)
     {
         /* Race fault hold intentionally retains the last finite planned command. */
-        control_leg_publish_diag(APP_TRUE, control_leg_run_enabled());
+        control_leg_publish_diag(APP_FALSE, control_leg_run_enabled());
     }
     else
     {
@@ -1671,6 +1808,11 @@ uint8 control_leg_set_race_assist_request(float u_request,
         return APP_FALSE;
     }
 
+    if(LEG_MODE_RACE_ASSIST != control_leg_mode)
+    {
+        control_leg_race_preflight_cache_invalidate();
+    }
+
     previous_dx_mm = control_leg_race_dx_mm;
     previous_dy_mm = control_leg_race_dy_mm;
     control_leg_race_dx_mm = dx_mm;
@@ -1699,6 +1841,7 @@ uint8 control_leg_set_race_assist_request(float u_request,
             control_leg_race_path_valid = APP_FALSE;
             return APP_FALSE;
         }
+        control_leg_race_held_command_valid = control_leg_race_command_valid();
         control_leg_motion_state = LEG_MOTION_RACE_ASSIST;
         control_leg_fault_reason = LEG_FAULT_NONE;
         control_leg_mode = LEG_MODE_RACE_ASSIST;

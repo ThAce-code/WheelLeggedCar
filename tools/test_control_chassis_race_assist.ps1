@@ -108,6 +108,22 @@ void host_set_motor_rpm(float left_rpm, float right_rpm)
     host_rpm_diag.right_motor_rpm = right_rpm;
 }
 
+void host_set_leg_race_snapshot(float u_actual,
+                                uint8 settled,
+                                float x_mm,
+                                float y_mm)
+{
+    host_leg_diag.mode = (uint8)LEG_MODE_RACE_ASSIST;
+    host_leg_diag.motion_state = LEG_MOTION_RACE_ASSIST;
+    host_leg_diag.race_assist_actual = u_actual;
+    host_leg_diag.race_path_valid = APP_TRUE;
+    host_leg_diag.servo_settled = settled;
+    host_leg_diag.left_command_pose_body_mm.x_mm = x_mm;
+    host_leg_diag.left_command_pose_body_mm.y_mm = y_mm;
+    host_leg_diag.right_command_pose_body_mm.x_mm = x_mm;
+    host_leg_diag.right_command_pose_body_mm.y_mm = y_mm;
+}
+
 const motor_rpm_loop_diag_struct *actuator_motor_get_motor_rpm_loop_diag(void)
 {
     return &host_rpm_diag;
@@ -163,6 +179,10 @@ void control_leg_disable_race_assist(uint32 now_ms)
 void host_chassis_reset(uint32 now_ms, leg_motion_state_enum motion_state);
 void host_set_feedback_healthy(uint8 healthy, uint32 now_ms);
 void host_set_motor_rpm(float left_rpm, float right_rpm);
+void host_set_leg_race_snapshot(float u_actual,
+                                uint8 settled,
+                                float x_mm,
+                                float y_mm);
 extern uint8 host_race_request_accept;
 extern uint32 host_race_request_count;
 
@@ -273,6 +293,7 @@ static int check_rejected_leg_request_decelerates_bounded(void)
     const chassis_output_struct *output;
     float forward_before_fault;
     float fault_ramp_delta;
+    float turn_before_fault;
 
     host_chassis_reset(100U, LEG_MOTION_STABLE);
     control_chassis_init();
@@ -285,11 +306,13 @@ static int check_rejected_leg_request_decelerates_bounded(void)
     for(uint32 now_ms = 100U; now_ms <= 600U; now_ms += 5U)
     {
         host_set_feedback_healthy(APP_TRUE, now_ms);
-        control_chassis_set_cmd(200.0f, 0.0f, APP_TRUE, now_ms);
+        host_set_motor_rpm(350.0f, 350.0f);
+        control_chassis_set_cmd(200.0f, 10.0f, APP_TRUE, now_ms);
         control_chassis_update(now_ms);
     }
     cmd = control_chassis_get_cmd();
     forward_before_fault = cmd->actual_forward_rpm;
+    turn_before_fault = cmd->actual_turn_dps;
     fault_ramp_delta = APP_CHASSIS_FORWARD_RAMP_RPM_S * 0.005f;
     if(1.0f >= forward_before_fault)
     {
@@ -302,7 +325,7 @@ static int check_rejected_leg_request_decelerates_bounded(void)
 
     host_race_request_accept = APP_FALSE;
     host_set_feedback_healthy(APP_TRUE, 605U);
-    control_chassis_set_cmd(200.0f, 0.0f, APP_TRUE, 605U);
+    control_chassis_set_cmd(200.0f, 10.0f, APP_TRUE, 605U);
     control_chassis_update(605U);
     cmd = control_chassis_get_cmd();
     output = control_chassis_get_output();
@@ -317,7 +340,8 @@ static int check_rejected_leg_request_decelerates_bounded(void)
        (0.0f >= cmd->actual_forward_rpm) ||
        expect_near(output->speed_pitch_limit_deg,
                    APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG,
-                   0.001f))
+                   0.001f) ||
+       (turn_before_fault + 0.001f < cmd->actual_turn_dps))
     {
         fprintf(stderr,
                 "race fault policy mismatch: before %.3f target %.3f actual %.3f caps %.3f %.3f output %.3f pitchcap %.3f\n",
@@ -381,6 +405,90 @@ static int check_transition_remains_30_rpm(void)
     return 0;
 }
 
+static int check_bra0_recenter_uses_supervisor_caps(void)
+{
+    const chassis_cmd_struct *cmd;
+    const chassis_output_struct *output;
+    uint32 now_ms;
+    float turn_before_disable;
+
+    host_chassis_reset(100U, LEG_MOTION_STABLE);
+    control_chassis_init();
+    if((APP_TRUE != control_chassis_set_race_assist_gains(0.005f, 0.005f, 0.15f)) ||
+       (APP_TRUE != control_chassis_set_race_assist_level(1U, 100U)))
+    {
+        return 1;
+    }
+    control_chassis_set_fast_enable(APP_TRUE);
+
+    /* Keep C,250,turn alive long enough to enter and operate race assist. */
+    for(now_ms = 100U; now_ms <= 700U; now_ms += 5U)
+    {
+        host_set_feedback_healthy(APP_TRUE, now_ms);
+        host_set_motor_rpm(250.0f, 250.0f);
+        control_chassis_set_cmd(250.0f, 10.0f, APP_TRUE, now_ms);
+        control_chassis_update(now_ms);
+        if(now_ms >= 300U)
+        {
+            host_set_leg_race_snapshot(0.35f,
+                                       APP_FALSE,
+                                       APP_RACE_ASSIST_ZERO_X_MM - 0.70f,
+                                       APP_RACE_ASSIST_ZERO_Y_MM + 0.70f);
+        }
+    }
+    output = control_chassis_get_output();
+    if((RACE_ASSIST_FAULT_HOLD == (race_assist_state_enum)output->race_assist_state) ||
+       (APP_TRUE != output->race_assist_enable))
+    {
+        fprintf(stderr, "race setup faulted after the leg left neutral\n");
+        return 1;
+    }
+    turn_before_disable = control_chassis_get_cmd()->actual_turn_dps;
+
+    if(APP_TRUE != control_chassis_set_race_assist_level(0U, 705U))
+    {
+        return 1;
+    }
+    host_set_feedback_healthy(APP_TRUE, 705U);
+    host_set_motor_rpm(350.0f, 350.0f);
+    control_chassis_set_cmd(250.0f, 10.0f, APP_TRUE, 705U);
+    control_chassis_update(705U);
+    cmd = control_chassis_get_cmd();
+    output = control_chassis_get_output();
+    if((RACE_ASSIST_RECENTER != (race_assist_state_enum)output->race_assist_state) ||
+       (APP_RACE_ASSIST_RECENTER_RPM + 0.001f < cmd->target_forward_rpm) ||
+       (APP_RACE_ASSIST_RECENTER_RPM + 0.001f < output->forward_limit_eff_rpm) ||
+       (APP_RACE_ASSIST_RECENTER_RPM + 0.001f < output->fast_forward_limit_eff_rpm) ||
+       (turn_before_disable + 0.001f < cmd->actual_turn_dps))
+    {
+        fprintf(stderr,
+                "BRA0 recenter ignored supervisor caps: state %u target %.3f caps %.3f %.3f turn %.3f->%.3f\n",
+                output->race_assist_state,
+                cmd->target_forward_rpm,
+                output->forward_limit_eff_rpm,
+                output->fast_forward_limit_eff_rpm,
+                turn_before_disable,
+                cmd->actual_turn_dps);
+        return 1;
+    }
+
+    host_set_leg_race_snapshot(0.0f,
+                               APP_TRUE,
+                               APP_RACE_ASSIST_ZERO_X_MM,
+                               APP_RACE_ASSIST_ZERO_Y_MM);
+    host_set_feedback_healthy(APP_TRUE, 710U);
+    host_set_motor_rpm(190.0f, 190.0f);
+    control_chassis_set_cmd(250.0f, 10.0f, APP_TRUE, 710U);
+    control_chassis_update(710U);
+    output = control_chassis_get_output();
+    if(RACE_ASSIST_DISABLED != (race_assist_state_enum)output->race_assist_state)
+    {
+        fprintf(stderr, "BRA0 did not finish at u=0 below the recenter threshold\n");
+        return 1;
+    }
+    return 0;
+}
+
 int main(void)
 {
     if(check_requested_fast_reaches_supervisor() ||
@@ -388,7 +496,8 @@ int main(void)
        check_rejected_leg_request_stops_same_cycle() ||
        check_rejected_leg_request_decelerates_bounded() ||
        check_unhealthy_feedback_publishes_zero_caps() ||
-       check_transition_remains_30_rpm())
+       check_transition_remains_30_rpm() ||
+       check_bra0_recenter_uses_supervisor_caps())
     {
         return 1;
     }

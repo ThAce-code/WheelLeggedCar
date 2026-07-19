@@ -62,6 +62,29 @@ The programming order is an operational release rule for this board image; it
 is not evidence that a core has started correctly. Record the actual IAR
 download result and any debugger-specific exception in the test log.
 
+### CM7_0 path-preflight WCET diagnostic
+
+The full signed IK path is preflighted only when the race profile first enters,
+`dx_mm`/`dy_mm` changes, the persisted branch identity changes, or the cache is
+invalidated by reset/fault. The production default is
+`APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE=0`, for which the DWT reads and counters
+are compiled out. For a supported, motor-disabled timing build only, set
+`APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE=1`, rebuild CM7_0, and watch these symbols
+in IAR while deliberately causing uncached preflights:
+
+- `control_leg_race_preflight_count`
+- `control_leg_race_preflight_last_cycles`
+- `control_leg_race_preflight_max_cycles`
+
+The hook enables CM7_0 DWT `CYCCNT` and records cycle deltas around only the
+uncached dual-leg signed-path sweep. Convert the maximum cycle count with the
+actual CM7_0 clock used by that image and compare it with the 5 ms chassis
+budget; do not infer WCET from host GCC time or from a cached request.
+
+Current measurement status: **on-target WCET: NOT RUN**. No board/DWT trace was
+captured for this software review, so this section is an executable measurement
+procedure, not timing acceptance evidence.
+
 ## VOFA+ setup and required 72-channel trace
 
 Use the debug UART's current board mapping (normally COM6 at 460800, 8N1) and
@@ -152,8 +175,8 @@ LXY,-18.83,25.08
 At each LXY point require channel 16 to show IK valid and channel 37 common IK
 margin `>=0.02`. Record channels 22--25 planner target values and channels
 18--21 PWM command values before waiting for channel 31 `servo_settled=1`.
-Reject any no-settle result, invalid IK, common-margin failure, leg fault, no
-large command jump between adjacent manual endpoints, or mechanical
+Reject any no-settle result, invalid IK, common-margin failure, leg fault, any
+large or unexpected command jump between adjacent manual endpoints, or mechanical
 interference. Record the command X/Y and visual mechanical result. The three
 positions are neutral `(-18.83,25.08)`, rearward accel endpoint
 `(-20.83,27.08)`, and forward brake endpoint `(-16.83,27.08)`; they remain

@@ -6,6 +6,7 @@
 #ifndef _control_leg_h_
 #define _control_leg_h_
 
+#include "app_config.h"
 #include "app_types.h"
 #include "leg_config.h"
 
@@ -38,6 +39,11 @@ uint8 control_leg_set_race_assist_request(float u_request,
                                           float dy_mm,
                                           uint32 now_ms);
 void control_leg_disable_race_assist(uint32 now_ms);
+#if (APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE == 1U)
+extern volatile uint32 control_leg_race_preflight_count;
+extern volatile uint32 control_leg_race_preflight_last_cycles;
+extern volatile uint32 control_leg_race_preflight_max_cycles;
+#endif
 uint8 control_leg_set_calib_angles(float servo0_deg,
                                    float servo1_deg,
                                    float servo2_deg,

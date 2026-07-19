@@ -301,11 +301,14 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == control_balance_is_finite(imu->pitch)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_dps)) ||
        (APP_FALSE == control_balance_is_finite(wheel_speed_rpm)) ||
-       (((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
-          (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state)) &&
-         ((APP_TRUE != leg->ik_valid) ||
-          (APP_TRUE != leg->output_enable) ||
-          (APP_TRUE != leg->drive_allowed))) ||
+       ((LEG_MOTION_RACE_ASSIST == leg->motion_state) &&
+        ((APP_TRUE != leg->ik_valid) ||
+         (APP_TRUE != leg->output_enable) ||
+         (APP_TRUE != leg->drive_allowed))) ||
+       ((LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) &&
+        ((APP_TRUE != leg->held_command_valid) ||
+         (APP_TRUE != leg->output_enable) ||
+         (APP_TRUE != leg->drive_allowed))) ||
        (APP_BALANCE_TEST_PITCH_LIMIT_DEG < control_balance_absf(imu->pitch)))
     {
         control_balance_diag.safety_blocked = APP_TRUE;
@@ -348,11 +351,12 @@ void control_balance_update(uint32 now_ms)
             legacy_stance_norm = 0.0f;
         }
 
-        if(((LEG_MOTION_TRANSITION == leg->motion_state) ||
-            (LEG_MOTION_STABLE == leg->motion_state) ||
-            (LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
-            (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state)) &&
-           (APP_TRUE == leg->ik_valid) &&
+        if(((((LEG_MOTION_TRANSITION == leg->motion_state) ||
+              (LEG_MOTION_STABLE == leg->motion_state) ||
+              (LEG_MOTION_RACE_ASSIST == leg->motion_state)) &&
+             (APP_TRUE == leg->ik_valid)) ||
+            ((LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) &&
+             (APP_TRUE == leg->held_command_valid))) &&
            (APP_TRUE == leg->output_enable) &&
            (APP_TRUE == leg->drive_allowed))
         {

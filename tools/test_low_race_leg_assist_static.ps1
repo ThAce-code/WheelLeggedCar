@@ -31,6 +31,7 @@ $header = "project/code/control_leg.h"
 $source = "project/code/control_leg.c"
 $types = "project/code/app_types.h"
 $chassis = "project/code/control_chassis.c"
+$supervisor = "project/code/control_race_assist.c"
 $config = "project/code/app_config.h"
 $balance = "project/code/control_balance.c"
 $hostCommand = "project/code/host_command.c"
@@ -57,6 +58,12 @@ Require-Pattern $hardwareDoc 'APP_CHASSIS_CMD_TIMEOUT_MS=500' 'Gate 1 must docum
 Require-Pattern $hardwareDoc '100--200 ms heartbeat' 'Gate 1 must require a command heartbeat.'
 Require-Pattern $hardwareDoc '(?s)single `C,250,0`.*30 RPM' 'Gate 1 must reject a one-shot 250 RPM command.'
 Require-Pattern $hardwareDoc 'NOT RUN' 'Hardware status must remain explicit.'
+Require-Pattern $hardwareDoc 'on-target WCET: NOT RUN' `
+    'The DWT preflight WCET status must remain explicit until measured on CM7_0.'
+Require-Pattern $hardwareDoc 'APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE=1' `
+    'The hardware handoff must show how to enable the default-off DWT hook.'
+Require-Pattern $hardwareDoc 'control_leg_race_preflight_max_cycles' `
+    'The hardware handoff must name the DWT high-water diagnostic.'
 Reject-Pattern $hardwareDoc 'u=0,\+1,0,-1,0' `
     'Gate 0 must not claim an unavailable direct-u supervisor sequence.'
 
@@ -91,8 +98,8 @@ Require-TextPattern $gate0Text '(?s)channels\s+18--21.*PWM command' `
     'Gate 0 must record PWM command outputs.'
 Require-TextPattern $gate0Text '(?s)channel 31.*servo_settled=1' `
     'Gate 0 must require the settled flag.'
-Require-TextPattern $gate0Text 'no\s+large command jump' `
-    'Gate 0 must reject large manual command jumps.'
+Require-TextPattern $gate0Text 'large or unexpected command jump' `
+    'Gate 0 must reject any large or unexpected manual command jump.'
 Require-TextPattern $gate0Text '(?s)branch\s+continuity.*software regression' `
     'Gate 0 must defer branch continuity proof to software regression.'
 if($gate0Text -match '69/70|channel-71|branch flags') {
@@ -137,6 +144,10 @@ Require-Pattern $types 'uint8 ik_branch_flags;' `
     "IK branch diagnostic flags missing."
 Require-Pattern $types 'uint8 race_path_valid;' `
     "Race path-valid diagnostic missing."
+Require-Pattern $types 'uint8 held_command_valid;' `
+    "Race fault hold must distinguish a validated held command from a failed new target."
+Require-Pattern $config 'APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE\s+\(0U\)' `
+    "Preflight WCET instrumentation must be default-off."
 Require-Pattern $config 'APP_BALANCE_RPM_LIMIT\s+\(460\.0f\)' `
     "Hard balance ceiling must leave 400 RPM correction reserve."
 Require-Pattern $config 'APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT\s+\(300\.0f\)' `
@@ -204,6 +215,21 @@ Require-Pattern $source 'LEG_MOTION_RACE_ASSIST' `
     "Race trajectory must publish a drive-allowed motion state."
 Require-Pattern $source 'APP_RACE_ASSIST_REQUEST_DEADBAND' `
     "Race request changes must use the specified deadband."
+Require-Pattern $source 'control_leg_race_preflight_cache_valid' `
+    "Race path preflight must cache a successful profile."
+Require-Pattern $source 'control_leg_race_preflight_branch_flags' `
+    "Race path preflight cache must include persisted branch identity."
+Require-Pattern $source 'control_leg_race_preflight_cache_invalidate' `
+    "Race path preflight cache must support explicit reset/fault invalidation."
+Require-Pattern $source 'CONTROL_LEG_DWT_CYCCNT' `
+    "The default-off CM7_0 preflight WCET hook must use DWT CYCCNT."
+Require-Pattern $source 'control_leg_race_held_command_valid' `
+    "Race runtime IK failure must retain only an already-validated finite command."
+
+Require-Pattern $supervisor 'control_race_assist_entry_pose_required' `
+    "Low-pose readiness must be an entry gate, not an operational self-fault."
+Require-Pattern $supervisor '(?s)RACE_ASSIST_DISABLED.*RACE_ASSIST_LOW_RACE.*RACE_ASSIST_ARMED' `
+    "Only disabled/low-race/armed states may require neutral-pose readiness."
 
 Require-Pattern $chassis 'control_race_assist_update' `
     "Chassis must run the race supervisor."
@@ -221,12 +247,18 @@ Require-Pattern $balance 'LEG_MOTION_RACE_FAULT_HOLD' `
     "Race fault hold must preserve balance while the target ramps down."
 Require-Pattern $balance 'LEG_MOTION_RACE_ASSIST' `
     "Race assist must select the low-pose gain schedule."
+Require-Pattern $balance '(?s)LEG_MOTION_RACE_FAULT_HOLD.*held_command_valid' `
+    "Balance may continue race fault deceleration only with a validated held command."
 Require-Pattern $balance 'legacy_stance_norm\s*=\s*0\.0f' `
     "Race pose must use the low-pose gain schedule rather than a stale legacy scalar."
 Require-Pattern $chassis 'control_chassis_output\.race_balance_limit_rpm\s*=\s*APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT' `
     "Disabled or unhealthy chassis output must publish the default balance cap."
 Require-Pattern $chassis 'forward_before_ramp_rpm\s*=\s*control_chassis_cmd\.actual_forward_rpm' `
     "Race fault deceleration must retain the pre-ramp forward target."
+Require-Pattern $chassis '(?s)RACE_ASSIST_RECENTER == race_output->state.*race_output->forward_limit_rpm' `
+    "BRA0 recenter must consume the supervisor 200 RPM cap instead of legacy 220 RPM."
+Require-Pattern $chassis '(?s)RACE_ASSIST_FAULT_HOLD == race_output->state.*target_turn_dps\s*=\s*0\.0f' `
+    "Race fault hold must not increase turn authority."
 Reject-Pattern $hostCommand 'control_leg_set_xy[\s\S]{0,400}control_leg_set_race_assist_request' `
     "Manual LXY must not become the moving assist path."
 Require-Pattern $hostCommand "'B' == line\[0\].*'R' == line\[1\].*'A' == line\[2\]" `
@@ -296,8 +328,26 @@ function Write-ControllerHarness {
 #include "app_state.h"
 #include "app_safety.h"
 #include "actuator_servo.h"
+#include "leg_kinematics.h"
 
 static actuator_servo_diag_struct host_diag;
+uint32 host_ik_solve_count = 0U;
+
+uint8 __real_leg_kinematics_solve(uint8 right_side,
+                                  float x_mm,
+                                  float y_mm,
+                                  const leg_ik_result_struct *previous,
+                                  leg_ik_result_struct *result);
+
+uint8 __wrap_leg_kinematics_solve(uint8 right_side,
+                                  float x_mm,
+                                  float y_mm,
+                                  const leg_ik_result_struct *previous,
+                                  leg_ik_result_struct *result)
+{
+    host_ik_solve_count++;
+    return __real_leg_kinematics_solve(right_side, x_mm, y_mm, previous, result);
+}
 
 void app_state_init(void) {}
 void app_state_set(app_run_state_enum state) { (void)state; }
@@ -348,7 +398,11 @@ int main(void)
 {
     const leg_diag_struct *diag;
     uint32 now_ms;
+    uint32 solve_count_after_first_preflight;
+    uint8 request_index;
     uint8 saw_zero_endpoint = APP_FALSE;
+
+    extern uint32 host_ik_solve_count;
 
     control_leg_init();
     if(APP_TRUE != control_leg_set_ik_reference(0U))
@@ -415,6 +469,26 @@ int main(void)
     {
         fprintf(stderr, "radially-inside low-race entry rejected\n");
         return 8;
+    }
+    solve_count_after_first_preflight = host_ik_solve_count;
+    for(request_index = 0U; request_index < 20U; request_index++)
+    {
+        if(APP_TRUE != control_leg_set_race_assist_request(0.01f,
+                                                           2.0f,
+                                                           2.0f,
+                                                           7002U + request_index))
+        {
+            fprintf(stderr, "steady race request rejected at repeat %u\n", request_index);
+            return 13;
+        }
+    }
+    if(host_ik_solve_count != solve_count_after_first_preflight)
+    {
+        fprintf(stderr,
+                "steady request repeated path preflight: solve count %lu -> %lu\n",
+                (unsigned long)solve_count_after_first_preflight,
+                (unsigned long)host_ik_solve_count);
+        return 14;
     }
     for(now_ms = 7001U; now_ms <= 8000U; now_ms++)
     {
@@ -489,6 +563,15 @@ typedef int16_t int16;
     $compilerDirectory = Split-Path $compiler
     $controllerOriginalPath = $env:PATH
     $env:PATH = $compilerDirectory + [System.IO.Path]::PathSeparator + $env:PATH
+    $wcetObject = Join-Path $controllerTempPath "control_leg_wcet_enabled.o"
+    $wcetCompile = & $compiler -std=c99 -Wall -Wextra -Werror `
+        -DAPP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE=1 `
+        -I $controllerTempPath -c (Join-Path $controllerTempPath "control_leg.c") `
+        -o $wcetObject 2>&1
+    if(0 -ne $LASTEXITCODE) {
+        $wcetCompile | Write-Host
+        throw "Default-off CM7_0 DWT preflight hook did not compile when enabled."
+    }
     $controllerBinary = Join-Path $controllerTempPath "race_leg_controller.exe"
     $controllerErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -498,7 +581,7 @@ typedef int16_t int16;
         (Join-Path $controllerTempPath "control_leg.c") `
         (Join-Path $controllerTempPath "host_support.c") `
         (Join-Path $controllerTempPath "race_leg_controller.c") `
-        -lm -o $controllerBinary 2>&1
+        '-Wl,--wrap=leg_kinematics_solve' -lm -o $controllerBinary 2>&1
     $controllerCompileExit = $LASTEXITCODE
     $ErrorActionPreference = $controllerErrorAction
     if(0 -ne $controllerCompileExit) {

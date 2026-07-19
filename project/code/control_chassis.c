@@ -431,7 +431,26 @@ void control_chassis_update(uint32 now_ms)
         effective_fast_enable = APP_FALSE;
     }
 
-    if(APP_TRUE == race_output->enable)
+    if(RACE_ASSIST_RECENTER == race_output->state)
+    {
+        control_chassis_cmd.target_forward_rpm =
+            control_chassis_limit_abs(control_chassis_cmd.target_forward_rpm,
+                                      race_output->forward_limit_rpm);
+        control_chassis_cmd.actual_forward_rpm =
+            control_chassis_ramp_toward(forward_before_ramp_rpm,
+                                        control_chassis_cmd.target_forward_rpm,
+                                        forward_max_delta);
+        stance_forward_limit_rpm = race_output->forward_limit_rpm;
+        stance_fast_forward_limit_rpm = race_output->forward_limit_rpm;
+        effective_fast_enable = APP_FALSE;
+    }
+
+    if(RACE_ASSIST_FAULT_HOLD == race_output->state)
+    {
+        target_turn_dps = 0.0f;
+    }
+    else if((APP_TRUE == race_output->enable) ||
+            (RACE_ASSIST_RECENTER == race_output->state))
     {
         target_turn_dps *= race_output->turn_scale;
     }
@@ -453,7 +472,8 @@ void control_chassis_update(uint32 now_ms)
                                     raw_fast_blend,
                                     APP_CHASSIS_FAST_BLEND_RAMP_S * dt_s);
 
-    if(RACE_ASSIST_FAULT_HOLD == race_output->state)
+    if((RACE_ASSIST_FAULT_HOLD == race_output->state) ||
+       (RACE_ASSIST_RECENTER == race_output->state))
     {
         speed_pitch_limit_deg = APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG;
     }

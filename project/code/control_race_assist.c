@@ -91,6 +91,14 @@ static float control_race_assist_safe_hold_u(float leg_u_actual)
     return control_race_assist_clamp(leg_u_actual, -1.0f, 1.0f);
 }
 
+static uint8 control_race_assist_entry_pose_required(void)
+{
+    return ((RACE_ASSIST_DISABLED == control_race_assist_output.state) ||
+            (RACE_ASSIST_LOW_RACE == control_race_assist_output.state) ||
+            (RACE_ASSIST_ARMED == control_race_assist_output.state)) ?
+           APP_TRUE : APP_FALSE;
+}
+
 static void control_race_assist_apply_level_profile(uint8 level)
 {
     race_assist_level_profile_struct profile;
@@ -294,7 +302,14 @@ void control_race_assist_update(const race_assist_input_struct *input)
         return;
     }
 
-    if((APP_TRUE != input->feedback_healthy) || (APP_TRUE != input->low_pose_ready))
+    if(APP_TRUE != input->feedback_healthy)
+    {
+        control_race_assist_enter_fault(RACE_ASSIST_FAULT_LEG_NOT_READY, input->leg_u_actual);
+        return;
+    }
+
+    if((APP_TRUE == control_race_assist_entry_pose_required()) &&
+       (APP_TRUE != input->low_pose_ready))
     {
         control_race_assist_enter_fault(RACE_ASSIST_FAULT_LEG_NOT_READY, input->leg_u_actual);
         return;

@@ -21,6 +21,12 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 72
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
+$script:bldcTailSeeded = $false
+
+function Reset-BldcTailLock {
+    $script:bldcTailSeeded = $false
+}
+
 $CsvFields = @(
     "pc_time_s", "elapsed_s", "sample_index", "last_command", "command_elapsed_s",
     "expected_mode", "expected_motor_rpm", "expected_open_duty",
@@ -170,50 +176,48 @@ function Pop-BldcFrames {
         if($tailIndex -lt 0) {
             if($Buffer.Count -gt ($FrameLen * 4)) {
                 $Buffer.RemoveRange(0, $Buffer.Count - $FrameLen)
+                Reset-BldcTailLock
             }
             break
         }
 
-        if($tailIndex -lt $PayloadLen) {
-            # A complete tail before 288 payload bytes is an old 55-float
-            # frame or a truncated/corrupt current frame. Do not decode it
-            # with a shifted offset under the 72-float contract.
-            $Buffer.RemoveRange(0, $tailIndex + $Tail.Length)
-            continue
-        }
+        # The first observed tail is only a synchronization anchor. Afterwards
+        # decode only an adjacent 72-float payload, never by backtracking from
+        # an arbitrary tail that could belong to a legacy or corrupt frame.
+        if($script:bldcTailSeeded -and ($tailIndex -eq $PayloadLen)) {
+            $payload = New-Object byte[] $PayloadLen
+            for($i = 0; $i -lt $PayloadLen; $i++) {
+                $payload[$i] = $Buffer[$i]
+            }
 
-        $payloadStart = $tailIndex - $PayloadLen
-        $payload = New-Object byte[] $PayloadLen
-        for($i = 0; $i -lt $PayloadLen; $i++) {
-            $payload[$i] = $Buffer[$payloadStart + $i]
-        }
+            $values = New-Object double[] $FloatCount
+            for($i = 0; $i -lt $FloatCount; $i++) {
+                $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
+            }
 
-        $values = New-Object double[] $FloatCount
-        for($i = 0; $i -lt $FloatCount; $i++) {
-            $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
+            $frames.Add([pscustomobject]@{
+                time_ms = $values[0]
+                balance_mode = $values[1]
+                roll_deg = $values[2]
+                pitch_deg = $values[3]
+                balance_rpm = $values[6]
+                feedback_online = $values[7]
+                left_motor_rpm = $values[8]
+                right_motor_rpm = $values[9]
+                left_duty = $values[10]
+                right_duty = $values[11]
+                firmware_frame_sequence = $values[46]
+                telemetry_drop_count = $values[47]
+                scheduler_missed_tick_count = $values[48]
+                scheduler_max_gap_ms = $values[49]
+                imu_int_count = $values[51]
+                imu_invalid_count = $values[52]
+                imu_age_ms = $values[53]
+            })
         }
-
-        $frames.Add([pscustomobject]@{
-            time_ms = $values[0]
-            balance_mode = $values[1]
-            roll_deg = $values[2]
-            pitch_deg = $values[3]
-            balance_rpm = $values[6]
-            feedback_online = $values[7]
-            left_motor_rpm = $values[8]
-            right_motor_rpm = $values[9]
-            left_duty = $values[10]
-            right_duty = $values[11]
-            firmware_frame_sequence = $values[46]
-            telemetry_drop_count = $values[47]
-            scheduler_missed_tick_count = $values[48]
-            scheduler_max_gap_ms = $values[49]
-            imu_int_count = $values[51]
-            imu_invalid_count = $values[52]
-            imu_age_ms = $values[53]
-        })
 
         $Buffer.RemoveRange(0, $tailIndex + $Tail.Length)
+        $script:bldcTailSeeded = $true
     }
 
     return $frames
@@ -502,6 +506,7 @@ try {
 
     $writer.WriteLine($CsvFields -join ",")
     $serial.DiscardInBuffer()
+    Reset-BldcTailLock
     $stopwatch.Start()
 
     Write-Host ("collecting 72-float BLDC diagnostics on {0} at {1} baud for {2:F2}s" -f $Port, $Baud, $Duration)

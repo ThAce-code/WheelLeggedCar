@@ -3,7 +3,8 @@ param(
     [int]$Baud = 460800,
     [string]$Out = "",
     [string]$PointFile = "",
-    [switch]$NoStop
+    [switch]$NoStop,
+    [switch]$LoadOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +14,11 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 72
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
+$script:calibTailSeeded = $false
+
+function Reset-CalibTailLock {
+    $script:calibTailSeeded = $false
+}
 
 # ── Helper: locate tail in ring buffer ──
 function Find-Tail {
@@ -32,68 +38,81 @@ function Find-Tail {
 function Pop-Frame {
     param([System.Collections.Generic.List[byte]]$Buffer)
     $tailIdx = Find-Tail -Buffer $Buffer
-    if($tailIdx -lt 0) { return $null }
-    if($tailIdx -lt $PayloadLen) {
-        $Buffer.RemoveRange(0, $tailIdx + $Tail.Length)
+    if($tailIdx -lt 0) {
+        if($Buffer.Count -gt ($FrameLen * 4)) {
+            $Buffer.RemoveRange(0, $Buffer.Count - $FrameLen)
+            Reset-CalibTailLock
+        }
         return $null
     }
-    $payloadStart = $tailIdx - $PayloadLen
-    $payload = New-Object byte[] $PayloadLen
-    for($i = 0; $i -lt $PayloadLen; $i++) {
-        $payload[$i] = $Buffer[$payloadStart + $i]
+
+    $frame = $null
+    # The first observed tail is only a synchronization anchor. Afterwards
+    # decode only an adjacent 72-float payload, never by backtracking from
+    # an arbitrary tail that could belong to a legacy or corrupt frame.
+    if($script:calibTailSeeded -and ($tailIdx -eq $PayloadLen)) {
+        $payload = New-Object byte[] $PayloadLen
+        for($i = 0; $i -lt $PayloadLen; $i++) {
+            $payload[$i] = $Buffer[$i]
+        }
+        $values = New-Object double[] $FloatCount
+        for($i = 0; $i -lt $FloatCount; $i++) {
+            $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
+        }
+        $poseStatusFlags = [uint32][Math]::Round($values[16])
+        $frame = @{
+            leg_mode             = $values[12]
+            leg_legacy_stance_target_units = $values[13]
+            leg_legacy_stance_ref_units    = $values[14]
+            leg_legacy_stance_norm         = $values[15]
+            leg_pose_status_flags = $values[16]
+            leg_ik_valid         = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
+            left_pose_valid      = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
+            right_pose_valid     = [double](($poseStatusFlags -band (1 -shl 2)) -ne 0)
+            left_pose_source     = if(($poseStatusFlags -band (1 -shl 3)) -ne 0) { "measured_calibration" } else { "none" }
+            right_pose_source    = if(($poseStatusFlags -band (1 -shl 4)) -ne 0) { "mirror_assumption" } else { "none" }
+            leg_output_enable    = $values[17]
+            servo0_output_deg    = $values[18]
+            servo1_output_deg    = $values[19]
+            servo2_output_deg    = $values[20]
+            servo3_output_deg    = $values[21]
+            servo0_target_deg    = $values[22]
+            servo_settled        = $values[31]
+            left_command_x_mm    = $values[33]
+            left_command_y_mm    = $values[34]
+            right_command_x_mm   = $values[35]
+            right_command_y_mm   = $values[36]
+            ik_margin            = $values[37]
+            motion_state         = $values[38]
+            fault_reason         = $values[39]
+            drive_forward_limit_rpm = $values[40]
+            drive_allowed        = $values[41]
+            race_assist_enable   = $values[55]
+            race_assist_level    = $values[56]
+            race_assist_state    = $values[57]
+            race_assist_fault_reason = $values[58]
+            race_u_request       = $values[59]
+            race_u_actual        = $values[60]
+            requested_accel_rpm_s = $values[61]
+            forward_target_rpm   = $values[62]
+            forward_ramped_rpm   = $values[63]
+            wheel_speed_measured_rpm = $values[64]
+            speed_error_rpm      = $values[65]
+            pitch_setpoint_deg   = $values[66]
+            balance_output_limit_rpm = $values[67]
+            race_turn_scale      = $values[68]
+            left_ik_margin       = $values[69]
+            right_ik_margin      = $values[70]
+            ik_branch_flags      = $values[71]
+        }
     }
-    $values = New-Object double[] $FloatCount
-    for($i = 0; $i -lt $FloatCount; $i++) {
-        $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
-    }
-    $poseStatusFlags = [uint32][Math]::Round($values[16])
+
     $Buffer.RemoveRange(0, $tailIdx + $Tail.Length)
-    return @{
-        leg_mode             = $values[12]
-        leg_legacy_stance_target_units = $values[13]
-        leg_legacy_stance_ref_units    = $values[14]
-        leg_legacy_stance_norm         = $values[15]
-        leg_pose_status_flags = $values[16]
-        leg_ik_valid         = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
-        left_pose_valid      = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
-        right_pose_valid     = [double](($poseStatusFlags -band (1 -shl 2)) -ne 0)
-        left_pose_source     = if(($poseStatusFlags -band (1 -shl 3)) -ne 0) { "measured_calibration" } else { "none" }
-        right_pose_source    = if(($poseStatusFlags -band (1 -shl 4)) -ne 0) { "mirror_assumption" } else { "none" }
-        leg_output_enable    = $values[17]
-        servo0_output_deg    = $values[18]
-        servo1_output_deg    = $values[19]
-        servo2_output_deg    = $values[20]
-        servo3_output_deg    = $values[21]
-        servo0_target_deg    = $values[22]
-        servo_settled        = $values[31]
-        left_command_x_mm    = $values[33]
-        left_command_y_mm    = $values[34]
-        right_command_x_mm   = $values[35]
-        right_command_y_mm   = $values[36]
-        ik_margin            = $values[37]
-        motion_state         = $values[38]
-        fault_reason         = $values[39]
-        drive_forward_limit_rpm = $values[40]
-        drive_allowed        = $values[41]
-        race_assist_enable   = $values[55]
-        race_assist_level    = $values[56]
-        race_assist_state    = $values[57]
-        race_assist_fault_reason = $values[58]
-        race_u_request       = $values[59]
-        race_u_actual        = $values[60]
-        requested_accel_rpm_s = $values[61]
-        forward_target_rpm   = $values[62]
-        forward_ramped_rpm   = $values[63]
-        wheel_speed_measured_rpm = $values[64]
-        speed_error_rpm      = $values[65]
-        pitch_setpoint_deg   = $values[66]
-        balance_output_limit_rpm = $values[67]
-        race_turn_scale      = $values[68]
-        left_ik_margin       = $values[69]
-        right_ik_margin      = $values[70]
-        ik_branch_flags      = $values[71]
-    }
+    $script:calibTailSeeded = $true
+    return $frame
 }
+
+if($LoadOnly) { return }
 
 # ── Read available bytes ──
 function Read-Serial {
@@ -265,6 +284,7 @@ $writer.WriteLine(($csvFields -join ","))
 try {
     $serial.Open()
     $serial.DiscardInBuffer()
+    Reset-CalibTailLock
     Write-Host "`n============================================="
     Write-Host " IK Servo Calibration"
     Write-Host " Port: $Port  |  Baud: $Baud"
@@ -286,6 +306,7 @@ try {
         $serial.WriteLine("STOP")
         Start-Sleep -Milliseconds 100
         $rxBuf.Clear()
+        Reset-CalibTailLock
 
         $serial.WriteLine($cmd)
 

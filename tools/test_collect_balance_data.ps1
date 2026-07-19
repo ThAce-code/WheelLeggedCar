@@ -38,6 +38,34 @@ Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV qu
 Assert-True (($Fields.Split(",").Count -eq 82)) "CSV header and decoded telemetry column count must remain synchronized"
 Assert-True ($FloatCount -eq 72) "collector must decode the 72-float wire contract"
 
+function Add-JustFloatFrame {
+    param(
+        [System.Collections.Generic.List[byte]]$Buffer,
+        [single[]]$FrameValues
+    )
+
+    foreach($value in $FrameValues) {
+        foreach($byte in [BitConverter]::GetBytes($value)) {
+            $Buffer.Add($byte)
+        }
+    }
+    foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
+        $Buffer.Add($byte)
+    }
+}
+
+function Add-Bytes {
+    param(
+        [System.Collections.Generic.List[byte]]$Buffer,
+        [int]$Count,
+        [byte]$Value = 0x55
+    )
+
+    for($i = 0; $i -lt $Count; $i++) {
+        $Buffer.Add($Value)
+    }
+}
+
 # 72-float test frame: indices 0-45 control data, 46-54 timing diagnostics,
 # 55-71 race-assist diagnostics.
 # Pose status 31 sets IK valid, both pose-valid bits, measured-left source,
@@ -55,19 +83,16 @@ $values = [single[]](
     1.0, 4.0, 2.0, 3.0, -0.70, -0.60, 125.0, 150.0, 148.0, 140.0,
     10.0, -1.35, 300.0, 0.80, 0.25, 0.50, 9.0
 )
+$firstValues = [single[]]$values.Clone()
+$firstValues[0] = 1111.0
 $buffer = New-Object System.Collections.Generic.List[byte]
-$buffer.Add(0x55)
-foreach($value in $values) {
-    foreach($byte in [BitConverter]::GetBytes($value)) {
-        $buffer.Add($byte)
-    }
-}
-foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
-    $buffer.Add($byte)
-}
+Reset-BalanceTailLock
+Add-Bytes -Buffer $buffer -Count 68
+Add-JustFloatFrame -Buffer $buffer -FrameValues $firstValues
+Add-JustFloatFrame -Buffer $buffer -FrameValues $values
 
 $frames = @(Pop-BalanceFrames -Buffer $buffer)
-Assert-True ($frames.Count -eq 1) "expected one parsed frame"
+Assert-True ($frames.Count -eq 1) "prefix plus two 72-float frames must decode only the second frame"
 # 0-11: core motor/balance/IMU
 Assert-Near $frames[0].time_ms 1234.0 0.001 "time_ms"
 Assert-Near $frames[0].balance_mode 2.0 0.001 "balance_mode"
@@ -172,5 +197,36 @@ Assert-True ($Fields -match "ik_branch_flags") "CSV header must include IK branc
 Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($Fields -notmatch "leg_height_cmd_est_mm") "CSV header must not duplicate the legacy stance reference"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
+
+$legacyValues = New-Object 'single[]' 55
+$legacyValues[0] = 999.0
+$legacyPrefixBuffer = New-Object System.Collections.Generic.List[byte]
+Reset-BalanceTailLock
+Add-Bytes -Buffer $legacyPrefixBuffer -Count 68
+Add-JustFloatFrame -Buffer $legacyPrefixBuffer -FrameValues $legacyValues
+Add-JustFloatFrame -Buffer $legacyPrefixBuffer -FrameValues $legacyValues
+Assert-True (@(Pop-BalanceFrames -Buffer $legacyPrefixBuffer).Count -eq 0) "68-byte prefix plus two legacy 55-float frames must not decode"
+
+$continuousLegacyBuffer = New-Object System.Collections.Generic.List[byte]
+Reset-BalanceTailLock
+Add-JustFloatFrame -Buffer $continuousLegacyBuffer -FrameValues $legacyValues
+Add-JustFloatFrame -Buffer $continuousLegacyBuffer -FrameValues $legacyValues
+Assert-True (@(Pop-BalanceFrames -Buffer $continuousLegacyBuffer).Count -eq 0) "continuous legacy 55-float frames must not decode"
+
+$corruptRecoveryBuffer = New-Object System.Collections.Generic.List[byte]
+$corruptFirstValues = [single[]]$values.Clone()
+$corruptSecondValues = [single[]]$values.Clone()
+$corruptThirdValues = [single[]]$values.Clone()
+$corruptFirstValues[0] = 3000.0
+$corruptSecondValues[0] = 4000.0
+$corruptThirdValues[0] = 5000.0
+Reset-BalanceTailLock
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptFirstValues
+Add-Bytes -Buffer $corruptRecoveryBuffer -Count 12 -Value 0xA5
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptSecondValues
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptThirdValues
+$recoveredFrames = @(Pop-BalanceFrames -Buffer $corruptRecoveryBuffer)
+Assert-True ($recoveredFrames.Count -eq 1) "corrupt interval plus two 72-float frames must decode only the re-synchronized frame"
+Assert-Near $recoveredFrames[0].time_ms 5000.0 0.001 "re-synchronized frame time_ms"
 
 Write-Host "collect_balance_data tests passed"

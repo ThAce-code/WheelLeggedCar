@@ -38,6 +38,34 @@ $dExpectation = Get-CommandExpectation -Command "D,500"
 Assert-True ($dExpectation.Mode -eq "duty") "D command mode"
 Assert-Near $dExpectation.TargetDuty 500.0 0.0001 "D target"
 
+function Add-JustFloatFrame {
+    param(
+        [System.Collections.Generic.List[byte]]$Buffer,
+        [single[]]$FrameValues
+    )
+
+    foreach($value in $FrameValues) {
+        foreach($byte in [BitConverter]::GetBytes($value)) {
+            $Buffer.Add($byte)
+        }
+    }
+    foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
+        $Buffer.Add($byte)
+    }
+}
+
+function Add-Bytes {
+    param(
+        [System.Collections.Generic.List[byte]]$Buffer,
+        [int]$Count,
+        [byte]$Value = 0x55
+    )
+
+    for($i = 0; $i -lt $Count; $i++) {
+        $Buffer.Add($Value)
+    }
+}
+
 $values = New-Object 'single[]' 72
 Assert-True ($FloatCount -eq 72) "BLDC diagnostic collector must require the 72-float UART0 contract"
 $values[0] = 1234.0
@@ -62,19 +90,16 @@ $values[62] = 50.0
 $values[63] = 0.30
 $values[64] = 33.0
 
+$firstValues = [single[]]$values.Clone()
+$firstValues[0] = 1111.0
 $buffer = New-Object System.Collections.Generic.List[byte]
-$buffer.Add(0x55)
-foreach($value in $values) {
-    foreach($byte in [BitConverter]::GetBytes($value)) {
-        $buffer.Add($byte)
-    }
-}
-foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
-    $buffer.Add($byte)
-}
+Reset-BldcTailLock
+Add-Bytes -Buffer $buffer -Count 68
+Add-JustFloatFrame -Buffer $buffer -FrameValues $firstValues
+Add-JustFloatFrame -Buffer $buffer -FrameValues $values
 
 $frames = @(Pop-BldcFrames -Buffer $buffer)
-Assert-True ($frames.Count -eq 1) "expected one parsed frame"
+Assert-True ($frames.Count -eq 1) "prefix plus two 72-float frames must decode only the second frame"
 Assert-Near $frames[0].time_ms 1234.0 0.001 "time_ms"
 Assert-Near $frames[0].roll_deg -2.25 0.001 "roll"
 Assert-Near $frames[0].pitch_deg -1.50 0.001 "pitch"
@@ -92,18 +117,34 @@ Assert-True ($buffer.Count -eq 0) "frame buffer should be consumed"
 # shifted into the current 72-float parser.
 $legacyValues = New-Object 'single[]' 55
 $legacyValues[0] = 999.0
-$legacyBuffer = New-Object System.Collections.Generic.List[byte]
-foreach($value in $legacyValues) {
-    foreach($byte in [BitConverter]::GetBytes($value)) {
-        $legacyBuffer.Add($byte)
-    }
-}
-foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
-    $legacyBuffer.Add($byte)
-}
-$legacyFrames = @(Pop-BldcFrames -Buffer $legacyBuffer)
-Assert-True ($legacyFrames.Count -eq 0) "default 72-float parser must reject legacy 55-float frames"
-Assert-True ($legacyBuffer.Count -eq 0) "rejected legacy frame should be consumed without resynchronization drift"
+$legacyPrefixBuffer = New-Object System.Collections.Generic.List[byte]
+Reset-BldcTailLock
+Add-Bytes -Buffer $legacyPrefixBuffer -Count 68
+Add-JustFloatFrame -Buffer $legacyPrefixBuffer -FrameValues $legacyValues
+Add-JustFloatFrame -Buffer $legacyPrefixBuffer -FrameValues $legacyValues
+Assert-True (@(Pop-BldcFrames -Buffer $legacyPrefixBuffer).Count -eq 0) "68-byte prefix plus two legacy 55-float frames must not decode"
+
+$continuousLegacyBuffer = New-Object System.Collections.Generic.List[byte]
+Reset-BldcTailLock
+Add-JustFloatFrame -Buffer $continuousLegacyBuffer -FrameValues $legacyValues
+Add-JustFloatFrame -Buffer $continuousLegacyBuffer -FrameValues $legacyValues
+Assert-True (@(Pop-BldcFrames -Buffer $continuousLegacyBuffer).Count -eq 0) "continuous legacy 55-float frames must not decode"
+
+$corruptRecoveryBuffer = New-Object System.Collections.Generic.List[byte]
+$corruptFirstValues = [single[]]$values.Clone()
+$corruptSecondValues = [single[]]$values.Clone()
+$corruptThirdValues = [single[]]$values.Clone()
+$corruptFirstValues[0] = 3000.0
+$corruptSecondValues[0] = 4000.0
+$corruptThirdValues[0] = 5000.0
+Reset-BldcTailLock
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptFirstValues
+Add-Bytes -Buffer $corruptRecoveryBuffer -Count 12 -Value 0xA5
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptSecondValues
+Add-JustFloatFrame -Buffer $corruptRecoveryBuffer -FrameValues $corruptThirdValues
+$recoveredFrames = @(Pop-BldcFrames -Buffer $corruptRecoveryBuffer)
+Assert-True ($recoveredFrames.Count -eq 1) "corrupt interval plus two 72-float frames must decode only the re-synchronized frame"
+Assert-Near $recoveredFrames[0].time_ms 5000.0 0.001 "re-synchronized frame time_ms"
 
 function New-DiagnosticRows {
     param(

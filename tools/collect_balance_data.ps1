@@ -16,6 +16,12 @@ $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
 $FloatCount = 72
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
+$script:balanceTailSeeded = $false
+
+function Reset-BalanceTailLock {
+    $script:balanceTailSeeded = $false
+}
+
 $Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_legacy_stance_target_units,leg_legacy_stance_ref_units,leg_legacy_stance_norm,leg_pose_status_flags,leg_ik_valid,leg_left_pose_valid,leg_right_pose_valid,leg_left_pose_source,leg_right_pose_source,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_command_x_mm,leg_left_command_y_mm,leg_right_command_x_mm,leg_right_command_y_mm,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,race_assist_enable,race_assist_level,race_assist_state,race_assist_fault_reason,race_u_request,race_u_actual,requested_accel_rpm_s,forward_target_rpm,forward_ramped_rpm,wheel_speed_measured_rpm,speed_error_rpm,pitch_setpoint_deg,balance_output_limit_rpm,race_turn_scale,left_ik_margin,right_ik_margin,ik_branch_flags,note"
 
 function Parse-CommandSchedule {
@@ -103,15 +109,18 @@ function Pop-BalanceFrames {
         if($tailIndex -lt 0) {
             if($Buffer.Count -gt ($FrameLen * 4)) {
                 $Buffer.RemoveRange(0, $Buffer.Count - $FrameLen)
+                Reset-BalanceTailLock
             }
             break
         }
 
-        if($tailIndex -ge $PayloadLen) {
-            $payloadStart = $tailIndex - $PayloadLen
+        # The first observed tail is only a synchronization anchor. Afterwards
+        # decode only an adjacent 72-float payload, never by backtracking from
+        # an arbitrary tail that could belong to a legacy or corrupt frame.
+        if($script:balanceTailSeeded -and ($tailIndex -eq $PayloadLen)) {
             $payload = New-Object byte[] $PayloadLen
             for($i = 0; $i -lt $PayloadLen; $i++) {
-                $payload[$i] = $Buffer[$payloadStart + $i]
+                $payload[$i] = $Buffer[$i]
             }
 
             $values = New-Object double[] $FloatCount
@@ -205,6 +214,7 @@ function Pop-BalanceFrames {
         }
 
         $Buffer.RemoveRange(0, $tailIndex + $Tail.Length)
+        $script:balanceTailSeeded = $true
     }
 
     return $frames
@@ -264,6 +274,7 @@ try {
     $serial.Open()
     $writer.WriteLine($Fields)
     $serial.DiscardInBuffer()
+    Reset-BalanceTailLock
     $stopwatch.Start()
 
     Write-Host ("collecting balance telemetry on {0} at {1} baud for {2:F2}s" -f $Port, $Baud, $Duration)

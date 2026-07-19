@@ -21,7 +21,7 @@
 
 ## File Map
 
-- `project/code/leg_config.h/.c`: retain geometry/calibration, remove obsolete workspace/race data, set one `0.02` margin.
+- `project/code/leg_config.h/.c`: set one `0.02` margin, then remove obsolete workspace/race data after all runtime references are gone.
 - `project/code/leg_kinematics.c`: candidate engine, shared validation/solve, unbounded-by-rectangle FK matching.
 - `tools/test_leg_ik_zero_calibration_static.ps1`: full-reachability and reference numeric gate.
 - `tools/test_leg_transition_numeric.ps1`: grid round trips and branch continuity.
@@ -37,7 +37,6 @@
 - Modify: `project/code/leg_config.h`
 - Modify: `project/code/leg_config.c`
 - Modify: `project/code/leg_kinematics.c`
-- Modify: generated config stub in `tools/test_leg_transition_numeric.ps1`
 
 **Interfaces:**
 - Consumes: `leg_kinematics_map_one()`, `leg_config_get_servo()`, transform/reference configuration.
@@ -89,15 +88,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_ik_zero_calib
 
 Expected: nonzero exit containing `model-reachable command rejected`, proving the hull/race window still blocks at least one valid forward-derived target.
 
-- [ ] **Step 3: Remove obsolete configuration fields**
+- [ ] **Step 3: Select the unified margin while preserving build compatibility**
 
-Make `leg_kinematics_config_struct` contain only link lengths, physical/model references, similarity-transform values, and four branch preferences. Delete `LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT`, X/Y bounds, `physical_workspace`, `physical_workspace_inset_mm`, and every `experimental_race_*` member and initializer. Set:
+Set the single active solver margin:
 
 ```c
 .ik_min_margin = 0.02f,
 ```
 
-Update both generated host `leg_kinematics_config_struct` stubs to exactly match production field order.
+Keep the old hull, rectangle, and `experimental_race_*` configuration fields temporarily so Task 1 remains build-compatible with forward kinematics and the old static harness. The candidate engine added below must not consult those fields. Task 3 removes them after Task 2 removes the last runtime references.
 
 - [ ] **Step 4: Add a command-valid candidate type and mapper**
 
@@ -143,7 +142,7 @@ else
 }
 ```
 
-Retain the first candidate on an exact score tie. Delete point-specific race logic, `leg_kinematics_select_angle()`, and rectangular workspace helpers.
+Retain the first candidate on an exact score tie. Delete point-specific race logic and `leg_kinematics_select_angle()`. Leave rectangular helpers only for the existing forward-kinematics path until Task 2.
 
 - [ ] **Step 6: Share the solver with public validation**
 
@@ -155,15 +154,14 @@ Run:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_ik_zero_calibration_static.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_physical_ik_static.ps1
 ```
 
-Expected: both exit `0`; reference remains all-90 and the forward-derived targets solve on both sides.
+Expected: exit `0`; reference remains all-90 and the forward-derived targets solve on both sides. Do not run the old physical static contract as a Task 1 gate because it still describes the temporary hull/race implementation that Task 3 replaces.
 
 - [ ] **Step 8: Commit**
 
 ```powershell
-git add -- project/code/leg_config.h project/code/leg_config.c project/code/leg_kinematics.c tools/test_leg_ik_zero_calibration_static.ps1 tools/test_leg_transition_numeric.ps1
+git add -- project/code/leg_config.c project/code/leg_kinematics.c tools/test_leg_ik_zero_calibration_static.ps1
 git commit -m "Use model reachability for LXY targets"
 ```
 
@@ -241,6 +239,10 @@ git commit -m "Keep model workspace branches continuous"
 **Files:**
 - Modify: `tools/test_leg_physical_ik_static.ps1`
 - Modify: `tools/test_leg_coordinate_contract_static.ps1`
+- Modify: `tools/test_leg_ik_zero_calibration_static.ps1`
+- Modify: `tools/test_leg_transition_numeric.ps1`
+- Modify: `project/code/leg_config.h`
+- Modify: `project/code/leg_config.c`
 - Modify: `docs/leg-ik-zero-calibration-hardware-test.md`
 
 **Interfaces:**
@@ -268,11 +270,15 @@ Require the hardware guide to contain `model-reachable`, `0.02`, `servo limits`,
 
 Run both static scripts. Expected: nonzero exit until legacy production symbols and old documentation are gone.
 
-- [ ] **Step 3: Update hardware documentation**
+- [ ] **Step 3: Remove obsolete configuration now that runtime references are gone**
+
+Make `leg_kinematics_config_struct` contain only link lengths, physical/model references, similarity-transform values, and four branch preferences. Delete `LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT`, X/Y bounds, `physical_workspace`, `physical_workspace_inset_mm`, and every `experimental_race_*` member and initializer. Update the generated host config structs in both numeric PowerShell harnesses to exactly match production field order.
+
+- [ ] **Step 4: Update hardware documentation**
 
 State that `LXY` accepts lower-half-plane points with real roots, margin at least `0.02`, and a valid mapped command on both sides. Retain `STOP`, `LIKREF`, `LXY,-18.83,25.08`. Specify wheel power disconnected, supported chassis, one-axis manual increments no larger than `2 mm`, waiting for settled output, and immediate stop on interference, branch surprise, invalid IK, or leg fault.
 
-- [ ] **Step 4: Verify GREEN**
+- [ ] **Step 5: Verify GREEN**
 
 Run:
 
@@ -283,10 +289,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_leg_coordinate_co
 
 Expected: both exit `0` with existing pass messages.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```powershell
-git add -- tools/test_leg_physical_ik_static.ps1 tools/test_leg_coordinate_contract_static.ps1 docs/leg-ik-zero-calibration-hardware-test.md
+git add -- project/code/leg_config.h project/code/leg_config.c tools/test_leg_ik_zero_calibration_static.ps1 tools/test_leg_transition_numeric.ps1 tools/test_leg_physical_ik_static.ps1 tools/test_leg_coordinate_contract_static.ps1 docs/leg-ik-zero-calibration-hardware-test.md
 git commit -m "Document model-reachable LXY workspace"
 ```
 

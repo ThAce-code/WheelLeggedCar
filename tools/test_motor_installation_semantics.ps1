@@ -27,6 +27,14 @@ Require-Pattern $motor 'actuator_motor_feedback\.left_motor_rpm\s*=\s*raw->right
 Require-Pattern $motor 'actuator_motor_feedback\.right_motor_rpm\s*=\s*raw->left_motor_rpm' 'Physical right feedback must come from BLDC channel 1.'
 Require-Pattern $motor 'bldc_foc_uart_set_duty\(right_duty, left_duty\)' 'Physical left/right commands must be swapped back into BLDC packet order.'
 
+# Installed direction contract confirmed on hardware: positive RPM means the
+# vehicle moves forward. Both feedback and duty signs must change together so
+# the per-wheel RPM loops remain negative feedback.
+Require-Pattern $config 'APP_MOTOR_LEFT_DUTY_SIGN\s+\(1\.0f\)' 'Positive left target RPM must drive the installed vehicle forward.'
+Require-Pattern $config 'APP_MOTOR_RIGHT_DUTY_SIGN\s+\(1\.0f\)' 'Positive right target RPM must drive the installed vehicle forward.'
+Require-Pattern $config 'APP_MOTOR_LEFT_RPM_SIGN\s+\(1\.0f\)' 'Physical left forward rotation must report positive RPM.'
+Require-Pattern $config 'APP_MOTOR_RIGHT_RPM_SIGN\s+\(-1\.0f\)' 'Physical right forward rotation must report positive RPM.'
+
 # Preserve the operator-visible wire contract confirmed on the installed car:
 # I9/I11 are physical left, I8/I10 are physical right.
 Require-Pattern $telemetry 'vofa_data\[8\]\s*=\s*rpm_diag->right_motor_rpm' 'I8 must report physical right wheel RPM.'

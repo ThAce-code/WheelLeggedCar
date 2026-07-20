@@ -106,10 +106,10 @@
 #define APP_MOTOR_RIGHT_RPM_KI          (45.6807f)
 #define APP_MOTOR_RIGHT_RPM_KD          (0.0f)
 
-#define APP_MOTOR_LEFT_DUTY_SIGN         (-1.0f)
-#define APP_MOTOR_RIGHT_DUTY_SIGN        (-1.0f)
-#define APP_MOTOR_LEFT_RPM_SIGN         (-1.0f)
-#define APP_MOTOR_RIGHT_RPM_SIGN        (1.0f)
+#define APP_MOTOR_LEFT_DUTY_SIGN         (1.0f)
+#define APP_MOTOR_RIGHT_DUTY_SIGN        (1.0f)
+#define APP_MOTOR_LEFT_RPM_SIGN         (1.0f)
+#define APP_MOTOR_RIGHT_RPM_SIGN        (-1.0f)
 
 #define APP_SAFETY_PERIOD_MS            (1U)
 

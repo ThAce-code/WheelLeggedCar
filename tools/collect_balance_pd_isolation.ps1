@@ -9,9 +9,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$durationSeconds = 2.50
-$activeWindowMs = 300
-$commands = "0:STOP;0.25:BL,18,8,0,0;0.50:BS,0;0.75:BD,0,0,0;1.00:B,1;1.25:C,0,0;1.50:B,2;1.80:STOP"
+$durationSeconds = 3.70
+$activeWindowMs = 1500
+$commands = "0:STOP;0.25:BL,18,8,0,0;0.50:BS,0;0.75:BD,0,0,0;1.00:B,1;1.25:C,0,0;1.50:B,2;3.00:STOP"
 
 if([string]::IsNullOrWhiteSpace($Out)) {
     $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
@@ -35,7 +35,7 @@ if(-not (Test-Path -LiteralPath $collector)) {
     throw "Missing collector: $collector"
 }
 
-Write-Warning "Active balance will run for 300 ms. Keep the vehicle supported and be ready to cut power."
+Write-Warning "Active balance will run for 1500 ms. Keep the vehicle supported and be ready to cut power."
 
 & $collector `
     -Port $Port `

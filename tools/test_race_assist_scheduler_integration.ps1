@@ -319,6 +319,216 @@ static int enter_low_race_neutral(void)
     return 0;
 }
 
+static int check_operational_session_sequence(void)
+{
+    const chassis_output_struct *chassis_output;
+    const leg_diag_struct *leg;
+    float previous_abs_u;
+    uint32 elapsed_ms;
+    uint8 saw_unsettled_off_neutral = APP_FALSE;
+
+    /* 1. A fresh DISABLED session must reject a non-neutral leg. */
+    if((APP_TRUE != control_chassis_set_race_assist_gains(0.02f, 0.0f, 0.0f)) ||
+       (APP_TRUE != control_chassis_set_race_assist_level(1U, app_scheduler_get_ms())))
+    {
+        return 1;
+    }
+    control_chassis_set_fast_enable(APP_TRUE);
+    control_chassis_set_cmd(0.0f, 0.0f, APP_TRUE, app_scheduler_get_ms());
+    run_ms_with_command(10U, 0.0f, 0.0f);
+    chassis_output = control_chassis_get_output();
+    if((RACE_ASSIST_FAULT_HOLD !=
+        (race_assist_state_enum)chassis_output->race_assist_state) ||
+       (RACE_ASSIST_FAULT_LEG_NOT_READY !=
+        (race_assist_fault_reason_enum)chassis_output->race_assist_fault_reason))
+    {
+        fprintf(stderr,
+                "new non-neutral session was not rejected: state %u fault %u\n",
+                chassis_output->race_assist_state,
+                chassis_output->race_assist_fault_reason);
+        return 2;
+    }
+
+    /* Reset the rejected session, establish the validated neutral pose, and
+       enter the operational state through LOW_RACE -> ARMED -> BOOST. */
+    control_leg_init();
+    control_chassis_init();
+    control_balance_init();
+    control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
+    host_set_measured_rpm(0.0f);
+    if(enter_low_race_neutral() ||
+       (APP_TRUE != control_chassis_set_race_assist_gains(0.02f, 0.0f, 0.0f)) ||
+       (APP_TRUE != control_chassis_set_race_assist_level(1U, app_scheduler_get_ms())))
+    {
+        return 3;
+    }
+    control_chassis_set_fast_enable(APP_TRUE);
+    host_set_measured_rpm(240.0f);
+    control_chassis_set_cmd(250.0f, 0.0f, APP_TRUE, app_scheduler_get_ms());
+    for(elapsed_ms = 0U; elapsed_ms < 1200U; elapsed_ms++)
+    {
+        const uint32 next_ms = app_scheduler_get_ms() + 1U;
+
+        if(0U == (next_ms % 100U))
+        {
+            control_chassis_set_cmd(250.0f, 0.0f, APP_TRUE, next_ms);
+        }
+        run_one_ms();
+        leg = control_leg_get_diag();
+        chassis_output = control_chassis_get_output();
+        if((0.05f < leg->race_assist_actual) &&
+           (APP_TRUE != leg->servo_settled) &&
+           (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+            fabsf(leg->race_target_x_mm - APP_RACE_ASSIST_ZERO_X_MM)))
+        {
+            saw_unsettled_off_neutral = APP_TRUE;
+        }
+        if(RACE_ASSIST_FAULT_NONE !=
+           (race_assist_fault_reason_enum)chassis_output->race_assist_fault_reason)
+        {
+            fprintf(stderr, "operational entry faulted before BOOST\n");
+            return 4;
+        }
+    }
+    leg = control_leg_get_diag();
+    if((0.90f > leg->race_assist_actual) ||
+       (APP_TRUE != saw_unsettled_off_neutral))
+    {
+        fprintf(stderr,
+                "neutral operational entry missed BOOST/unsettled motion: u %.3f unsettled %u\n",
+                leg->race_assist_actual,
+                saw_unsettled_off_neutral);
+        return 5;
+    }
+
+    /* 3. Keep BRA1 selected while measured speed falls to 220 RPM. */
+    host_set_measured_rpm(220.0f);
+    control_chassis_set_cmd(0.0f, 0.0f, APP_TRUE, app_scheduler_get_ms());
+    run_ms_with_command(5U, 0.0f, 0.0f);
+    chassis_output = control_chassis_get_output();
+    leg = control_leg_get_diag();
+    if((RACE_ASSIST_LOW_RACE !=
+        (race_assist_state_enum)chassis_output->race_assist_state) ||
+       (RACE_ASSIST_FAULT_NONE !=
+        (race_assist_fault_reason_enum)chassis_output->race_assist_fault_reason) ||
+       expect_near(chassis_output->race_u_request, 0.0f, 0.0001f))
+    {
+        fprintf(stderr,
+                "BRA1/220 did not request neutral without fault: state %u fault %u request %.3f\n",
+                chassis_output->race_assist_state,
+                chassis_output->race_assist_fault_reason,
+                chassis_output->race_u_request);
+        return 6;
+    }
+
+    /* 4. Real scheduler cycles must move u_actual monotonically back to zero
+       without re-running the entry-pose gate. */
+    previous_abs_u = fabsf(leg->race_assist_actual);
+    for(elapsed_ms = 0U; elapsed_ms < 1500U; elapsed_ms++)
+    {
+        const uint32 next_ms = app_scheduler_get_ms() + 1U;
+        float current_abs_u;
+
+        if(0U == (next_ms % 100U))
+        {
+            control_chassis_set_cmd(0.0f, 0.0f, APP_TRUE, next_ms);
+        }
+        run_one_ms();
+        leg = control_leg_get_diag();
+        chassis_output = control_chassis_get_output();
+        current_abs_u = fabsf(leg->race_assist_actual);
+        if((RACE_ASSIST_FAULT_NONE !=
+            (race_assist_fault_reason_enum)chassis_output->race_assist_fault_reason) ||
+           expect_near(chassis_output->race_u_request, 0.0f, 0.0001f) ||
+           ((previous_abs_u + 0.0001f) < current_abs_u))
+        {
+            fprintf(stderr,
+                    "operational recenter failed: fault %u request %.3f |u| %.4f->%.4f\n",
+                    chassis_output->race_assist_fault_reason,
+                    chassis_output->race_u_request,
+                    previous_abs_u,
+                    current_abs_u);
+            return 7;
+        }
+        previous_abs_u = current_abs_u;
+    }
+
+    /* 5. Once neutral and settled, BRA1 remains armed in LOW_RACE. */
+    leg = control_leg_get_diag();
+    chassis_output = control_chassis_get_output();
+    if((RACE_ASSIST_LOW_RACE !=
+        (race_assist_state_enum)chassis_output->race_assist_state) ||
+       (APP_TRUE != leg->servo_settled) ||
+       (0.01f < fabsf(leg->race_assist_actual)))
+    {
+        fprintf(stderr,
+                "neutral settle did not remain LOW_RACE: state %u settled %u u %.3f\n",
+                chassis_output->race_assist_state,
+                leg->servo_settled,
+                leg->race_assist_actual);
+        return 8;
+    }
+
+    /* 6. BRA0 must complete RECENTER -> DISABLED and clear the session latch. */
+    if(APP_TRUE != control_chassis_set_race_assist_level(0U, app_scheduler_get_ms()))
+    {
+        return 9;
+    }
+    run_ms_with_command(5U, 0.0f, 0.0f);
+    if(RACE_ASSIST_RECENTER !=
+       (race_assist_state_enum)control_chassis_get_output()->race_assist_state)
+    {
+        fprintf(stderr, "BRA0 did not enter RECENTER above 200 RPM\n");
+        return 10;
+    }
+    host_set_measured_rpm(190.0f);
+    run_ms_with_command(5U, 0.0f, 0.0f);
+    if(RACE_ASSIST_DISABLED !=
+       (race_assist_state_enum)control_chassis_get_output()->race_assist_state)
+    {
+        fprintf(stderr, "BRA0 did not complete DISABLED below 200 RPM\n");
+        return 11;
+    }
+
+    if(APP_TRUE != control_leg_set_xy(APP_RACE_ASSIST_ZERO_X_MM - 2.0f,
+                                      APP_RACE_ASSIST_ZERO_Y_MM + 2.0f,
+                                      app_scheduler_get_ms()))
+    {
+        fprintf(stderr, "next-session non-neutral LXY rejected\n");
+        return 12;
+    }
+    run_ms_with_command(1200U, 0.0f, 0.0f);
+    leg = control_leg_get_diag();
+    if((APP_TRUE != leg->servo_settled) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM >=
+        fabsf(leg->left_command_pose_body_mm.x_mm - APP_RACE_ASSIST_ZERO_X_MM)))
+    {
+        fprintf(stderr, "next-session non-neutral pose did not settle\n");
+        return 13;
+    }
+
+    if(APP_TRUE != control_chassis_set_race_assist_level(1U, app_scheduler_get_ms()))
+    {
+        return 14;
+    }
+    host_set_measured_rpm(220.0f);
+    control_chassis_set_fast_enable(APP_TRUE);
+    run_ms_with_command(5U, 0.0f, 0.0f);
+    chassis_output = control_chassis_get_output();
+    if((RACE_ASSIST_FAULT_HOLD !=
+        (race_assist_state_enum)chassis_output->race_assist_state) ||
+       (RACE_ASSIST_FAULT_LEG_NOT_READY !=
+        (race_assist_fault_reason_enum)chassis_output->race_assist_fault_reason))
+    {
+        fprintf(stderr,
+                "completed DISABLED did not restore the next-session entry gate: state %u fault %u\n",
+                chassis_output->race_assist_state,
+                chassis_output->race_assist_fault_reason);
+        return 15;
+    }
+    return 0;
+}
+
 int main(void)
 {
     const chassis_cmd_struct *chassis_cmd;
@@ -346,8 +556,34 @@ int main(void)
     control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
     host_set_measured_rpm(0.0f);
 
-    if(enter_low_race_neutral() ||
-       (APP_TRUE != control_chassis_set_race_assist_gains(0.02f, 0.0f, 0.0f)) ||
+    if(check_operational_session_sequence())
+    {
+        return 1;
+    }
+
+    /* Fault reset after the sequence above, then restore the validated
+       neutral pose before retaining the runtime IK fault-injection coverage. */
+    control_chassis_init();
+    control_balance_init();
+    control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
+    host_set_measured_rpm(0.0f);
+    if(APP_TRUE != control_leg_set_xy(APP_RACE_ASSIST_ZERO_X_MM,
+                                      APP_RACE_ASSIST_ZERO_Y_MM,
+                                      app_scheduler_get_ms()))
+    {
+        fprintf(stderr, "post-session neutral LXY rejected\n");
+        return 1;
+    }
+    run_ms_with_command(1500U, 0.0f, 0.0f);
+    leg = control_leg_get_diag();
+    if((LEG_MODE_IK_VALIDATE != (leg_mode_enum)leg->mode) ||
+       (APP_TRUE != leg->servo_settled))
+    {
+        fprintf(stderr, "post-session neutral LXY did not settle\n");
+        return 1;
+    }
+
+    if((APP_TRUE != control_chassis_set_race_assist_gains(0.02f, 0.0f, 0.0f)) ||
        (APP_TRUE != control_chassis_set_race_assist_level(1U, app_scheduler_get_ms())))
     {
         return 1;

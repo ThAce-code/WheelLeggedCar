@@ -17,6 +17,7 @@ static uint8 control_race_assist_level;
 static uint8 control_race_assist_disable_pending;
 static uint8 control_race_assist_leg_path_fault_latched;
 static uint8 control_race_assist_fault_latched;
+static uint8 control_race_assist_operational_session_latched;
 
 static float control_race_assist_absf(float value)
 {
@@ -93,10 +94,18 @@ static float control_race_assist_safe_hold_u(float leg_u_actual)
 
 static uint8 control_race_assist_entry_pose_required(void)
 {
-    return ((RACE_ASSIST_DISABLED == control_race_assist_output.state) ||
-            (RACE_ASSIST_LOW_RACE == control_race_assist_output.state) ||
-            (RACE_ASSIST_ARMED == control_race_assist_output.state)) ?
+    return (APP_FALSE == control_race_assist_operational_session_latched) ?
            APP_TRUE : APP_FALSE;
+}
+
+static void control_race_assist_latch_operational_session(void)
+{
+    if((RACE_ASSIST_BOOST == control_race_assist_output.state) ||
+       (RACE_ASSIST_CRUISE_HOLD == control_race_assist_output.state) ||
+       (RACE_ASSIST_BRAKE == control_race_assist_output.state))
+    {
+        control_race_assist_operational_session_latched = APP_TRUE;
+    }
 }
 
 static void control_race_assist_apply_level_profile(uint8 level)
@@ -118,6 +127,9 @@ static void control_race_assist_apply_level_profile(uint8 level)
 
 static void control_race_assist_set_disabled_output(void)
 {
+    /* A completed recenter/disable is the boundary of the operational
+       session.  FAULT_HOLD never reaches this path without an explicit reset. */
+    control_race_assist_operational_session_latched = APP_FALSE;
     control_race_assist_output.state = RACE_ASSIST_DISABLED;
     control_race_assist_output.fault_reason = RACE_ASSIST_FAULT_NONE;
     control_race_assist_output.u_request = 0.0f;
@@ -195,6 +207,7 @@ void control_race_assist_init(void)
     control_race_assist_disable_pending = APP_FALSE;
     control_race_assist_leg_path_fault_latched = APP_FALSE;
     control_race_assist_fault_latched = APP_FALSE;
+    control_race_assist_operational_session_latched = APP_FALSE;
 
     control_race_assist_output.requested_accel_rpm_s = 0.0f;
     control_race_assist_output.speed_error_rpm = 0.0f;
@@ -380,6 +393,7 @@ void control_race_assist_update(const race_assist_input_struct *input)
     {
         control_race_assist_output.state = RACE_ASSIST_CRUISE_HOLD;
     }
+    control_race_assist_latch_operational_session();
 }
 
 const race_assist_output_struct *control_race_assist_get_output(void)

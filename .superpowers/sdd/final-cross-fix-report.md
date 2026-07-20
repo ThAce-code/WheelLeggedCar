@@ -13,6 +13,35 @@
 
 ## Findings closed
 
+### Final review follow-up: operational-session entry latch
+
+The supervisor now records whether the current enabled session has actually
+entered `BOOST`, `CRUISE_HOLD`, or `BRAKE`. Until that happens, the neutral
+`low_pose_ready` entry gate remains mandatory; this also prevents an
+uncompleted pre-operational `RECENTER` from being cancelled into an entry-gate
+bypass. Once operational motion has begun, a normal BRA1 speed drop below
+230 RPM may enter `LOW_RACE` and command `u_request=0` for as many scheduler
+cycles as needed without treating the expected off-neutral/unsettled return
+trajectory as a new entry.
+
+The latch is cleared only by `control_race_assist_init()` (the explicit fault
+reset path) or by reaching the real `DISABLED` output after recenter/disable
+completion. `FAULT_HOLD` does not clear it, and the existing latched-fault
+checks continue to run before any entry decision.
+
+The pure-supervisor numeric harness and the real scheduler combination harness
+both cover the final-review sequence:
+
+1. a non-neutral fresh `DISABLED` session fails closed;
+2. neutral entry reaches `ARMED -> BOOST`, with nonzero `u` and an observed
+   unsettled/off-neutral servo trajectory;
+3. BRA1 remains selected while measured speed falls to 220 RPM;
+4. real 1/5/10 ms scheduler cycles remain fault-free with `u_request=0` and
+   monotonic `u_actual -> 0`;
+5. neutral plus settled remains in `LOW_RACE`;
+6. BRA0 completes `RECENTER -> DISABLED`, after which a new non-neutral session
+   is rejected again.
+
 ### A. Entry-only low-pose readiness
 
 `control_race_assist_update()` now requires `low_pose_ready` only in
@@ -141,38 +170,45 @@ documentation change:
    `Gate 0 must reject any large or unexpected manual command jump.`
 7. WCET handoff RED:
    `The DWT preflight WCET status must remain explicit until measured on CM7_0.`
+8. Operational-session numeric RED:
+   `operational recenter cycle: expected state 1, got 7 fault 2 u 0.475`.
+9. Real scheduler sequence RED:
+   `operational recenter failed: fault 2 request 1.000 |u| 1.0000->1.0000`.
+10. Pre-operational re-entry RED:
+    `pre-operational RECENTER bypassed the entry gate`.
 
 Each focused test was rerun to GREEN before the full suite.
 
 ## Fresh software verification
 
-The existing 18-script suite plus the new scheduler integration harness all
-exited zero: **19/19 passed**.
+The previous 19-script suite plus the new operational-session numeric harness
+all exited zero: **20/20 passed**.
 
 1. `tools/test_race_assist_numeric.ps1`
-2. `tools/test_low_race_leg_assist_static.ps1`
-3. `tools/test_leg_transition_numeric.ps1`
-4. `tools/test_leg_ik_zero_calibration_static.ps1`
-5. `tools/test_leg_physical_ik_static.ps1`
-6. `tools/test_servo_motion_numeric.ps1`
-7. `tools/test_servo_300hz_integration_static.ps1`
-8. `tools/test_balance_drive_v1_static.ps1`
-9. `tools/test_balance_drive_v2_static.ps1`
-10. `tools/test_tune_drive_loops_static.ps1`
-11. `tools/test_collect_balance_data.ps1`
-12. `tools/test_timing_noise_regressions.ps1`
-13. `tools/test_ik_height_control_static.ps1`
-14. `tools/test_leg_coordinate_contract_static.ps1`
-15. `tools/test_control_chassis_race_assist.ps1`
-16. `tools/test_host_command_race_assist.ps1`
-17. `tools/test_collect_bldc_diagnostics.ps1`
-18. `tools/test_calib_ik_servo.ps1`
-19. `tools/test_race_assist_scheduler_integration.ps1`
+2. `tools/test_race_assist_session_latch.ps1`
+3. `tools/test_low_race_leg_assist_static.ps1`
+4. `tools/test_leg_transition_numeric.ps1`
+5. `tools/test_leg_ik_zero_calibration_static.ps1`
+6. `tools/test_leg_physical_ik_static.ps1`
+7. `tools/test_servo_motion_numeric.ps1`
+8. `tools/test_servo_300hz_integration_static.ps1`
+9. `tools/test_balance_drive_v1_static.ps1`
+10. `tools/test_balance_drive_v2_static.ps1`
+11. `tools/test_tune_drive_loops_static.ps1`
+12. `tools/test_collect_balance_data.ps1`
+13. `tools/test_timing_noise_regressions.ps1`
+14. `tools/test_ik_height_control_static.ps1`
+15. `tools/test_leg_coordinate_contract_static.ps1`
+16. `tools/test_control_chassis_race_assist.ps1`
+17. `tools/test_host_command_race_assist.ps1`
+18. `tools/test_collect_bldc_diagnostics.ps1`
+19. `tools/test_calib_ik_servo.ps1`
+20. `tools/test_race_assist_scheduler_integration.ps1`
 
 The runner printed:
 
 ```text
-ALL_RACE_CROSS_FIX_TESTS_PASSED=19/19
+ALL_RACE_SESSION_LATCH_TESTS_PASSED=20/20
 ```
 
 `git diff --check` exited zero. Its only output was Git's LF/CRLF working-copy

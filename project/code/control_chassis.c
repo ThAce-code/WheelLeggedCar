@@ -287,12 +287,14 @@ void control_chassis_update(uint32 now_ms)
     uint8 low_pose_ready;
     float dt_s;
 
+#if (0U != APP_CHASSIS_CMD_TIMEOUT_MS)
     if((APP_TRUE == control_chassis_cmd.enable) &&
        (0U != control_chassis_cmd.last_cmd_ms) &&
        (APP_CHASSIS_CMD_TIMEOUT_MS < (now_ms - control_chassis_cmd.last_cmd_ms)))
     {
         control_chassis_stop(now_ms);
     }
+#endif
 
     if(0U == control_chassis_cmd.last_update_ms)
     {

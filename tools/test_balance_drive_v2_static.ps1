@@ -44,7 +44,7 @@ Assert-Contains "project/code/app_config.h" "APP_CHASSIS_WHEEL_MAX_AGE_MS" "Miss
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_ZERO_TARGET_DPS" "Missing turn zero-target threshold."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_ZERO_TARGET_RPM" "Missing forward zero-target threshold."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_INTEGRAL_DECAY" "Missing turn integral decay."
-Assert-Contains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS\s+\(500U\)" "C command must stop after host loss."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS\s+\(0U\)" "C command must persist until an explicit stop."
 
 Assert-Contains "project/code/app_types.h" "target_turn_dps" "chassis_cmd_struct must store target yaw-rate."
 Assert-Contains "project/code/app_types.h" "actual_turn_dps" "chassis_cmd_struct must store ramped yaw-rate."
@@ -73,7 +73,7 @@ Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_KI" "control
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_KP" "control_chassis must use turn Kp."
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_SPEED_PITCH_LIMIT_DEG" "control_chassis must clamp pitch offset."
 Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_TURN_RPM_LIMIT" "control_chassis must clamp turn output."
-Assert-Contains "project/code/control_chassis.c" "APP_CHASSIS_CMD_TIMEOUT_MS" "control_chassis must timeout stale C commands."
+Assert-Contains "project/code/control_chassis.c" "#if\s+\(0U\s*!=\s*APP_CHASSIS_CMD_TIMEOUT_MS\)" "control_chassis must support disabling the C timeout."
 Assert-NotContains "project/code/control_chassis.c" "actuator_motor_set_" "control_chassis must not command motor output."
 Assert-NotContains "project/code/control_chassis.c" "bldc_foc_uart" "control_chassis must not call BLDC UART."
 Assert-NotContains "project/code/control_chassis.c" "debug_read" "control_chassis must not parse host commands."

@@ -54,9 +54,9 @@ Require-Pattern $hardwareDoc 'LXY,-16\.83,27\.08' 'Gate 0 must check the forward
 Require-Pattern $hardwareDoc 'IK valid' 'Gate 0 must require valid IK before accepting each manual endpoint.'
 Require-Pattern $hardwareDoc '(?s)STOP\s*->\s*LIKREF\s*->\s*settled\s*->\s*LXY,-18\.83,25\.08\s*->\s*settled\s*->\s*BRA,0\s*->\s*BRG,0,0,0\s*->\s*BRA,1\s*->\s*B,3' `
     'Gate 1 must re-enter low race completely before the A run.'
-Require-Pattern $hardwareDoc 'APP_CHASSIS_CMD_TIMEOUT_MS=500' 'Gate 1 must document the chassis command timeout.'
-Require-Pattern $hardwareDoc '100--200 ms heartbeat' 'Gate 1 must require a command heartbeat.'
-Require-Pattern $hardwareDoc '(?s)single `C,250,0`.*30 RPM' 'Gate 1 must reject a one-shot 250 RPM command.'
+Require-Pattern $hardwareDoc 'APP_CHASSIS_CMD_TIMEOUT_MS=0' 'Gate 1 must document persistent chassis commands.'
+Require-Pattern $hardwareDoc 'heartbeat is optional' 'Gate 1 must state that a command heartbeat is optional.'
+Require-Pattern $hardwareDoc '(?s)`C` persists.*`STOP`' 'Gate 1 must warn that C persists until an explicit transition or stop.'
 Require-Pattern $hardwareDoc 'NOT RUN' 'Hardware status must remain explicit.'
 Require-Pattern $hardwareDoc 'on-target WCET: NOT RUN' `
     'The DWT preflight WCET status must remain explicit until measured on CM7_0.'

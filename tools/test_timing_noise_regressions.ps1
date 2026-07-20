@@ -111,14 +111,14 @@ Require-Pattern $imu 'APP_IMU_GYRO_CAL_RETRY_COUNT' 'IMU initialization must ret
 Require-Pattern $imu 'return SENSOR_IMU_ERR_GYRO_CAL;' 'Persistent gyro calibration failure needs a distinct error code.'
 
 # Drain the 64-byte vendor RX ring at 1 kHz under a short critical section,
-# expire incomplete lines, and stop drive commands after host silence.
+# expire incomplete lines, and preserve explicit drive commands until STOP.
 Require-Pattern $config 'APP_HOST_COMMAND_PERIOD_MS\s+\(1U\)' 'Host RX ring must be drained every millisecond.'
-Require-Pattern $config 'APP_HOST_COMMAND_TIMEOUT_MS\s+\(500U\)' 'Direct motor commands need a host-loss timeout.'
-Require-Pattern $config 'APP_CHASSIS_CMD_TIMEOUT_MS\s+\(500U\)' 'Chassis drive commands need a host-loss timeout.'
+Require-Pattern $config 'APP_HOST_COMMAND_TIMEOUT_MS\s+\(0U\)' 'Direct motor commands must persist until an explicit stop.'
+Require-Pattern $config 'APP_CHASSIS_CMD_TIMEOUT_MS\s+\(0U\)' 'Chassis drive commands must persist until an explicit stop.'
 Require-Pattern $hostSource 'HOST_COMMAND_RX_BUFFER_LEN\s+\(64U\)' 'One host pass must be able to drain the full vendor RX ring.'
 Require-Pattern $hostSource 'interrupt_global_disable\(\)[\s\S]*debug_read_ring_buffer' 'Host FIFO read must be atomic against the UART ISR writer.'
 Require-Pattern $hostSource 'HOST_COMMAND_LINE_TIMEOUT_MS' 'Incomplete command lines must expire.'
-Require-Pattern $chassis 'APP_CHASSIS_CMD_TIMEOUT_MS\s*<\s*\(now_ms - control_chassis_cmd\.last_cmd_ms\)' 'Chassis must stop stale drive commands.'
+Require-Pattern $chassis '#if\s+\(0U\s*!=\s*APP_CHASSIS_CMD_TIMEOUT_MS\)[\s\S]*APP_CHASSIS_CMD_TIMEOUT_MS\s*<\s*\(now_ms - control_chassis_cmd\.last_cmd_ms\)[\s\S]*#endif' 'Zero chassis timeout must disable stale-command stopping.'
 Require-Pattern $hostSource 'if\(0U == lsm6dsv16x_gyro_offset_init\(\)\)[\s\S]*actuator_motor_record_command_error\(APP_FALSE\)[\s\S]*actuator_motor_record_command_error\(APP_TRUE\)' 'IMU_ZERO must report a moving-base calibration failure.'
 
 # All long-running millisecond logic must remain valid across uint32 wrap.

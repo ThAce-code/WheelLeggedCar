@@ -88,25 +88,28 @@
 #define APP_BLDC_TEST_REPEAT            (1U)
 
 #define APP_HOST_COMMAND_PERIOD_MS       (1U)
-#define APP_HOST_COMMAND_TIMEOUT_MS      (500U)
-#define APP_CHASSIS_CMD_TIMEOUT_MS       (500U)
+/* Zero keeps M/D and C motion commands active until an explicit stop or mode change. */
+#define APP_HOST_COMMAND_TIMEOUT_MS      (0U)
+#define APP_CHASSIS_CMD_TIMEOUT_MS       (0U)
 
 #define APP_MOTOR_RPM_LOOP_ENABLE       (1U)
+/* Installed BLDC packet channel 2 is vehicle-left; channel 1 is vehicle-right. */
+#define APP_MOTOR_DRIVER_CHANNELS_SWAPPED (1U)
 #define APP_MOTOR_OPEN_DUTY_REQUIRE_FEEDBACK   (0U)
 #define APP_MOTOR_RPM_TARGET_LIMIT      (1000.0f)
 #define APP_MOTOR_RPM_DUTY_LIMIT        (2000.0f)
 #define APP_MOTOR_RPM_INTEGRAL_LIMIT    (1000.0f)
-#define APP_MOTOR_LEFT_RPM_KP           (2.23353f)
-#define APP_MOTOR_LEFT_RPM_KI           (45.6807f)
+#define APP_MOTOR_LEFT_RPM_KP           (2.14218f)
+#define APP_MOTOR_LEFT_RPM_KI           (42.2684f)
 #define APP_MOTOR_LEFT_RPM_KD           (0.0f)
-#define APP_MOTOR_RIGHT_RPM_KP          (2.14218f)
-#define APP_MOTOR_RIGHT_RPM_KI          (42.2684f)
+#define APP_MOTOR_RIGHT_RPM_KP          (2.23353f)
+#define APP_MOTOR_RIGHT_RPM_KI          (45.6807f)
 #define APP_MOTOR_RIGHT_RPM_KD          (0.0f)
 
 #define APP_MOTOR_LEFT_DUTY_SIGN         (-1.0f)
 #define APP_MOTOR_RIGHT_DUTY_SIGN        (-1.0f)
-#define APP_MOTOR_LEFT_RPM_SIGN         (1.0f)
-#define APP_MOTOR_RIGHT_RPM_SIGN        (-1.0f)
+#define APP_MOTOR_LEFT_RPM_SIGN         (-1.0f)
+#define APP_MOTOR_RIGHT_RPM_SIGN        (1.0f)
 
 #define APP_SAFETY_PERIOD_MS            (1U)
 

@@ -205,18 +205,16 @@ For B, repeat that complete sequence but set
 the low-race point has settled after both `LIKREF` and `LXY`, then verify the
 72-channel trace before requesting wheel motion.
 
-`APP_CHASSIS_CMD_TIMEOUT_MS=500`: a single `C,250,0` expires after 500 ms and
-the normal 60 RPM/s ramp can theoretically reach only about 30 RPM. A single
-command is prohibited for acceptance. Send a `C,250,0` 100--200 ms heartbeat
-throughout acceleration and the 230--250 RPM dwell, which must be sampled for
-at least 1 second. For the stop, send a `C,0,0` 100--200 ms heartbeat until
-measured speed is below 10 RPM; only then send `BRA,0` and `STOP`.
+`APP_CHASSIS_CMD_TIMEOUT_MS=0`: `C` persists until another chassis command,
+`STOP`, a mode transition, or power loss. Keep a physical cut-off ready. For
+the stop, send `C,0,0` until measured speed is below 10 RPM; only then send
+`BRA,0` and `STOP`. A heartbeat is optional, not required for command hold.
 
 The commands are therefore:
 
 ```text
-A: complete re-entry with BRG,0,0,0; C,250,0 heartbeat; 230--250 RPM dwell; C,0,0 heartbeat; <10 RPM; BRA,0; STOP
-B: complete re-entry with BRG,0.005,0.005,0.15; C,250,0 heartbeat; 230--250 RPM dwell; C,0,0 heartbeat; <10 RPM; BRA,0; STOP
+A: complete re-entry with BRG,0,0,0; C,250,0; 230--250 RPM dwell; C,0,0; <10 RPM; BRA,0; STOP
+B: complete re-entry with BRG,0.005,0.005,0.15; C,250,0; 230--250 RPM dwell; C,0,0; <10 RPM; BRA,0; STOP
 ```
 
 Do not add a gain, speed, leg-travel, balance, PID, or turning change to either

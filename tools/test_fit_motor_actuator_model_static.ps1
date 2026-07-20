@@ -26,6 +26,7 @@ Assert-True ($source -match 'tfest') "tfest cross-check missing."
 Assert-True ($source -match 'motor_actuator_model\.csv') "CSV output missing."
 Assert-True ($source -match 'motor_actuator_model\.mat') "MAT output missing."
 Assert-True ($source -match 'motor_actuator_model_fit\.png') "Plot output missing."
+Assert-True ($source -match "'VariableNames'") "Use legacy-compatible table VariableNames syntax."
 Assert-True ($source -notmatch 'app_config\.h') "Fitter must not edit firmware."
 Assert-True ($source -notmatch 'Set-Content') "Fitter must not edit source files."
 

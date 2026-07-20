@@ -183,6 +183,42 @@ Static MATLAB contract tests will verify input globs, required columns, signed m
 
 MATLAB execution is not available on this computer. Static tests and PowerShell previews are the local software gate; numerical execution with System Identification Toolbox and hardware acceptance occur on the user's other computer and target vehicle.
 
+## Operator Commands
+
+Run these from the worktree root. Preview commands do not open a serial port.
+
+Preview the signed motor capture:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/collect_motor_identification.ps1 -Preview -Out data/motor_ident_preview.csv
+```
+
+With both wheels safely suspended and a physical cutoff ready, run the real motor capture:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/collect_motor_identification.ps1 -Port COM6 -Baud 460800 -AllowMotion -Out data/motor_ident_current.csv -Note motor_signed_duty_ident
+```
+
+Preview all three balance profiles with the currently tested motor and balance gains:
+
+```powershell
+$gains = @('-LeftMotorKp','2.14218','-LeftMotorKi','42.2684','-LeftMotorKd','0', '-RightMotorKp','2.23353','-RightMotorKi','45.6807','-RightMotorKd','0', '-PitchKp','18','-PitchRateKd','8','-WheelSpeedKs','-3','-WheelPositionKp','0','-PitchSetpointDeg','0','-Preview')
+powershell -ExecutionPolicy Bypass -File tools/collect_balance_lqr_dataset.ps1 -Profile short @gains
+powershell -ExecutionPolicy Bypass -File tools/collect_balance_lqr_dataset.ps1 -Profile medium @gains
+powershell -ExecutionPolicy Bypass -File tools/collect_balance_lqr_dataset.ps1 -Profile long @gains
+```
+
+After the motor actuator response gate passes, repeat those commands without `-Preview` and add `-AllowMotion`, one profile per capture. Keep the vehicle physically supported throughout the 22-second excitation window.
+
+On the MATLAB computer, from the same repository root, run:
+
+```matlab
+run("tools/fit_motor_actuator_model.m");
+run("tools/fit_balance_lqr_model.m");
+```
+
+Accept the identified matrices only when the scripts complete without an acceptance-gate error, all three profile rows are healthy, and the exported validation errors are finite. The scripts export candidate gains; they do not modify firmware.
+
 ## Out of Scope
 
 - Automatically writing fitted gains into `app_config.h`.

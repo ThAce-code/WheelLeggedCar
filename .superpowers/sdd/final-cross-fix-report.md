@@ -44,11 +44,15 @@ both cover the final-review sequence:
 
 ### A. Entry-only low-pose readiness
 
-`control_race_assist_update()` now requires `low_pose_ready` only in
-`DISABLED`, `LOW_RACE`, and `ARMED`. Once the supervisor is in `BOOST`,
-`CRUISE_HOLD`, `BRAKE`, `RECENTER`, or `FAULT_HOLD`, leaving the neutral pose
-and an unsettled open-loop servo planner are expected motion, not a
-`LEG_NOT_READY` fault.
+`control_race_assist_update()` now requires `low_pose_ready` until the current
+session has actually entered `BOOST`, `CRUISE_HOLD`, or `BRAKE`. That
+operational-session latch remains set while an armed session returns through
+`LOW_RACE`, so normal off-neutral recentering does not re-run the entry gate.
+It is cleared by initialization/fault reset or after a completed
+`RECENTER -> DISABLED`; a pre-operational RECENTER restart therefore still
+requires the neutral, settled entry pose. During an operational session,
+leaving the neutral pose and an unsettled open-loop servo planner are expected
+motion, not a `LEG_NOT_READY` fault.
 
 The always-on gates remain unchanged: finite input, fresh wheel/IMU feedback,
 pitch and pitch-rate abort limits, and leg/path fault still fail closed.

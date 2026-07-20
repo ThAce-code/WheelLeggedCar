@@ -115,13 +115,13 @@ The wrapper formats all numeric commands with invariant-culture decimal points a
 1.25:BD,0,0,0
 1.50:B,1
 1.75:C,0,0
-2.00:BI,<profile amplitude>,<profile half-period ms>
-2.25:B,2
-24.25:BI,0,0
-24.75:STOP
+2.00:B,2
+4.00:BI,<profile amplitude>,<profile half-period ms>
+24.00:BI,0,0
+24.50:STOP
 ```
 
-This produces exactly 22 seconds in active balance mode before excitation is disabled. The final 0.75 seconds confirm the stopped state in telemetry. `-Preview` prints the resolved schedule, duration, and output path, but does not instantiate a serial port.
+This lets balance mode settle for 2 seconds, then produces exactly 20 seconds of active excitation before it is disabled. The final 1 second confirms the stopped state in telemetry. `-Preview` prints the resolved schedule, duration, and output path, but does not instantiate a serial port.
 
 The operator must keep a physical cutoff ready. A frozen IMU or offline wheel causes firmware safety gates to block output; the MATLAB fit rejects those rows and the capture if insufficient healthy data remain.
 
@@ -208,7 +208,7 @@ powershell -ExecutionPolicy Bypass -File tools/collect_balance_lqr_dataset.ps1 -
 powershell -ExecutionPolicy Bypass -File tools/collect_balance_lqr_dataset.ps1 -Profile long @gains
 ```
 
-After the motor actuator response gate passes, repeat those commands without `-Preview` and add `-AllowMotion`, one profile per capture. Keep the vehicle physically supported throughout the 22-second excitation window.
+After the motor actuator response gate passes, repeat those commands without `-Preview` and add `-AllowMotion`, one profile per capture. Keep the vehicle physically supported throughout the 20-second excitation window; the first 2 seconds are balance settling.
 
 On the MATLAB computer, from the same repository root, run:
 

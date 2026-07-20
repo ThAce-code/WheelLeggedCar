@@ -23,7 +23,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $durationSeconds = 25.5
-$activeWindowMs = 22000
+$activeWindowMs = 20000
 
 function Format-Number {
     param([double]$Value)
@@ -60,10 +60,10 @@ $commands = @(
     "1.25:BD,0,0,0",
     "1.5:B,1",
     "1.75:C,0,0",
-    "2:BI,$amplitude,$halfPeriodMs",
-    "2.25:B,2",
-    "24.25:BI,0,0",
-    "24.75:STOP"
+    "2:B,2",
+    "4:BI,$amplitude,$halfPeriodMs",
+    "24:BI,0,0",
+    "24.5:STOP"
 ) -join ";"
 
 if([string]::IsNullOrWhiteSpace($Out)) {
@@ -93,7 +93,7 @@ if(-not (Test-Path -LiteralPath $collector)) {
     throw "Missing collector: $collector"
 }
 
-Write-Warning "Active balance excitation will run for 22 seconds. Keep the vehicle supported and ready to cut power."
+Write-Warning "Balance will settle for 2 seconds, then active excitation will run for 20 seconds. Keep the vehicle supported and ready to cut power."
 & $collector `
     -Port $Port `
     -Baud $Baud `

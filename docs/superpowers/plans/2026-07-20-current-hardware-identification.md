@@ -145,8 +145,8 @@ foreach($profile in $expected.Keys) {
     Assert-True ($LASTEXITCODE -eq 0) "$profile preview failed."
     $text = $preview -join "`n"
     Assert-True ($text -match [regex]::Escape($expected[$profile])) "$profile BI mapping is wrong."
-    Assert-True ($text -match 'active balance window: 22000 ms') "Active window must be 22 seconds."
-    Assert-True ($text -match '24\.25:BI,0,0;24\.75:STOP') "Shutdown schedule is missing."
+    Assert-True ($text -match 'active balance window: 20000 ms') "Active window must be 20 seconds."
+    Assert-True ($text -match '2:B,2;4:BI,' -and $text -match '24:BI,0,0;24\.5:STOP') "Balance settle or shutdown schedule is missing."
 }
 ```
 
@@ -186,10 +186,10 @@ $selected = $profiles[$Profile]
 Construct the exact schedule using invariant-formatted parameters:
 
 ```text
-0:STOP;0.25:PL,LKP,LKI,LKD;0.5:PR,RKP,RKI,RKD;0.75:BL,PKP,PKD,KS,KPOS;1:BS,SETPOINT;1.25:BD,0,0,0;1.5:B,1;1.75:C,0,0;2:BI,AMP,HALF;2.25:B,2;24.25:BI,0,0;24.75:STOP
+0:STOP;0.25:PL,LKP,LKI,LKD;0.5:PR,RKP,RKI,RKD;0.75:BL,PKP,PKD,KS,KPOS;1:BS,SETPOINT;1.25:BD,0,0,0;1.5:B,1;1.75:C,0,0;2:B,2;4:BI,AMP,HALF;24:BI,0,0;24.5:STOP
 ```
 
-Set duration to `25.5`, print `active balance window: 22000 ms`, return before the motion gate when `-Preview` is present, otherwise require `-AllowMotion`, warn the operator, and call the existing collector without `-NoStopOnExit`.
+Set duration to `25.5`, print `active balance window: 20000 ms`, return before the motion gate when `-Preview` is present, otherwise require `-AllowMotion`, warn the operator, and call the existing collector without `-NoStopOnExit`.
 
 - [ ] **Step 4: Run the contract tests and three previews**
 

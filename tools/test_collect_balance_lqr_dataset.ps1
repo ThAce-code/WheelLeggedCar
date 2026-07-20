@@ -24,8 +24,8 @@ foreach($profile in $expected.Keys) {
     Assert-True ($LASTEXITCODE -eq 0) "$profile preview failed."
     $text = $preview -join "`n"
     Assert-True ($text -match [regex]::Escape($expected[$profile])) "$profile BI mapping is wrong."
-    Assert-True ($text -match 'active balance window: 22000 ms') "Active window must be 22 seconds."
-    Assert-True ($text -match '24\.25:BI,0,0;24\.75:STOP') "Shutdown schedule is missing."
+    Assert-True ($text -match 'active balance window: 20000 ms') "Active window must be 20 seconds."
+    Assert-True ($text -match '2:B,2;4:BI,' -and $text -match '24:BI,0,0;24\.5:STOP') "Balance settle or shutdown schedule is missing."
 }
 
 $savedErrorPreference = $ErrorActionPreference

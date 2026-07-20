@@ -14,6 +14,7 @@ function Require-Pattern {
 
 $config = Get-Content "project/code/app_config.h" -Raw
 $motor = Get-Content "project/code/actuator_motor.c" -Raw
+$balance = Get-Content "project/code/control_balance.c" -Raw
 $telemetry = Get-Content "project/code/telemetry.c" -Raw
 $collector = Get-Content "tools/collect_balance_data.ps1" -Raw
 $diagnostics = Get-Content "tools/collect_bldc_diagnostics.ps1" -Raw
@@ -34,6 +35,12 @@ Require-Pattern $config 'APP_MOTOR_LEFT_DUTY_SIGN\s+\(1\.0f\)' 'Positive left ta
 Require-Pattern $config 'APP_MOTOR_RIGHT_DUTY_SIGN\s+\(1\.0f\)' 'Positive right target RPM must drive the installed vehicle forward.'
 Require-Pattern $config 'APP_MOTOR_LEFT_RPM_SIGN\s+\(1\.0f\)' 'Physical left forward rotation must report positive RPM.'
 Require-Pattern $config 'APP_MOTOR_RIGHT_RPM_SIGN\s+\(-1\.0f\)' 'Physical right forward rotation must report positive RPM.'
+
+# Positive controller-visible wheel RPM is vehicle-forward, while positive Ks
+# is a damping magnitude. The balance speed term must therefore oppose RPM.
+Require-Pattern $balance `
+    'speed_term_rpm\s*=\s*-\s*effective_wheel_speed_ks\s*\*\s*wheel_speed_rpm\s*;' `
+    'Positive balance Ks must oppose positive vehicle-forward wheel RPM.'
 
 # Preserve the operator-visible wire contract confirmed on the installed car:
 # I9/I11 are physical left, I8/I10 are physical right.

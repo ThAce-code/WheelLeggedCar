@@ -392,7 +392,8 @@ void control_balance_update(uint32 now_ms)
 
         pitch_term_rpm = pitch_kp_eff * (imu->pitch - pitch_setpoint_deg);
         rate_term_rpm = pitch_rate_kd_eff * pitch_rate_dps;
-        speed_term_rpm = effective_wheel_speed_ks * wheel_speed_rpm;
+        /* Wheel RPM is positive vehicle-forward; positive Ks is damping magnitude. */
+        speed_term_rpm = -effective_wheel_speed_ks * wheel_speed_rpm;
         pos_term_rpm = control_balance_wheel_pos_kp * control_balance_wheel_pos_rev;
         ff_term_rpm = chassis->speed_ff_rpm;
 

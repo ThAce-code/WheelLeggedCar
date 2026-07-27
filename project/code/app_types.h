@@ -160,7 +160,9 @@ typedef struct
 {
     float pitch_offset_deg;
     float turn_rpm;
+    /* Bounded command target, ramped target, and independent wheel measurement. */
     float forward_target_rpm;
+    float forward_ramped_rpm;
     float forward_actual_rpm;
     float turn_target_dps;
     float gyro_z_dps;
@@ -176,8 +178,18 @@ typedef struct
     float speed_ff_rpm;
     float forward_limit_eff_rpm;
     float fast_forward_limit_eff_rpm;
+    float wheel_speed_measured_rpm;
+    float speed_error_rpm;
+    float requested_accel_rpm_s;
+    float race_u_request;
+    float race_balance_limit_rpm;
+    float race_turn_scale;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
+    uint8 race_assist_enable;
+    uint8 race_assist_level;
+    uint8 race_assist_state;
+    uint8 race_assist_fault_reason;
     uint8 enable;
 }chassis_output_struct;
 
@@ -189,6 +201,7 @@ typedef struct
     float chassis_left_rpm;
     float chassis_right_rpm;
     float balance_rpm;
+    float balance_output_limit_rpm;
     float output_left_rpm;
     float output_right_rpm;
     float pitch_kp;
@@ -219,7 +232,7 @@ typedef struct
     float speed_term_rpm;
     float pos_term_rpm;
     float ff_term_rpm;
-    float leg_height_norm;
+    float legacy_stance_norm;
     float balance_pitch_kp_eff;
     float balance_pitch_rate_kd_eff;
     float balance_wheel_speed_ks_eff;
@@ -254,7 +267,9 @@ typedef enum
     LEG_MOTION_LOCKED = 0,
     LEG_MOTION_STABLE,
     LEG_MOTION_TRANSITION,
-    LEG_MOTION_FAULT
+    LEG_MOTION_FAULT,
+    LEG_MOTION_RACE_ASSIST,
+    LEG_MOTION_RACE_FAULT_HOLD
 }leg_motion_state_enum;
 
 typedef enum
@@ -265,18 +280,39 @@ typedef enum
     LEG_FAULT_SERVO_LIMIT
 }leg_fault_reason_enum;
 
+typedef enum
+{
+    LEG_POSE_SOURCE_NONE = 0,
+    LEG_POSE_SOURCE_MEASURED_CALIBRATION = 1,
+    LEG_POSE_SOURCE_MIRROR_ASSUMPTION = 2
+}leg_pose_source_enum;
+
+typedef enum
+{
+    LEG_POSE_STATUS_IK_VALID = (1U << 0),
+    LEG_POSE_STATUS_LEFT_VALID = (1U << 1),
+    LEG_POSE_STATUS_RIGHT_VALID = (1U << 2),
+    LEG_POSE_STATUS_LEFT_MEASURED = (1U << 3),
+    LEG_POSE_STATUS_RIGHT_MIRROR = (1U << 4)
+}leg_pose_status_flag_enum;
+
 typedef struct
 {
-    float target_height_mm;
-    float actual_height_mm;
-    float height_ref_mm;
-    float height_rate_mm_s;
-    float height_norm;
+    float x_mm;
+    float y_mm;
+    leg_pose_source_enum source;
+    uint8 valid;
+}leg_pose_command_estimate_struct;
+
+typedef struct
+{
+    float legacy_stance_target_units;
+    float legacy_stance_ref_units;
+    float legacy_stance_rate_units_s;
+    float legacy_stance_norm;
     float ik_margin;
-    float left_x_mm;
-    float left_y_mm;
-    float right_x_mm;
-    float right_y_mm;
+    leg_pose_command_estimate_struct left_command_pose_body_mm;
+    leg_pose_command_estimate_struct right_command_pose_body_mm;
     float servo_target_deg[4];
     float servo_actual_deg[4];
     float servo_filtered_deg[4];
@@ -295,6 +331,15 @@ typedef struct
     leg_motion_state_enum motion_state;
     leg_fault_reason_enum fault_reason;
     uint32 ik_error_count;
+    float race_assist_request;
+    float race_assist_actual;
+    float race_target_x_mm;
+    float race_target_y_mm;
+    float left_ik_margin;
+    float right_ik_margin;
+    uint8 ik_branch_flags;
+    uint8 race_path_valid;
+    uint8 held_command_valid;
 }leg_diag_struct;
 
 #endif

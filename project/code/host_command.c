@@ -44,7 +44,8 @@ static uint8 host_command_parse_number(const char *text, float *value)
     uint8 digit_found = APP_FALSE;
     float sign = 1.0f;
     float result = 0.0f;
-    float fraction_scale = 0.1f;
+    float fraction = 0.0f;
+    float fraction_divisor = 1.0f;
 
     if('-' == text[index])
     {
@@ -69,8 +70,8 @@ static uint8 host_command_parse_number(const char *text, float *value)
         while(('0' <= text[index]) && ('9' >= text[index]))
         {
             digit_found = APP_TRUE;
-            result += ((float)(text[index] - '0') * fraction_scale);
-            fraction_scale *= 0.1f;
+            fraction = (fraction * 10.0f) + (float)(text[index] - '0');
+            fraction_divisor *= 10.0f;
             index++;
         }
     }
@@ -84,7 +85,21 @@ static uint8 host_command_parse_number(const char *text, float *value)
         return APP_FALSE;
     }
 
-    *value = sign * result;
+    *value = sign * (result + (fraction / fraction_divisor));
+    return APP_TRUE;
+}
+
+static uint8 host_command_parse_race_assist_level(const char *text, uint8 *level)
+{
+    if(('\0' == text[0]) ||
+       ('\0' != text[1]) ||
+       ('0' > text[0]) ||
+       ('4' < text[0]))
+    {
+        return APP_FALSE;
+    }
+
+    *level = (uint8)(text[0] - '0');
     return APP_TRUE;
 }
 
@@ -312,6 +327,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float pos_kp;
     float fourth;
     float period_ms_f;
+    uint8 race_level;
     uint8 read_index = 0;
     uint8 write_index = 0;
 
@@ -329,6 +345,8 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(APP_TRUE == host_command_match_stop(line))
     {
         motion_command_router_latch_emergency_stop(now_ms);
+        control_chassis_set_race_assist_level(0U, now_ms);
+        control_chassis_stop(now_ms);
         control_leg_set_mode(LEG_MODE_LOCK);
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
         control_chassis_set_fast_enable(APP_FALSE);
@@ -376,8 +394,10 @@ static void host_command_process_line(char *line, uint32 now_ms)
     {
         if(0.0f == value)
         {
+            control_chassis_set_race_assist_level(0U, now_ms);
             control_balance_set_ident_excitation(0.0f, 0U, now_ms);
             control_chassis_set_fast_enable(APP_FALSE);
+            control_chassis_stop(now_ms);
             motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
             motion_command_router_cancel_source(MOTION_SOURCE_AUTONOMOUS, now_ms);
             motion_command_router_cancel_source(MOTION_SOURCE_WIRELESS_MANUAL, now_ms);
@@ -387,6 +407,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
         if(1.0f == value)
         {
+            control_chassis_set_race_assist_level(0U, now_ms);
             control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_STANDBY);
             actuator_motor_record_command_error(APP_FALSE);
@@ -394,6 +415,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
         if(2.0f == value)
         {
+            control_chassis_set_race_assist_level(0U, now_ms);
             control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
             actuator_motor_record_command_error(APP_FALSE);
@@ -457,7 +479,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('H' == line[1]) && ('F' == line[2]) && (',' == line[3]) &&
        (APP_TRUE == host_command_parse_number(&line[4], &value)))
     {
-        if(APP_TRUE == control_leg_set_fast_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_fast_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;
@@ -467,7 +489,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('H' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_number(&line[3], &value)))
     {
-        if(APP_TRUE == control_leg_set_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;
@@ -481,7 +503,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
-        if(APP_TRUE == control_leg_set_direct_step_height(value, now_ms))
+        if(APP_TRUE == control_leg_set_direct_legacy_stance(value, now_ms))
         {
             actuator_motor_record_command_error(APP_FALSE);
             return;
@@ -591,6 +613,27 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
     }
 
+    if(('B' == line[0]) && ('R' == line[1]) && ('A' == line[2]) &&
+       (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_race_assist_level(&line[4], &race_level)))
+    {
+        if(APP_TRUE == control_chassis_set_race_assist_level(race_level, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('B' == line[0]) && ('R' == line[1]) && ('G' == line[2]) &&
+       (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_three_numbers(&line[4], &kp, &ki, &drive_turn_kp)))
+    {
+        if(APP_TRUE == control_chassis_set_race_assist_gains(kp, ki, drive_turn_kp))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
     if(('M' == line[0]) && (',' == line[1]) &&
        (APP_TRUE == host_command_parse_number(&line[2], &value)))
     {

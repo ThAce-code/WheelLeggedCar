@@ -33,12 +33,7 @@
 #define APP_TELEMETRY_PROFILE_BALANCE  (0U)
 #define APP_TELEMETRY_PROFILE_GNSS     (1U)
 #define APP_TELEMETRY_PROFILE          (APP_TELEMETRY_PROFILE_GNSS)
-
-#if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
 #define APP_TELEMETRY_PERIOD_MS         (20U)
-#else
-#define APP_TELEMETRY_PERIOD_MS         (10U)
-#endif
 #define APP_TELEMETRY_ENABLE            (1U)
 #define APP_TELEMETRY_BALANCE_ENABLE    (1U)
 
@@ -68,7 +63,6 @@
 #define APP_SERVO_SETTLE_MS             (100U)
 #define APP_SERVO_SETTLE_TICKS          ((APP_SERVO_SETTLE_MS * APP_SERVO_PWM_FREQ_HZ + 999U) / 1000U)
 #define APP_SERVO_TEST_ENABLE           (0U)
-
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3
 #define APP_SERVO1_PWM_CH               TCPWM_CH12_P01_0
 #define APP_SERVO2_PWM_CH               TCPWM_CH11_P01_1
@@ -102,27 +96,30 @@
 #define APP_BLDC_TEST_REPEAT            (1U)
 
 #define APP_HOST_COMMAND_PERIOD_MS       (1U)
-#define APP_HOST_COMMAND_TIMEOUT_MS      (500U)
-#define APP_CHASSIS_CMD_TIMEOUT_MS       (500U)
+/* Zero keeps M/D and C motion commands active until an explicit stop or mode change. */
+#define APP_HOST_COMMAND_TIMEOUT_MS      (0U)
+#define APP_CHASSIS_CMD_TIMEOUT_MS       (0U)
 #define APP_INTERCORE_COMMAND_TIMEOUT_MS  (200U)
 #define APP_INTERCORE_FORWARD_LIMIT_RPM   (60.0f)
 #define APP_INTERCORE_TURN_LIMIT_DPS      (60.0f)
 #define APP_UART_LOCAL_COMMAND_VALID_MS   (500U)
 
 #define APP_MOTOR_RPM_LOOP_ENABLE       (1U)
+/* Installed BLDC packet channel 2 is vehicle-left; channel 1 is vehicle-right. */
+#define APP_MOTOR_DRIVER_CHANNELS_SWAPPED (1U)
 #define APP_MOTOR_OPEN_DUTY_REQUIRE_FEEDBACK   (0U)
 #define APP_MOTOR_RPM_TARGET_LIMIT      (1000.0f)
 #define APP_MOTOR_RPM_DUTY_LIMIT        (2000.0f)
 #define APP_MOTOR_RPM_INTEGRAL_LIMIT    (1000.0f)
-#define APP_MOTOR_LEFT_RPM_KP           (2.23353f)
-#define APP_MOTOR_LEFT_RPM_KI           (45.6807f)
+#define APP_MOTOR_LEFT_RPM_KP           (2.14218f)
+#define APP_MOTOR_LEFT_RPM_KI           (42.2684f)
 #define APP_MOTOR_LEFT_RPM_KD           (0.0f)
-#define APP_MOTOR_RIGHT_RPM_KP          (2.14218f)
-#define APP_MOTOR_RIGHT_RPM_KI          (42.2684f)
+#define APP_MOTOR_RIGHT_RPM_KP          (2.23353f)
+#define APP_MOTOR_RIGHT_RPM_KI          (45.6807f)
 #define APP_MOTOR_RIGHT_RPM_KD          (0.0f)
 
-#define APP_MOTOR_LEFT_DUTY_SIGN         (-1.0f)
-#define APP_MOTOR_RIGHT_DUTY_SIGN        (-1.0f)
+#define APP_MOTOR_LEFT_DUTY_SIGN         (1.0f)
+#define APP_MOTOR_RIGHT_DUTY_SIGN        (1.0f)
 #define APP_MOTOR_LEFT_RPM_SIGN         (1.0f)
 #define APP_MOTOR_RIGHT_RPM_SIGN        (-1.0f)
 
@@ -155,7 +152,39 @@
 #define APP_CHASSIS_FORWARD_ZERO_TARGET_RPM    (0.5f)
 #define APP_CHASSIS_TURN_INTEGRAL_DECAY        (0.98f)
 #define APP_CHASSIS_DRIVE_GAIN_ABS_LIMIT     (100.0f)
-#define APP_BALANCE_RPM_LIMIT           (300.0f)
+
+/* Race-assist is compiled fail-closed.  Higher levels require a separate hardware review. */
+#define APP_RACE_ASSIST_MAX_VALIDATED_LEVEL       (1U)
+#define APP_RACE_ASSIST_ARM_START_RPM             (230.0f)
+#define APP_RACE_ASSIST_FULL_RPM                  (250.0f)
+#define APP_RACE_ASSIST_RECENTER_RPM              (200.0f)
+#define APP_RACE_ASSIST_SPEED_ERROR_DEADBAND_RPM  (5.0f)
+#define APP_RACE_ASSIST_ACCEL_DEADBAND_RPM_S      (5.0f)
+#define APP_RACE_ASSIST_PITCH_ARM_LIMIT_DEG       (10.0f)
+#define APP_RACE_ASSIST_PITCH_ABORT_LIMIT_DEG     (15.0f)
+#define APP_RACE_ASSIST_RATE_ARM_LIMIT_DPS        (100.0f)
+#define APP_RACE_ASSIST_RATE_ABORT_LIMIT_DPS      (180.0f)
+#define APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG    (7.0f)
+#define APP_RACE_ASSIST_GAIN_A_DEFAULT            (0.0f)
+#define APP_RACE_ASSIST_GAIN_E_DEFAULT            (0.0f)
+#define APP_RACE_ASSIST_HOLD_DEFAULT              (0.0f)
+#define APP_RACE_ASSIST_GAIN_A_MAX                (0.02f)
+#define APP_RACE_ASSIST_GAIN_E_MAX                (0.05f)
+#define APP_RACE_ASSIST_HOLD_MAX                  (0.50f)
+#define APP_RACE_ASSIST_ZERO_X_MM                 (-18.83f)
+#define APP_RACE_ASSIST_ZERO_Y_MM                 (25.08f)
+#define APP_RACE_ASSIST_INITIAL_DX_MM             (2.0f)
+#define APP_RACE_ASSIST_INITIAL_DY_MM             (2.0f)
+#define APP_RACE_ASSIST_POSE_TOLERANCE_MM         (0.75f)
+#define APP_RACE_ASSIST_REQUEST_DEADBAND          (0.02f)
+#define APP_RACE_ASSIST_PATH_SAMPLE_COUNT         (21U)
+#define APP_RACE_ASSIST_SERVO_SPEED_DPS           (90.0f)
+#ifndef APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE
+#define APP_RACE_ASSIST_PREFLIGHT_WCET_ENABLE      (0U)
+#endif
+
+#define APP_BALANCE_RPM_LIMIT                   (460.0f)
+#define APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT   (300.0f)
 #define APP_BALANCE_TEST_PITCH_LIMIT_DEG (45.0f)
 #define APP_BALANCE_PITCH_KP            (18.0f)
 #define APP_BALANCE_PITCH_RATE_KD       (8.0f)
@@ -182,7 +211,7 @@
 
 #define APP_LEG_VERIFY_ENABLE           (0U)
 #define APP_LEG_VERIFY_DELAY_MS         (2000U)
-#define APP_LEG_VERIFY_HEIGHT_CMD       (0.0f)
+#define APP_LEG_VERIFY_LEGACY_STANCE_CMD (0.0f)
 #define APP_LEG_VERIFY_PITCH_CMD        (25.0f)
 #define APP_LEG_VERIFY_ROLL_CMD         (0.0f)
 

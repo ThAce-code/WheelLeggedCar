@@ -53,11 +53,23 @@ def visible_leg_samples():
     ]
 
 
+def point_in_convex_polygon(point, polygon):
+    for first, second in zip(polygon, polygon[1:] + polygon[:1]):
+        cross = ((second[0] - first[0]) * (point[1] - first[1]) -
+                 (second[1] - first[1]) * (point[0] - first[0]))
+        if cross < -1e-9:
+            return False
+    return True
+
+
 class TestFitVisibleLeg(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.samples = visible_leg_samples()
-        cls.candidate = fit.fit_similarity_candidate(cls.samples)
+        cls.cfg = fit.KinematicsConfig()
+        cls.reference = fit.reference_physical_point(cls.samples)
+        cls.candidate = fit.fit_similarity_candidate(
+            cls.samples, cls.cfg, cls.reference)
 
     def test_reference_is_mean_of_all_three_90_degree_captures(self):
         reference = fit.reference_physical_point(self.samples)
@@ -65,25 +77,26 @@ class TestFitVisibleLeg(unittest.TestCase):
         self.assertAlmostEqual(reference[1], 47.3566666667, places=6)
 
     def test_reference_requires_three_named_90_degree_captures(self):
-        error = fit.validate_reference_samples(self.samples[:-1])
+        error = fit.validate_reference_samples(self.samples[:-1], self.cfg)
         self.assertIn("exactly one ref_start, ref_mid, and ref_end", error)
 
     def test_reference_rejects_non_neutral_command(self):
         broken = list(self.samples)
         broken[0] = sample("ref_start", (89.0, 90.0, 90.0, 90.0),
                            -21.45, 48.09)
-        self.assertIn("90-degree", fit.validate_reference_samples(broken))
+        self.assertIn("reference commands",
+                      fit.validate_reference_samples(broken, self.cfg))
 
     def test_fit_recovers_anchored_low_error_similarity(self):
         candidate = self.candidate
-        self.assertEqual((candidate.direction_a, candidate.direction_b),
-                         (-1, -1))
+        self.assertEqual((self.cfg.servo_a.direction,
+                          self.cfg.servo_b.direction), (-1.0, -1.0))
         self.assertEqual(candidate.determinant, -1)
         self.assertAlmostEqual(candidate.reference_physical_x_mm,
                                -20.7666666667, places=6)
         self.assertAlmostEqual(candidate.reference_physical_y_mm,
                                47.3566666667, places=6)
-        metrics = fit.evaluate_candidate(candidate, self.samples)
+        metrics = fit.evaluate_candidate(candidate, self.samples, self.cfg)
         self.assertLess(metrics.radial_rmse_mm, 1.0)
         self.assertLess(metrics.max_radial_error_mm, 2.0)
         self.assertGreaterEqual(candidate.scale, 0.8)
@@ -93,15 +106,27 @@ class TestFitVisibleLeg(unittest.TestCase):
         candidate = self.candidate
         local = (20.0, 70.0)
         physical = fit.model_to_physical(candidate, *local)
-        recovered = fit.physical_to_model(candidate, *physical)
+        physical_delta_x = ((physical[0] -
+                             candidate.reference_physical_x_mm) /
+                            candidate.scale)
+        physical_delta_y = ((physical[1] -
+                             candidate.reference_physical_y_mm) /
+                            candidate.scale)
+        m00, m01, m10, m11 = candidate.matrix
+        recovered = (
+            candidate.reference_model_x_mm +
+            m00 * physical_delta_x + m10 * physical_delta_y,
+            candidate.reference_model_y_mm +
+            m01 * physical_delta_x + m11 * physical_delta_y,
+        )
         self.assertAlmostEqual(recovered[0], local[0], places=6)
         self.assertAlmostEqual(recovered[1], local[1], places=6)
 
     def test_prediction_uses_servo0_and_servo2_only(self):
         first = sample("first", (100.0, 70.0, 110.0, 80.0))
         second = sample("second", (100.0, 120.0, 110.0, 130.0))
-        self.assertEqual(fit.predict_candidate(self.candidate, first),
-                         fit.predict_candidate(self.candidate, second))
+        self.assertEqual(fit.predict_candidate(self.candidate, first, self.cfg),
+                         fit.predict_candidate(self.candidate, second, self.cfg))
 
     def test_reference_drift_gate_rejects_large_start_end_shift(self):
         error = fit.validate_reference_drift([
@@ -116,14 +141,14 @@ class TestFitVisibleLeg(unittest.TestCase):
         ])
         self.assertEqual(len(hull), 8)
         for item in self.samples:
-            self.assertTrue(fit.point_in_inset_hull(
-                (item.measured_x_mm, item.measured_y_mm), hull, 0.0))
+            self.assertTrue(point_in_convex_polygon(
+                (item.measured_x_mm, item.measured_y_mm), hull))
 
-    def test_inset_hull_rejects_physical_x_zero(self):
+    def test_hull_rejects_physical_x_zero(self):
         hull = fit.convex_hull([
             (item.measured_x_mm, item.measured_y_mm) for item in self.samples
         ])
-        self.assertFalse(fit.point_in_inset_hull((0.0, 55.0), hull, 2.0))
+        self.assertFalse(point_in_convex_polygon((0.0, 55.0), hull))
 
     def test_candidate_matrix_is_orthogonal(self):
         m00, m01, m10, m11 = self.candidate.matrix

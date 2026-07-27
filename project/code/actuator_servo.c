@@ -44,9 +44,6 @@ static volatile stc_TCPWM_GRP_CNT_t * const actuator_servo_pwm_cnt[APP_SERVO_COU
     TCPWM0_GRP0_CNT9
 };
 
-static uint32 actuator_servo_angle_to_duty_with_trim(float angle_deg,
-                                                      float pulse_trim_us);
-
 static float actuator_servo_limit(float value)
 {
     if(APP_SERVO_MIN_DEG > value)
@@ -91,12 +88,34 @@ static void actuator_servo_write_duty(uint8 index, uint32 duty)
     Cy_Tcpwm_TriggerCapture0(actuator_servo_pwm_cnt[index]);
 }
 
+static uint32 actuator_servo_angle_to_duty_with_trim(uint8 index, float angle_deg)
+{
+    float limited_angle;
+    float pulse_us;
+
+    limited_angle = actuator_servo_limit(angle_deg);
+    pulse_us = (float)APP_SERVO_MIN_PULSE_US +
+               (limited_angle - APP_SERVO_MIN_DEG) *
+               (float)(APP_SERVO_MAX_PULSE_US - APP_SERVO_MIN_PULSE_US) /
+               (APP_SERVO_MAX_DEG - APP_SERVO_MIN_DEG);
+    pulse_us += actuator_servo_pulse_trim_us[index];
+
+    if(APP_SERVO_MIN_PULSE_US > pulse_us)
+    {
+        pulse_us = (float)APP_SERVO_MIN_PULSE_US;
+    }
+    if(APP_SERVO_MAX_PULSE_US < pulse_us)
+    {
+        pulse_us = (float)APP_SERVO_MAX_PULSE_US;
+    }
+
+    return (uint32)(pulse_us * (float)PWM_DUTY_MAX *
+                    (float)APP_SERVO_PWM_FREQ_HZ / 1000000.0f);
+}
+
 static void actuator_servo_write(uint8 index, float angle_deg)
 {
-    actuator_servo_write_duty(
-        index,
-        actuator_servo_angle_to_duty_with_trim(
-            angle_deg, actuator_servo_pulse_trim_us[index]));
+    actuator_servo_write_duty(index, actuator_servo_angle_to_duty_with_trim(index, angle_deg));
 }
 
 void actuator_servo_init(void)
@@ -334,8 +353,7 @@ void actuator_servo_disable(void)
     interrupt_global_enable(primask);
 }
 
-static uint32 actuator_servo_angle_to_duty_with_trim(float angle_deg,
-                                                      float pulse_trim_us)
+uint32 actuator_servo_angle_to_duty(float angle_deg)
 {
     float limited_angle;
     float pulse_us;
@@ -345,23 +363,9 @@ static uint32 actuator_servo_angle_to_duty_with_trim(float angle_deg,
                (limited_angle - APP_SERVO_MIN_DEG) *
                (float)(APP_SERVO_MAX_PULSE_US - APP_SERVO_MIN_PULSE_US) /
                (APP_SERVO_MAX_DEG - APP_SERVO_MIN_DEG);
-    pulse_us += pulse_trim_us;
-    if((float)APP_SERVO_MIN_PULSE_US > pulse_us)
-    {
-        pulse_us = (float)APP_SERVO_MIN_PULSE_US;
-    }
-    else if((float)APP_SERVO_MAX_PULSE_US < pulse_us)
-    {
-        pulse_us = (float)APP_SERVO_MAX_PULSE_US;
-    }
 
     return (uint32)(pulse_us * (float)PWM_DUTY_MAX *
                     (float)APP_SERVO_PWM_FREQ_HZ / 1000000.0f);
-}
-
-uint32 actuator_servo_angle_to_duty(float angle_deg)
-{
-    return actuator_servo_angle_to_duty_with_trim(angle_deg, 0.0f);
 }
 
 float actuator_servo_get_current_angle(uint8 index)

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Fit visible-leg commands to absolute physical wheel-center coordinates.
+"""Fit visible-leg commands to absolute BODY_WHEEL wheel-center coordinates.
 
-The fixed chassis marker is physical (0, 0), +X is vehicle forward, and +Y is
-downward.  The three named 90-degree reference captures anchor the fitted
-similarity; they are not subtracted to create a neutral-relative coordinate
-system.
+The fixed chassis cross-circle is physical (0, 0), +X is vehicle forward, and
++Y is downward.  The three named reference captures anchor a similarity from
+the five-bar model into that physical frame.  Servo commands are converted to
+geometric linkage-angle deltas with the same neutral, IK offset, and direction
+contract as firmware before forward kinematics is evaluated.
 
 Usage:
     python tools/fit_leg_ik_calibration.py \
@@ -19,7 +20,7 @@ import json
 import math
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
@@ -28,8 +29,30 @@ from scipy.optimize import least_squares
 
 
 REFERENCE_LABELS = ("ref_start", "ref_mid", "ref_end")
-NEUTRAL_COMMAND_DEG = 90.0
 FIT_ROOT = "plus"
+WORKSPACE_INSET_MM = 2.0
+
+
+@dataclass(frozen=True)
+class ServoInputConfig:
+    servo_index: int
+    neutral_deg: float
+    min_deg: float
+    max_deg: float
+    direction: float
+    ik_offset_deg: float
+
+    @property
+    def reference_command_deg(self) -> float:
+        return self.neutral_deg + self.ik_offset_deg
+
+
+def _default_servo_a() -> ServoInputConfig:
+    return ServoInputConfig(0, 90.0, 10.0, 175.0, -1.0, 0.0)
+
+
+def _default_servo_b() -> ServoInputConfig:
+    return ServoInputConfig(2, 90.0, 10.0, 175.0, -1.0, 0.0)
 
 
 @dataclass(frozen=True)
@@ -39,6 +62,8 @@ class KinematicsConfig:
     l3_mm: float = 90.0
     l4_mm: float = 60.0
     l5_mm: float = 37.0
+    servo_a: ServoInputConfig = field(default_factory=_default_servo_a)
+    servo_b: ServoInputConfig = field(default_factory=_default_servo_b)
 
 
 @dataclass(frozen=True)
@@ -54,16 +79,14 @@ class Sample:
 class SimilarityCandidate:
     alpha_ref_deg: float
     beta_ref_deg: float
-    direction_a: int
-    direction_b: int
     determinant: int
     rotation_deg: float
     scale: float
     matrix: Tuple[float, float, float, float]
     reference_physical_x_mm: float
     reference_physical_y_mm: float
-    reference_local_x_mm: float
-    reference_local_y_mm: float
+    reference_model_x_mm: float
+    reference_model_y_mm: float
     objective_sse: float
 
 
@@ -107,7 +130,8 @@ def read_samples(path: Path) -> List[Sample]:
     samples: List[Sample] = []
     with path.open(newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
-            if "skip" in (row.get("note") or "").lower():
+            note = (row.get("note") or "").lower()
+            if "skip" in note or "interference" in note:
                 continue
             measured_x = first_float(row, ("measured_x_mm", "x_mm"))
             measured_y = first_float(row, ("measured_y_mm", "y_mm"))
@@ -134,6 +158,70 @@ def read_samples(path: Path) -> List[Sample]:
     return samples
 
 
+def _parse_servo_configs(text: str) -> dict[int, ServoInputConfig]:
+    number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)"
+    pattern = re.compile(
+        rf"\{{\s*(?P<index>[0-3])\s*,\s*{number}f\s*,\s*"
+        rf"(?P<neutral>{number})f\s*,\s*(?P<minimum>{number})f\s*,\s*"
+        rf"(?P<maximum>{number})f\s*,\s*(?P<direction>{number})f\s*,\s*"
+        rf"(?P<offset>{number})f\s*,\s*{number}f\s*,\s*{number}f\s*\}}")
+    result: dict[int, ServoInputConfig] = {}
+    for match in pattern.finditer(text):
+        index = int(match.group("index"))
+        result[index] = ServoInputConfig(
+            servo_index=index,
+            neutral_deg=float(match.group("neutral")),
+            min_deg=float(match.group("minimum")),
+            max_deg=float(match.group("maximum")),
+            direction=float(match.group("direction")),
+            ik_offset_deg=float(match.group("offset")),
+        )
+    return result
+
+
+def parse_current_config(config_path: Path) -> KinematicsConfig:
+    if not config_path.exists():
+        raise ValueError(f"configuration source not found: {config_path}")
+    text = config_path.read_text(encoding="utf-8", errors="ignore")
+    link_values = {}
+    for name in ("l1_mm", "l2_mm", "l3_mm", "l4_mm", "l5_mm"):
+        match = re.search(
+            rf"\.{name}\s*=\s*([-+]?\d+(?:\.\d+)?)f", text)
+        if match is None:
+            raise ValueError(f"configuration is missing .{name}")
+        link_values[name] = float(match.group(1))
+    servos = _parse_servo_configs(text)
+    if 0 not in servos or 2 not in servos:
+        raise ValueError("configuration is missing visible-leg servo 0/2 mapping")
+    for servo in (servos[0], servos[2]):
+        if (not math.isfinite(servo.direction) or
+                abs(servo.direction) <= 1e-9 or
+                servo.min_deg > servo.max_deg):
+            raise ValueError(
+                f"servo {servo.servo_index} has an invalid range/direction")
+    return KinematicsConfig(
+        **link_values,
+        servo_a=servos[0],
+        servo_b=servos[2],
+    )
+
+
+def logical_command_delta_deg(
+    command_deg: float, servo: ServoInputConfig,
+) -> float:
+    """Convert an actuator command to firmware-equivalent geometric delta."""
+    if not math.isfinite(command_deg):
+        raise ValueError("servo command must be finite")
+    if command_deg < servo.min_deg or command_deg > servo.max_deg:
+        raise ValueError(
+            f"servo {servo.servo_index} command {command_deg:.6f} is outside "
+            f"[{servo.min_deg:.6f},{servo.max_deg:.6f}]")
+    if not math.isfinite(servo.direction) or abs(servo.direction) <= 1e-9:
+        raise ValueError(f"servo {servo.servo_index} direction must be nonzero")
+    return ((command_deg - servo.neutral_deg - servo.ik_offset_deg) /
+            servo.direction)
+
+
 def validate_sample_coverage(
     samples: Sequence[Sample], min_x_span_mm: float, min_y_span_mm: float,
 ) -> Optional[str]:
@@ -155,24 +243,44 @@ def validate_sample_coverage(
     return None
 
 
-def validate_reference_samples(samples: Sequence[Sample]) -> Optional[str]:
-    selected = {label: [s for s in samples if s.label == label]
+def validate_reference_samples(
+    samples: Sequence[Sample], cfg: KinematicsConfig,
+) -> Optional[str]:
+    selected = {label: [sample for sample in samples if sample.label == label]
                 for label in REFERENCE_LABELS}
     if any(len(selected[label]) != 1 for label in REFERENCE_LABELS):
         return "reference fit requires exactly one ref_start, ref_mid, and ref_end"
+    expected_a = cfg.servo_a.reference_command_deg
+    expected_b = cfg.servo_b.reference_command_deg
     for label in REFERENCE_LABELS:
-        if any(abs(value - NEUTRAL_COMMAND_DEG) > 1e-6
-               for value in selected[label][0].servo):
-            return f"{label} must contain the four 90-degree commands"
+        sample = selected[label][0]
+        if (abs(sample.servo[0] - expected_a) > 1e-6 or
+                abs(sample.servo[2] - expected_b) > 1e-6):
+            return (f"{label} must use servo 0/2 reference commands "
+                    f"{expected_a:.6f}/{expected_b:.6f} deg")
     return None
 
 
-def reference_physical_point(samples: Sequence[Sample]) -> Tuple[float, float]:
-    error = validate_reference_samples(samples)
-    if error is not None:
-        raise ValueError(error)
+def validate_command_ranges(
+    samples: Sequence[Sample], cfg: KinematicsConfig,
+) -> Optional[str]:
+    for sample in samples:
+        try:
+            logical_command_delta_deg(sample.servo[0], cfg.servo_a)
+            logical_command_delta_deg(sample.servo[2], cfg.servo_b)
+        except ValueError as exc:
+            return f"sample {sample.sample_id}: {exc}"
+    return None
+
+
+def reference_physical_point(
+    samples: Sequence[Sample],
+) -> Tuple[float, float]:
     references = [sample for sample in samples
                   if sample.label in REFERENCE_LABELS]
+    if len(references) != len(REFERENCE_LABELS):
+        raise ValueError(
+            "reference fit requires exactly one ref_start, ref_mid, and ref_end")
     return (
         sum(sample.measured_x_mm for sample in references) / len(references),
         sum(sample.measured_y_mm for sample in references) / len(references),
@@ -184,8 +292,6 @@ def validate_reference_drift(
 ) -> Optional[str]:
     start = [sample for sample in samples if sample.label == "ref_start"]
     end = [sample for sample in samples if sample.label == "ref_end"]
-    if not start and not end:
-        return None
     if len(start) != 1 or len(end) != 1:
         return "reference drift check requires exactly one ref_start and ref_end"
     drift_mm = math.hypot(
@@ -204,20 +310,6 @@ def reference_drift_mm(samples: Sequence[Sample]) -> float:
                       end.measured_y_mm - start.measured_y_mm)
 
 
-def parse_current_config(config_path: Path) -> KinematicsConfig:
-    if not config_path.exists():
-        return KinematicsConfig()
-    text = config_path.read_text(encoding="utf-8", errors="ignore")
-    values = {}
-    for name in ("l1_mm", "l2_mm", "l3_mm", "l4_mm", "l5_mm"):
-        match = re.search(
-            rf"\.{name}\s*=\s*([-+]?\d+(?:\.\d+)?)f", text)
-        if match is None:
-            return KinematicsConfig()
-        values[name] = float(match.group(1))
-    return KinematicsConfig(**values)
-
-
 def circle_fk_candidates(
     cfg: KinematicsConfig, alpha_deg: float, beta_deg: float,
 ) -> List[Tuple[float, float, str]]:
@@ -227,9 +319,9 @@ def circle_fk_candidates(
     c_y = cfg.l1_mm * math.sin(alpha)
     d_x = cfg.l5_mm + cfg.l4_mm * math.cos(beta)
     d_y = cfg.l4_mm * math.sin(beta)
-    dx = d_x - c_x
-    dy = d_y - c_y
-    distance = math.hypot(dx, dy)
+    delta_x = d_x - c_x
+    delta_y = d_y - c_y
+    distance = math.hypot(delta_x, delta_y)
     if distance <= 1e-9:
         return []
     projection = ((cfg.l2_mm ** 2 - cfg.l3_mm ** 2 + distance ** 2) /
@@ -238,13 +330,13 @@ def circle_fk_candidates(
     if root_term < -1e-7:
         return []
     height = math.sqrt(max(root_term, 0.0))
-    base_x = c_x + projection * dx / distance
-    base_y = c_y + projection * dy / distance
+    base_x = c_x + projection * delta_x / distance
+    base_y = c_y + projection * delta_y / distance
     return [
-        (base_x - dy * height / distance,
-         base_y + dx * height / distance, "plus"),
-        (base_x + dy * height / distance,
-         base_y - dx * height / distance, "minus"),
+        (base_x - delta_y * height / distance,
+         base_y + delta_x * height / distance, "plus"),
+        (base_x + delta_y * height / distance,
+         base_y - delta_x * height / distance, "minus"),
     ]
 
 
@@ -271,30 +363,26 @@ def similarity_matrix(rotation_deg: float, determinant: int
 def _candidate_from_parameters(
     cfg: KinematicsConfig,
     parameters: Sequence[float],
-    direction_a: int,
-    direction_b: int,
     determinant: int,
     reference_physical: Tuple[float, float],
     objective_sse: float,
 ) -> Optional[SimilarityCandidate]:
     alpha_ref_deg, beta_ref_deg, rotation_deg, log_scale = parameters
-    reference_local = five_bar_forward(
+    reference_model = five_bar_forward(
         cfg, alpha_ref_deg, beta_ref_deg, FIT_ROOT)
-    if reference_local is None:
+    if reference_model is None:
         return None
     return SimilarityCandidate(
         alpha_ref_deg=float(alpha_ref_deg),
         beta_ref_deg=float(beta_ref_deg),
-        direction_a=direction_a,
-        direction_b=direction_b,
         determinant=determinant,
         rotation_deg=float(rotation_deg),
         scale=float(math.exp(log_scale)),
         matrix=similarity_matrix(rotation_deg, determinant),
         reference_physical_x_mm=reference_physical[0],
         reference_physical_y_mm=reference_physical[1],
-        reference_local_x_mm=reference_local[0],
-        reference_local_y_mm=reference_local[1],
+        reference_model_x_mm=reference_model[0],
+        reference_model_y_mm=reference_model[1],
         objective_sse=float(objective_sse),
     )
 
@@ -303,55 +391,40 @@ def model_to_physical(
     candidate: SimilarityCandidate, x_mm: float, y_mm: float,
 ) -> Tuple[float, float]:
     m00, m01, m10, m11 = candidate.matrix
-    dx = x_mm - candidate.reference_local_x_mm
-    dy = y_mm - candidate.reference_local_y_mm
+    delta_x = x_mm - candidate.reference_model_x_mm
+    delta_y = y_mm - candidate.reference_model_y_mm
     return (
         candidate.reference_physical_x_mm +
-        candidate.scale * (m00 * dx + m01 * dy),
+        candidate.scale * (m00 * delta_x + m01 * delta_y),
         candidate.reference_physical_y_mm +
-        candidate.scale * (m10 * dx + m11 * dy),
-    )
-
-
-def physical_to_model(
-    candidate: SimilarityCandidate, x_mm: float, y_mm: float,
-) -> Tuple[float, float]:
-    m00, m01, m10, m11 = candidate.matrix
-    dx = (x_mm - candidate.reference_physical_x_mm) / candidate.scale
-    dy = (y_mm - candidate.reference_physical_y_mm) / candidate.scale
-    return (
-        candidate.reference_local_x_mm + m00 * dx + m10 * dy,
-        candidate.reference_local_y_mm + m01 * dx + m11 * dy,
+        candidate.scale * (m10 * delta_x + m11 * delta_y),
     )
 
 
 def predict_candidate(
-    candidate: SimilarityCandidate, sample: Sample,
-    cfg: Optional[KinematicsConfig] = None,
+    candidate: SimilarityCandidate,
+    sample: Sample,
+    cfg: KinematicsConfig,
 ) -> Optional[Tuple[float, float]]:
-    cfg = cfg or KinematicsConfig()
-    alpha_deg = (candidate.alpha_ref_deg + candidate.direction_a *
-                 (sample.servo[0] - NEUTRAL_COMMAND_DEG))
-    beta_deg = (candidate.beta_ref_deg + candidate.direction_b *
-                (sample.servo[2] - NEUTRAL_COMMAND_DEG))
-    local = five_bar_forward(cfg, alpha_deg, beta_deg, FIT_ROOT)
-    if local is None:
+    alpha_deg = (candidate.alpha_ref_deg +
+                 logical_command_delta_deg(sample.servo[0], cfg.servo_a))
+    beta_deg = (candidate.beta_ref_deg +
+                logical_command_delta_deg(sample.servo[2], cfg.servo_b))
+    model = five_bar_forward(cfg, alpha_deg, beta_deg, FIT_ROOT)
+    if model is None:
         return None
-    return model_to_physical(candidate, *local)
+    return model_to_physical(candidate, *model)
 
 
 def _fit_residuals(
     parameters: Sequence[float],
     samples: Sequence[Sample],
     cfg: KinematicsConfig,
-    direction_a: int,
-    direction_b: int,
     determinant: int,
     reference_physical: Tuple[float, float],
 ) -> np.ndarray:
     candidate = _candidate_from_parameters(
-        cfg, parameters, direction_a, direction_b, determinant,
-        reference_physical, 0.0)
+        cfg, parameters, determinant, reference_physical, 0.0)
     if candidate is None:
         return np.full(len(samples) * 2, 1000.0, dtype=np.float64)
     residuals = []
@@ -367,15 +440,11 @@ def _fit_residuals(
 
 def fit_similarity_candidate(
     samples: Sequence[Sample],
-    cfg: Optional[KinematicsConfig] = None,
-    reference_physical: Optional[Tuple[float, float]] = None,
+    cfg: KinematicsConfig,
+    reference_physical: Tuple[float, float],
 ) -> SimilarityCandidate:
     if len(samples) < 4:
         raise ValueError("at least four samples are required")
-    cfg = cfg or KinematicsConfig()
-    if reference_physical is None:
-        reference_physical = reference_physical_point(samples)
-
     starts = (
         (170.0, 0.0, 175.0, math.log(0.95)),
         (150.0, -20.0, 0.0, 0.0),
@@ -384,29 +453,24 @@ def fit_similarity_candidate(
     lower = np.asarray((120.0, -60.0, -360.0, math.log(0.5)))
     upper = np.asarray((220.0, 60.0, 360.0, math.log(1.5)))
     best: Optional[SimilarityCandidate] = None
-
-    for direction_a in (-1, 1):
-        for direction_b in (-1, 1):
-            for determinant in (-1, 1):
-                for start in starts:
-                    result = least_squares(
-                        _fit_residuals,
-                        np.asarray(start, dtype=np.float64),
-                        bounds=(lower, upper),
-                        args=(samples, cfg, direction_a, direction_b,
-                              determinant, reference_physical),
-                        max_nfev=3000,
-                        xtol=1e-11,
-                        ftol=1e-11,
-                        gtol=1e-11,
-                    )
-                    candidate = _candidate_from_parameters(
-                        cfg, result.x, direction_a, direction_b, determinant,
-                        reference_physical, float(np.dot(result.fun, result.fun)))
-                    if candidate is not None and (
-                            best is None or
-                            candidate.objective_sse < best.objective_sse):
-                        best = candidate
+    for determinant in (-1, 1):
+        for start in starts:
+            result = least_squares(
+                _fit_residuals,
+                np.asarray(start, dtype=np.float64),
+                bounds=(lower, upper),
+                args=(samples, cfg, determinant, reference_physical),
+                max_nfev=3000,
+                xtol=1e-11,
+                ftol=1e-11,
+                gtol=1e-11,
+            )
+            candidate = _candidate_from_parameters(
+                cfg, result.x, determinant, reference_physical,
+                float(np.dot(result.fun, result.fun)))
+            if candidate is not None and (
+                    best is None or candidate.objective_sse < best.objective_sse):
+                best = candidate
     if best is None:
         raise ValueError("no finite similarity candidate could be fitted")
     return best
@@ -421,9 +485,8 @@ def _rmse(values: Sequence[float]) -> float:
 def evaluate_candidate(
     candidate: SimilarityCandidate,
     samples: Iterable[Sample],
-    cfg: Optional[KinematicsConfig] = None,
+    cfg: KinematicsConfig,
 ) -> FitMetrics:
-    cfg = cfg or KinematicsConfig()
     predictions = []
     for sample in samples:
         predicted = predict_candidate(candidate, sample, cfg)
@@ -445,7 +508,8 @@ def evaluate_candidate(
         rmse_y_mm=_rmse([item.error_y_mm for item in predictions]),
         radial_rmse_mm=_rmse([item.radial_error_mm for item in predictions]),
         max_radial_error_mm=max(
-            (item.radial_error_mm for item in predictions), default=float("nan")),
+            (item.radial_error_mm for item in predictions),
+            default=float("nan")),
     )
 
 
@@ -472,28 +536,6 @@ def convex_hull(points: Sequence[Tuple[float, float]]
     return lower[:-1] + upper[:-1]
 
 
-def point_in_inset_hull(
-    point: Tuple[float, float],
-    hull: Sequence[Tuple[float, float]],
-    inset_mm: float,
-) -> bool:
-    if len(hull) < 3 or inset_mm < 0.0:
-        return False
-    for index, first in enumerate(hull):
-        second = hull[(index + 1) % len(hull)]
-        edge_x = second[0] - first[0]
-        edge_y = second[1] - first[1]
-        edge_length = math.hypot(edge_x, edge_y)
-        if edge_length <= 1e-9:
-            return False
-        signed_distance = (
-            edge_x * (point[1] - first[1]) -
-            edge_y * (point[0] - first[0])) / edge_length
-        if signed_distance < inset_mm - 1e-9:
-            return False
-    return True
-
-
 def kfold_splits(samples: Sequence[Sample], k: int, seed: int
                  ) -> List[Tuple[List[Sample], List[Sample]]]:
     if k < 2 or k > len(samples):
@@ -510,30 +552,31 @@ def kfold_splits(samples: Sequence[Sample], k: int, seed: int
     return result
 
 
-def print_candidate(candidate: SimilarityCandidate,
-                    hull: Sequence[Tuple[float, float]]) -> None:
+def print_candidate(
+    candidate: SimilarityCandidate,
+    hull: Sequence[Tuple[float, float]],
+) -> None:
     m00, m01, m10, m11 = candidate.matrix
     print("\ncandidate_leg_physical_calibration")
-    print("/* anchored physical-coordinate candidate; review before copying */")
+    print("/* current leg_kinematics_config_t fields; review before copying */")
     print(f".physical_reference_x_mm = {candidate.reference_physical_x_mm:.6f}f,")
     print(f".physical_reference_y_mm = {candidate.reference_physical_y_mm:.6f}f,")
     print(f".alpha_reference_deg = {candidate.alpha_ref_deg:.6f}f,")
     print(f".beta_reference_deg = {candidate.beta_ref_deg:.6f}f,")
-    print(f".command_direction_a = {candidate.direction_a:.1f}f,")
-    print(f".command_direction_b = {candidate.direction_b:.1f}f,")
+    print(f".model_reference_x_mm = {candidate.reference_model_x_mm:.6f}f,")
+    print(f".model_reference_y_mm = {candidate.reference_model_y_mm:.6f}f,")
     print(f".model_to_physical_scale = {candidate.scale:.9f}f,")
     print(f".model_to_physical_m00 = {m00:.9f}f,")
     print(f".model_to_physical_m01 = {m01:.9f}f,")
     print(f".model_to_physical_m10 = {m10:.9f}f,")
     print(f".model_to_physical_m11 = {m11:.9f}f,")
-    print(f".model_reference_x_mm = {candidate.reference_local_x_mm:.6f}f,")
-    print(f".model_reference_y_mm = {candidate.reference_local_y_mm:.6f}f,")
-    print(f".physical_workspace_vertex_count = {len(hull)}U,")
+    print(f"physical_workspace vertex_count={len(hull)} "
+          "(LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT)")
     print(".physical_workspace = {")
     for x_mm, y_mm in hull:
         print(f"    {{{x_mm:.3f}f, {y_mm:.3f}f}},")
     print("},")
-    print(".physical_workspace_inset_mm = 2.000f,")
+    print(f".physical_workspace_inset_mm = {WORKSPACE_INSET_MM:.3f}f,")
 
 
 def print_metrics(name: str, metrics: FitMetrics) -> None:
@@ -544,20 +587,20 @@ def print_metrics(name: str, metrics: FitMetrics) -> None:
           f"max={metrics.max_radial_error_mm:.3f} mm")
 
 
-def _load_validation_report(path: Optional[Path]) -> Optional[str]:
+def load_validation_report(path: Optional[Path]) -> Optional[str]:
     if path is None:
         return None
     if not path.exists():
-        return f"Validation report not found: {path}"
+        return f"validation report not found: {path}"
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        return f"Failed to parse validation report: {exc}"
+        return f"failed to parse validation report: {exc}"
     required = ("mae_mm", "rmse_mm", "max_error_mm",
                 "repeatability_std_mm")
     missing = [name for name in required if name not in report]
     if missing:
-        return f"Validation report missing required fields: {missing}"
+        return f"validation report missing required fields: {missing}"
     print("MEASUREMENT SYSTEM VALIDATION")
     for name in required:
         print(f"  {name}={float(report[name]):.3f}")
@@ -579,19 +622,27 @@ def main() -> int:
     parser.add_argument("--expected-samples", type=int, default=20)
     args = parser.parse_args()
 
-    report_error = _load_validation_report(args.validation_report)
+    report_error = load_validation_report(args.validation_report)
     if report_error is not None:
         print(f"[ERROR] {report_error}")
         return 1
-
+    try:
+        cfg = parse_current_config(args.config)
+    except ValueError as exc:
+        print(f"[ERROR] {exc}")
+        return 2
     samples = read_samples(args.input)
     if len(samples) != args.expected_samples:
         print(f"[ERROR] expected {args.expected_samples} usable samples; "
               f"found {len(samples)}")
         return 2
-    reference_error = validate_reference_samples(samples)
+    reference_error = validate_reference_samples(samples, cfg)
     if reference_error is not None:
         print(f"[ERROR] {reference_error}")
+        return 3
+    command_error = validate_command_ranges(samples, cfg)
+    if command_error is not None:
+        print(f"[ERROR] {command_error}")
         return 3
     coverage_error = validate_sample_coverage(
         samples, args.min_x_span_mm, args.min_y_span_mm)
@@ -604,7 +655,6 @@ def main() -> int:
         print(f"[ERROR] {drift_error}")
         return 3
 
-    cfg = parse_current_config(args.config)
     reference = reference_physical_point(samples)
     candidate = fit_similarity_candidate(samples, cfg, reference)
     metrics = evaluate_candidate(candidate, samples, cfg)
@@ -616,14 +666,19 @@ def main() -> int:
     print(f"  samples={len(samples)}")
     print(f"  reference=({reference[0]:.6f},{reference[1]:.6f}) mm")
     print(f"  reference_drift={reference_drift_mm(samples):.3f} mm")
-    print(f"  directions=({candidate.direction_a},{candidate.direction_b})")
+    print("  input_servo_mapping=project/code/leg_config.c")
+    for servo in (cfg.servo_a, cfg.servo_b):
+        print(f"  servo[{servo.servo_index}]: "
+              f"neutral_deg={servo.neutral_deg:.6f} "
+              f"ik_offset_deg={servo.ik_offset_deg:.6f} "
+              f"direction={servo.direction:.6f}")
     print(f"  determinant={candidate.determinant}")
     print(f"  scale={candidate.scale:.9f}")
     print_metrics("full", metrics)
 
-    cv_radial = []
-    cv_directions = []
-    if args.kfold > 0:
+    cross_validation_rmse = []
+    cross_validation_determinants = []
+    if args.kfold > 0 and not args.no_split:
         print(f"\n{args.kfold}-FOLD CROSS-VALIDATION")
         for index, (training, validation) in enumerate(
                 kfold_splits(samples, args.kfold, args.seed), start=1):
@@ -632,38 +687,41 @@ def main() -> int:
             fold_metrics = evaluate_candidate(
                 fold_candidate, validation, cfg)
             print_metrics(f"fold_{index}_validation", fold_metrics)
-            print(f"    directions=({fold_candidate.direction_a},"
-                  f"{fold_candidate.direction_b}) "
-                  f"determinant={fold_candidate.determinant} "
+            print(f"    determinant={fold_candidate.determinant} "
                   f"scale={fold_candidate.scale:.6f}")
-            cv_radial.append(fold_metrics.radial_rmse_mm)
-            cv_directions.append((fold_candidate.direction_a,
-                                  fold_candidate.direction_b,
-                                  fold_candidate.determinant))
+            cross_validation_rmse.append(fold_metrics.radial_rmse_mm)
+            cross_validation_determinants.append(fold_candidate.determinant)
 
     errors = []
     if not 0.8 <= candidate.scale <= 1.2:
         errors.append(f"scale {candidate.scale:.6f} is outside [0.8,1.2]")
     if metrics.radial_rmse_mm > 2.0:
-        errors.append(f"full radial RMSE {metrics.radial_rmse_mm:.3f} exceeds 2 mm")
+        errors.append(
+            f"full radial RMSE {metrics.radial_rmse_mm:.3f} exceeds 2 mm")
     if metrics.max_radial_error_mm > 3.0:
-        errors.append(f"full max error {metrics.max_radial_error_mm:.3f} exceeds 3 mm")
-    if cv_radial and sum(cv_radial) / len(cv_radial) > 2.0:
+        errors.append(
+            f"full max error {metrics.max_radial_error_mm:.3f} exceeds 3 mm")
+    if (cross_validation_rmse and
+            sum(cross_validation_rmse) / len(cross_validation_rmse) > 2.0):
         errors.append("mean cross-validation radial RMSE exceeds 2 mm")
-    if cv_directions and len(set(cv_directions)) != 1:
-        errors.append("direction/reflection selection is unstable across folds")
-    if cv_directions and cv_directions[0] != (
-            candidate.direction_a, candidate.direction_b,
-            candidate.determinant):
-        errors.append("full-fit direction/reflection differs from cross-validation")
+    if (cross_validation_determinants and
+            len(set(cross_validation_determinants)) != 1):
+        errors.append("reflection selection is unstable across folds")
+    if (cross_validation_determinants and
+            cross_validation_determinants[0] != candidate.determinant):
+        errors.append("full-fit reflection differs from cross-validation")
     if errors:
         for error in errors:
             print(f"[ERROR] {error}")
-        print("[ERROR] Refusing to print a firmware candidate.")
+        print("[ERROR] refusing to print a firmware candidate")
         return 5
 
     hull = convex_hull([(sample.measured_x_mm, sample.measured_y_mm)
                         for sample in samples])
+    if len(hull) != 8:
+        print(f"[ERROR] physical hull has {len(hull)} vertices; "
+              "firmware contract requires 8")
+        return 5
     print_candidate(candidate, hull)
     return 0
 

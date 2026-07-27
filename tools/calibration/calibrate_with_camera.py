@@ -481,7 +481,7 @@ def manual_measure(
             w.writeheader()
             w.writerows(samples)
         print(f"\nSaved {len(samples)} samples -> {out_csv}")
-        print(f"Next: python tools/fit_leg_ik_calibration.py --input {out_csv} --val-split 0.2")
+        print(f"Next: python tools/fit_leg_ik_calibration.py --input {out_csv} --kfold 5")
 
 
 def batch_from_images(

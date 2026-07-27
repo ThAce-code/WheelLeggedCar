@@ -9,9 +9,11 @@
 #include "control_balance.h"
 #include "control_leg.h"
 #include "app_config.h"
+#include "app_safety.h"
 #include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
 #include "zf_common_interrupt.h"
+#include "motion_command_router.h"
 
 #define HOST_COMMAND_RX_BUFFER_LEN       (64U)
 #define HOST_COMMAND_LINE_MAX            (32U)
@@ -20,6 +22,7 @@
 static char host_command_line[HOST_COMMAND_LINE_MAX];
 static uint8 host_command_index = 0;
 static uint32 host_command_last_byte_ms = 0U;
+static uint32 host_motion_sequence = 0U;
 
 static uint8 host_command_is_space(uint8 ch)
 {
@@ -325,13 +328,114 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
+        motion_command_router_latch_emergency_stop(now_ms);
         control_leg_set_mode(LEG_MODE_LOCK);
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
         control_chassis_set_fast_enable(APP_FALSE);
-        control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
         actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(('A' == line[0]) && ('R' == line[1]) && ('M' == line[2]) && ('\0' == line[3]))
+    {
+        if((APP_TRUE == app_safety_is_fault()) ||
+           (0U == motion_command_router_clear_emergency_stop(now_ms)) ||
+           (0U == motion_command_router_arm_remote(now_ms, 0U)))
+        {
+            actuator_motor_record_command_error(APP_TRUE);
+        }
+        else
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+        }
+        return;
+    }
+
+    if(('M' == line[0]) && ('A' == line[1]) && ('I' == line[2]) &&
+       ('N' == line[3]) && ('T' == line[4]) && (',' == line[5]))
+    {
+        if(APP_TRUE != host_command_parse_number(&line[6], &value) ||
+           ((0.0f != value) && (1.0f != value)))
+        {
+            actuator_motor_record_command_error(APP_TRUE);
+            return;
+        }
+        motion_command_router_set_maintenance_mode((0.0f != value) ? 1U : 0U,
+                                                   now_ms);
+        control_leg_set_mode(LEG_MODE_LOCK);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(('B' == line[0]) && (',' == line[1]) &&
+       (APP_TRUE == host_command_parse_number(&line[2], &value)))
+    {
+        if(0.0f == value)
+        {
+            control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+            control_chassis_set_fast_enable(APP_FALSE);
+            motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
+            motion_command_router_cancel_source(MOTION_SOURCE_AUTONOMOUS, now_ms);
+            motion_command_router_cancel_source(MOTION_SOURCE_WIRELESS_MANUAL, now_ms);
+            control_balance_set_mode(BALANCE_MODE_OFF);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(1.0f == value)
+        {
+            control_chassis_set_fast_enable(APP_FALSE);
+            control_balance_set_mode(BALANCE_MODE_STANDBY);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(2.0f == value)
+        {
+            control_chassis_set_fast_enable(APP_FALSE);
+            control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(3.0f == value)
+        {
+            control_chassis_set_fast_enable(APP_TRUE);
+            control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('C' == line[0]) && (',' == line[1]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[2], &kp, &ki)))
+    {
+        motion_command_request_struct request;
+
+        host_motion_sequence++;
+        if(0U == host_motion_sequence)
+        {
+            host_motion_sequence = 1U;
+        }
+        request.forward_rpm = kp;
+        request.turn_rate_dps = ki;
+        request.source_sequence = host_motion_sequence;
+        request.received_ms = now_ms;
+        request.valid_for_ms = APP_UART_LOCAL_COMMAND_VALID_MS;
+        request.enable = APP_TRUE;
+        if(APP_TRUE != motion_command_router_submit(MOTION_SOURCE_UART_LOCAL, &request))
+        {
+            actuator_motor_record_command_error(APP_TRUE);
+            return;
+        }
+        actuator_motor_record_command_error(APP_FALSE);
+        return;
+    }
+
+    if(APP_TRUE != motion_command_router_get_diag()->maintenance_mode)
+    {
+        actuator_motor_record_command_error(APP_TRUE);
         return;
     }
 
@@ -374,7 +478,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('J' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_number(&line[3], &value)))
     {
-        control_chassis_stop(now_ms);
+        motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
         if(APP_TRUE == control_leg_set_direct_step_height(value, now_ms))
@@ -388,7 +492,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) &&
        ('R' == line[3]) && ('E' == line[4]) && ('F' == line[5]) && ('\0' == line[6]))
     {
-        control_chassis_stop(now_ms);
+        motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
         if(APP_TRUE == control_leg_set_ik_reference(now_ms))
@@ -401,7 +505,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(('L' == line[0]) && ('X' == line[1]) && ('Y' == line[2]) && (',' == line[3]) &&
        (APP_TRUE == host_command_parse_two_numbers(&line[4], &value, &period_ms_f)))
     {
-        control_chassis_stop(now_ms);
+        motion_command_router_cancel_source(MOTION_SOURCE_UART_LOCAL, now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
         if(APP_TRUE == control_leg_set_xy(value, period_ms_f, now_ms))
@@ -487,49 +591,6 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
     }
 
-    if(('B' == line[0]) && (',' == line[1]) &&
-       (APP_TRUE == host_command_parse_number(&line[2], &value)))
-    {
-        if(0.0f == value)
-        {
-            control_balance_set_ident_excitation(0.0f, 0U, now_ms);
-            control_chassis_set_fast_enable(APP_FALSE);
-            control_chassis_stop(now_ms);
-            control_balance_set_mode(BALANCE_MODE_OFF);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
-        if(1.0f == value)
-        {
-            control_chassis_set_fast_enable(APP_FALSE);
-            control_balance_set_mode(BALANCE_MODE_STANDBY);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
-        if(2.0f == value)
-        {
-            control_chassis_set_fast_enable(APP_FALSE);
-            control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
-        if(3.0f == value)
-        {
-            control_chassis_set_fast_enable(APP_TRUE);
-            control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
-            actuator_motor_record_command_error(APP_FALSE);
-            return;
-        }
-    }
-
-    if(('C' == line[0]) && (',' == line[1]) &&
-       (APP_TRUE == host_command_parse_two_numbers(&line[2], &kp, &ki)))
-    {
-        control_chassis_set_cmd(kp, ki, APP_TRUE, now_ms);
-        actuator_motor_record_command_error(APP_FALSE);
-        return;
-    }
-
     if(('M' == line[0]) && (',' == line[1]) &&
        (APP_TRUE == host_command_parse_number(&line[2], &value)))
     {
@@ -608,6 +669,7 @@ void host_command_init(void)
     host_command_index = 0;
     host_command_line[0] = '\0';
     host_command_last_byte_ms = 0U;
+    host_motion_sequence = 0U;
 }
 
 void host_command_update(uint32 now_ms)

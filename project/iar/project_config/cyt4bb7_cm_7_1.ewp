@@ -1115,9 +1115,48 @@
     </configuration>
     <group>
         <name>code</name>
+        <file><name>$PROJ_DIR$\..\..\code\camera_frame_consumer.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_frame_consumer.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\gnss_types.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\local_position.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\local_position.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\sensor_gnss.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\sensor_gnss.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_seekfree_transport.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_seekfree_transport.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\camera_debug_config.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_app.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_app.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_config.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_types.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_detector.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_detector.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_controller.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_controller.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\dl1b_safety_port.h</name></file>
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>
+    </group>
+    <group>
+        <name>intercore</name>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.h</name></file>
     </group>
     <group>
         <name>doc</name>
@@ -1984,6 +2023,9 @@
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_mpu6050.h</name>
+        </file>
+        <file>
+            <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_mt9v03x.h</name>
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_oled.c</name>

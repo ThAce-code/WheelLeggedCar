@@ -35,6 +35,7 @@
 ********************************************************************************************************************/
 
 #include "zf_common_headfile.h"
+#include "single_gap_config.h"
 
 int main(void)
 {
@@ -43,8 +44,10 @@ int main(void)
     Cy_SysEnableApplCore(CORE_CM7_0, CY_CORTEX_M7_0_APPL_ADDR);                 // 启动M7核心0
     Cy_SysEnableApplCore(CORE_CM7_1, CY_CORTEX_M7_1_APPL_ADDR);                 // 启动M7核心1
 
+#if (SINGLE_GAP_ENABLE == 0U)
     // P19.0 板载LED测试, 低电平有效 -> 输出低电平使LED常亮
     gpio_init(P19_0, GPO, 0, GPO_PUSH_PULL);
+#endif
 
     while(true)
     {

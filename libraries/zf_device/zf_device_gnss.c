@@ -49,11 +49,13 @@
 #include "zf_driver_delay.h"
 #include "zf_driver_uart.h"
 
+#include <string.h>
+
 #include "zf_device_gnss.h"
 
 #define GNSS_BUFFER_SIZE    ( 128 )
 
-uint8                       gnss_flag = 0;                                  // 1：采集完成等待处理数据 0：没有采集完成
+volatile uint8              gnss_flag = 0U;                                  // 1：采集完成等待处理数据 0：没有采集完成
 gnss_info_struct            gnss;                                           // GPS解析之后的数据
     
 static  uint8               gnss_state = 0;                                 // 1：GPS初始化完成
@@ -67,6 +69,12 @@ static  gps_state_enum      gnss_ths_state = GPS_STATE_RECEIVING;           // r
 static  uint8               gps_gga_buffer[GNSS_BUFFER_SIZE];
 static  uint8               gps_rmc_buffer[GNSS_BUFFER_SIZE];
 static  uint8               gps_ths_buffer[GNSS_BUFFER_SIZE];
+static  uint32              gps_gga_length;
+static  uint32              gps_rmc_length;
+static  uint32              gps_ths_length;
+static  uint8               gps_gga_truncated;
+static  uint8               gps_rmc_truncated;
+static  uint8               gps_ths_truncated;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     获取指定 ',' 后面的索引
@@ -110,6 +118,7 @@ static uint8 get_parameter_index (uint8 num, char *str)
 // 使用示例     get_int_number(&buf[get_parameter_index(7, buf)]);
 // 备注信息     内部使用
 //-------------------------------------------------------------------------------------------------------------------
+#if 0
 static int get_int_number (char *s)
 {
     char buf[10];
@@ -164,6 +173,257 @@ static double get_double_number (char *s)
     return_value = func_str_to_double(buf);
     return return_value;
 }
+#endif
+
+static uint8 gnss_copy_numeric_field (const char *source, char *destination,
+                                      uint8 capacity, uint8 allow_empty)
+{
+    uint8 index = 0U;
+    uint8 digit_seen = 0U;
+    uint8 decimal_seen = 0U;
+    uint8 value;
+
+    if((NULL == source) || (NULL == destination) || (2U > capacity))
+    {
+        return 0U;
+    }
+    while(GNSS_BUFFER_SIZE > index)
+    {
+        value = (uint8)source[index];
+        if((',' == value) || ('*' == value) || ('\r' == value) ||
+           ('\n' == value) || (0U == value))
+        {
+            break;
+        }
+        if(index + 1U >= capacity)
+        {
+            return 0U;
+        }
+        destination[index] = (char)value;
+        index++;
+    }
+    if(GNSS_BUFFER_SIZE == index)
+    {
+        return 0U;
+    }
+    destination[index] = 0;
+    if(0U == index)
+    {
+        return allow_empty;
+    }
+    for(index = 0U; 0 != destination[index]; index++)
+    {
+        value = (uint8)destination[index];
+        if((0U == index) && (('+' == value) || ('-' == value)))
+        {
+            continue;
+        }
+        if('.' == value)
+        {
+            if(0U != decimal_seen)
+            {
+                return 0U;
+            }
+            decimal_seen = 1U;
+            continue;
+        }
+        if(('0' > value) || ('9' < value))
+        {
+            return 0U;
+        }
+        digit_seen = 1U;
+    }
+    return digit_seen;
+}
+
+static uint8 gnss_get_int_number (const char *source, uint8 allow_empty, int *value)
+{
+    char buffer[10];
+    int candidate = 0;
+
+    if((NULL == value) ||
+       (0U == gnss_copy_numeric_field(source, buffer, sizeof(buffer), allow_empty)))
+    {
+        return 0U;
+    }
+    if(0 != buffer[0])
+    {
+        candidate = func_str_to_int(buffer);
+    }
+    *value = candidate;
+    return 1U;
+}
+
+static uint8 gnss_get_float_number (const char *source, uint8 allow_empty, float *value)
+{
+    char buffer[15];
+    float candidate = 0.0F;
+
+    if((NULL == value) ||
+       (0U == gnss_copy_numeric_field(source, buffer, sizeof(buffer), allow_empty)))
+    {
+        return 0U;
+    }
+    if(0 != buffer[0])
+    {
+        candidate = (float)func_str_to_double(buffer);
+    }
+    *value = candidate;
+    return 1U;
+}
+
+static uint8 gnss_get_double_number (const char *source, uint8 allow_empty, double *value)
+{
+    char buffer[15];
+    double candidate = 0.0;
+
+    if((NULL == value) ||
+       (0U == gnss_copy_numeric_field(source, buffer, sizeof(buffer), allow_empty)))
+    {
+        return 0U;
+    }
+    if(0 != buffer[0])
+    {
+        candidate = func_str_to_double(buffer);
+    }
+    *value = candidate;
+    return 1U;
+}
+
+static float get_float_number (char *source)
+{
+    float value = 0.0F;
+
+    if(0U == gnss_get_float_number(source, 1U, &value))
+    {
+        return 0.0F;
+    }
+    return value;
+}
+
+static uint8 gnss_parse_utc_ms (char *line, uint32 *utc_ms)
+{
+    uint8 index;
+    uint8 fractional_digits = 0U;
+    uint32 milliseconds = 0U;
+    uint32 hour;
+    uint32 minute;
+    uint32 second;
+    char *field;
+
+    if((NULL == line) || (NULL == utc_ms))
+    {
+        return 0U;
+    }
+    index = get_parameter_index(1U, line);
+    field = &line[index];
+    for(index = 0U; 6U > index; index++)
+    {
+        if(('0' > field[index]) || ('9' < field[index]))
+        {
+            return 0U;
+        }
+    }
+    hour = (uint32)(field[0] - '0') * 10U + (uint32)(field[1] - '0');
+    minute = (uint32)(field[2] - '0') * 10U + (uint32)(field[3] - '0');
+    second = (uint32)(field[4] - '0') * 10U + (uint32)(field[5] - '0');
+    if((23U < hour) || (59U < minute) || (59U < second))
+    {
+        return 0U;
+    }
+    index = 6U;
+    if('.' == field[index])
+    {
+        index++;
+        while(('0' <= field[index]) && ('9' >= field[index]))
+        {
+            if(3U > fractional_digits)
+            {
+                milliseconds = milliseconds * 10U + (uint32)(field[index] - '0');
+            }
+            fractional_digits++;
+            index++;
+        }
+        if(0U == fractional_digits)
+        {
+            return 0U;
+        }
+        while(3U > fractional_digits)
+        {
+            milliseconds *= 10U;
+            fractional_digits++;
+        }
+    }
+    if(',' != field[index])
+    {
+        return 0U;
+    }
+    *utc_ms = ((hour * 60U + minute) * 60U + second) * 1000U + milliseconds;
+    return 1U;
+}
+
+static int8 gnss_hex_value (uint8 value)
+{
+    if(('0' <= value) && ('9' >= value))
+    {
+        return (int8)(value - '0');
+    }
+    if(('A' <= value) && ('F' >= value))
+    {
+        return (int8)(value - 'A' + 10U);
+    }
+    if(('a' <= value) && ('f' >= value))
+    {
+        return (int8)(value - 'a' + 10U);
+    }
+    return -1;
+}
+
+static uint8 gnss_sentence_checksum_valid (const uint8 *buffer, uint32 length, uint8 truncated)
+{
+    uint32 index;
+    uint32 star_index = length;
+    uint8 calculation = 0U;
+    int8 high;
+    int8 low;
+
+    if((NULL == buffer) || (0U != truncated) || (7U > length) ||
+       (GNSS_BUFFER_SIZE <= length) || ('$' != buffer[0]))
+    {
+        return 0U;
+    }
+    for(index = 1U; index < length; index++)
+    {
+        if('*' == buffer[index])
+        {
+            star_index = index;
+            break;
+        }
+        if(('\r' == buffer[index]) || ('\n' == buffer[index]) || (0U == buffer[index]))
+        {
+            return 0U;
+        }
+        calculation ^= buffer[index];
+    }
+    if(star_index + 2U >= length)
+    {
+        return 0U;
+    }
+    if((star_index + 3U < length) && ('\r' != buffer[star_index + 3U]) &&
+       ('\n' != buffer[star_index + 3U]) && (0U != buffer[star_index + 3U]))
+    {
+        return 0U;
+    }
+
+    high = gnss_hex_value(buffer[star_index + 1U]);
+    low = gnss_hex_value(buffer[star_index + 2U]);
+    return ((0 <= high) && (0 <= low) &&
+            (calculation == (uint8)(((uint8)high << 4U) | (uint8)low))) ? 1U : 0U;
+}
+
+
+
+
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     世界时间转换为北京时间 
@@ -223,6 +483,7 @@ static void utc_to_btc (gps_time_struct *time)
 static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
 {
     uint8 state = 0, temp = 0;
+    uint32 utc_ms;
     
     double  latitude = 0;                                                       // 纬度
     double  longitude = 0;                                                      // 经度
@@ -231,19 +492,37 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
     double long_cent_tmp = 0, long_second_tmp = 0;
     float speed_tmp = 0;
     char *buf = line;
-    uint8 return_state = 0;
+    if(0U == gnss_parse_utc_ms(line, &utc_ms))
+    {
+        return 0U;
+    }
+
 
     state = buf[get_parameter_index(2, buf)];
 
     if('A' == state || 'D' == state)                                                            // 如果数据有效 则解析数据
     {
-        return_state = 1;
+        if((('N' != buf[get_parameter_index(4, buf)]) && ('S' != buf[get_parameter_index(4, buf)])) ||
+           (('E' != buf[get_parameter_index(6, buf)]) && ('W' != buf[get_parameter_index(6, buf)])))
+        {
+            return 0U;
+        }
+
         gnss->state = 1;
         gnss -> ns               = buf[get_parameter_index(4, buf)];
         gnss -> ew               = buf[get_parameter_index(6, buf)];
 
-        latitude                = get_double_number(&buf[get_parameter_index(3, buf)]);
-        longitude               = get_double_number(&buf[get_parameter_index(5, buf)]);
+        if((0U == gnss_get_double_number(&buf[get_parameter_index(3, buf)], 0U, &latitude)) ||
+           (0U == gnss_get_double_number(&buf[get_parameter_index(5, buf)], 0U, &longitude)))
+        {
+            return 0U;
+        }
+
+        if((!isfinite(latitude)) || (!isfinite(longitude)) ||
+           (9000.0 < latitude) || (18000.0 < longitude))
+        {
+            return 0U;
+        }
 
         gnss->latitude_degree    = (int)latitude / 100;                         // 纬度转换为度分秒
         lati_cent_tmp           = (latitude - gnss->latitude_degree * 100);
@@ -259,8 +538,27 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
 
         gnss->latitude   = gnss->latitude_degree + lati_cent_tmp / 60;
         gnss->longitude  = gnss->longitude_degree + long_cent_tmp / 60;
+        if((90.0 < gnss->latitude) || (180.0 < gnss->longitude))
+        {
+            return 0U;
+        }
+
 
         speed_tmp       = get_float_number(&buf[get_parameter_index(7, buf)]);  // 速度(海里/小时)
+        if((0U == gnss_get_float_number(&buf[get_parameter_index(7, buf)], 1U, &speed_tmp)) ||
+           (0U == gnss_get_float_number(&buf[get_parameter_index(8, buf)], 1U, &gnss->direction)))
+        {
+            return 0U;
+        }
+        if(('S' == gnss->ns))
+        {
+            gnss->latitude = -gnss->latitude;
+        }
+        if(('W' == gnss->ew))
+        {
+            gnss->longitude = -gnss->longitude;
+        }
+
         gnss->speed      = speed_tmp * 1.85f;                                   // 转换为公里/小时
         gnss->direction  = get_float_number(&buf[get_parameter_index(8, buf)]); // 角度           
     }
@@ -275,12 +573,22 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
     gnss->time.second  = (buf[11] - '0') * 10 + (buf[12] - '0');
     temp = get_parameter_index(9, buf);
     gnss->time.day     = (buf[temp + 0] - '0') * 10 + (buf[temp + 1] - '0');    // 日期
+    gnss->rmc_utc_ms = utc_ms;
+    if((0U == temp) || ('0' > buf[temp]) || ('9' < buf[temp]) ||
+       ('0' > buf[temp + 1U]) || ('9' < buf[temp + 1U]) ||
+       ('0' > buf[temp + 2U]) || ('9' < buf[temp + 2U]) ||
+       ('0' > buf[temp + 3U]) || ('9' < buf[temp + 3U]) ||
+       ('0' > buf[temp + 4U]) || ('9' < buf[temp + 4U]) ||
+       ('0' > buf[temp + 5U]) || ('9' < buf[temp + 5U]))
+    {
+        return 0U;
+    }
     gnss->time.month   = (buf[temp + 2] - '0') * 10 + (buf[temp + 3] - '0');
     gnss->time.year    = (buf[temp + 4] - '0') * 10 + (buf[temp + 5] - '0') + 2000;
 
     utc_to_btc(&gnss->time);
 
-    return return_state;
+    return 1U;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -293,20 +601,36 @@ static uint8 gps_gnrmc_parse (char *line, gnss_info_struct *gnss)
 //-------------------------------------------------------------------------------------------------------------------
 static uint8 gps_gngga_parse (char *line, gnss_info_struct *gnss)
 {
-    uint8 state = 0;
+    int fix_quality;
+    int satellite_used;
+    float hdop;
+    float height;
+    float geoid_height;
+    uint32 utc_ms;
     char *buf = line;
-    uint8 return_state = 0;
 
-    state = buf[get_parameter_index(2, buf)];
-
-    if(',' != state)
+    if(0U == gnss_parse_utc_ms(line, &utc_ms))
     {
-        gnss->satellite_used = (uint8)get_int_number(&buf[get_parameter_index(7, buf)]);
-        gnss->height         = get_float_number(&buf[get_parameter_index(9, buf)]) + get_float_number(&buf[get_parameter_index(11, buf)]);  // 高度 = 海拔高度 + 地球椭球面相对大地水准面的高度 
-        return_state = 1;
+        return 0U;
     }
-    
-    return return_state;
+    gnss->gga_utc_ms = utc_ms;
+
+    if((0U == gnss_get_int_number(&buf[get_parameter_index(6, buf)], 1U, &fix_quality)) ||
+       (0U == gnss_get_int_number(&buf[get_parameter_index(7, buf)], 1U, &satellite_used)) ||
+       (0U == gnss_get_float_number(&buf[get_parameter_index(8, buf)], 1U, &hdop)) ||
+       (0U == gnss_get_float_number(&buf[get_parameter_index(9, buf)], 1U, &height)) ||
+       (0U == gnss_get_float_number(&buf[get_parameter_index(11, buf)], 1U, &geoid_height)) ||
+       (0 > fix_quality) || (255 < fix_quality) ||
+       (0 > satellite_used) || (255 < satellite_used))
+    {
+        return 0U;
+    }
+    gnss->fix_quality = (uint8)fix_quality;
+    gnss->satellite_used = (uint8)satellite_used;
+    gnss->hdop = hdop;
+    gnss->height = height + geoid_height;
+
+    return 1U;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -322,21 +646,59 @@ static uint8 gps_gnths_parse (char *line, gnss_info_struct *gnss)
     uint8 state = 0;
     char *buf = line;
     uint8 return_state = 0;
+    float antenna_direction;
 
     state = buf[get_parameter_index(2, buf)];
 
     if('A' == state)
     {
         gnss->antenna_direction_state = 1;
-        gnss->antenna_direction = get_float_number(&buf[get_parameter_index(1, buf)]);
+        if(0U == gnss_get_float_number(&buf[get_parameter_index(1, buf)], 0U, &antenna_direction))
+        {
+            return 0U;
+        }
+        gnss->antenna_direction = antenna_direction;
         return_state = 1;
     }
-    else
+    else if('V' == state)
     {
         gnss->antenna_direction_state = 0;
+        return_state = 1U;
     }
     
     return return_state;
+}
+
+static uint8 gnss_parse_sentence_transaction (const uint8 *buffer, uint32 length,
+                                              uint8 truncated, gnss_info_struct *target)
+{
+    gnss_info_struct candidate;
+    uint8 result = 0U;
+
+    if((NULL == buffer) || (NULL == target) || (6U > length) ||
+       (0U == gnss_sentence_checksum_valid(buffer, length, truncated)))
+    {
+        return 0U;
+    }
+    candidate = *target;
+    if(0 == strncmp((const char *)&buffer[3], "RMC", 3))
+    {
+        result = gps_gnrmc_parse((char *)buffer, &candidate);
+    }
+    else if(0 == strncmp((const char *)&buffer[3], "GGA", 3))
+    {
+        result = gps_gngga_parse((char *)buffer, &candidate);
+    }
+    else if(0 == strncmp((const char *)&buffer[3], "THS", 3))
+    {
+        result = gps_gnths_parse((char *)buffer, &candidate);
+    }
+    if(0U == result)
+    {
+        return 0U;
+    }
+    *target = candidate;
+    return 1U;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -404,82 +766,61 @@ double get_two_points_azimuth (double latitude1, double longitude1, double latit
 // 使用示例     gps_data_parse();
 // 备注信息     
 //-------------------------------------------------------------------------------------------------------------------
+static uint32 gnss_next_sequence (uint32 sequence)
+{
+    sequence++;
+    return (0U != sequence) ? sequence : 1U;
+}
+
 uint8 gnss_data_parse (void)
 {
-    uint8 return_state = 0;
-    uint8 check_buffer[5] = {'0', 'x', 0x00, 0x00, 0x00};
-    uint8 bbc_xor_origin = 0;
-    uint8 bbc_xor_calculation = 0;
-    uint32 data_len = 0;
-
+    uint8 return_state = 0U;
     do
     {
         if(GPS_STATE_RECEIVED == gnss_rmc_state)
         {
             gnss_rmc_state = GPS_STATE_PARSING;
-            strncpy((char *)&check_buffer[2], strchr((const char *)gps_rmc_buffer, '*') + 1, 2);
-            bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            for(bbc_xor_calculation = gps_rmc_buffer[1], data_len = 2; '*' != gps_rmc_buffer[data_len]; data_len ++)
+            if(0U == gnss_parse_sentence_transaction(gps_rmc_buffer, gps_rmc_length,
+                                                      gps_rmc_truncated, &gnss))
             {
-                bbc_xor_calculation ^= gps_rmc_buffer[data_len];
+                return_state = 1U;
             }
-            if(bbc_xor_calculation != bbc_xor_origin)
+            else
             {
-                // 数据校验失败
-                return_state = 1;
-                break;
+                gnss.rmc_sequence = gnss_next_sequence(gnss.rmc_sequence);
             }
-            
-            gps_gnrmc_parse((char *)gps_rmc_buffer, &gnss);
         }
         gnss_rmc_state = GPS_STATE_RECEIVING;
-        
+
         if(GPS_STATE_RECEIVED == gnss_gga_state)
         {
             gnss_gga_state = GPS_STATE_PARSING;
-            strncpy((char *)&check_buffer[2], strchr((const char *)gps_gga_buffer, '*') + 1, 2);
-            bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            
-            for(bbc_xor_calculation = gps_gga_buffer[1], data_len = 2; '*' != gps_gga_buffer[data_len]; data_len ++)
+            if(0U == gnss_parse_sentence_transaction(gps_gga_buffer, gps_gga_length,
+                                                      gps_gga_truncated, &gnss))
             {
-                bbc_xor_calculation ^= gps_gga_buffer[data_len];
+                return_state = 1U;
             }
-            if(bbc_xor_calculation != bbc_xor_origin)
+            else
             {
-                // 数据校验失败
-                return_state = 1;
-                break;
+                gnss.gga_sequence = gnss_next_sequence(gnss.gga_sequence);
             }
-            
-            gps_gngga_parse((char *)gps_gga_buffer, &gnss);
         }
         gnss_gga_state = GPS_STATE_RECEIVING;
-        
+
         if(GPS_STATE_RECEIVED == gnss_ths_state)
         {
             gnss_ths_state = GPS_STATE_PARSING;
-            strncpy((char *)&check_buffer[2], strchr((const char *)gps_ths_buffer, '*') + 1, 2);
-            bbc_xor_origin = (uint8)func_str_to_hex((char *)check_buffer);
-            
-            for(bbc_xor_calculation = gps_ths_buffer[1], data_len = 2; '*' != gps_ths_buffer[data_len]; data_len ++)
+            if(0U == gnss_parse_sentence_transaction(gps_ths_buffer, gps_ths_length,
+                                                      gps_ths_truncated, &gnss))
             {
-                bbc_xor_calculation ^= gps_ths_buffer[data_len];
+                return_state = 1U;
             }
-            if(bbc_xor_calculation != bbc_xor_origin)
-            {
-                // 数据校验失败
-                return_state = 1;
-                break;
-            }
-            
-            gps_gnths_parse((char *)gps_ths_buffer, &gnss);
         }
         gnss_ths_state = GPS_STATE_RECEIVING;
-        
     }while(0);
+
     return return_state;
 }
-
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     GPS串口回调函数
@@ -515,7 +856,14 @@ void gnss_uart_callback (void)
                 {
                     gnss_rmc_state = GPS_STATE_RECEIVED;
                     temp_length = fifo_used(&gnss_receiver_fifo);
+                    gps_rmc_truncated = (GNSS_BUFFER_SIZE <= temp_length) ? 1U : 0U;
+                    if(0U != gps_rmc_truncated)
+                    {
+                        temp_length = GNSS_BUFFER_SIZE - 1U;
+                    }
+                    gps_rmc_length = temp_length;
                     fifo_read_buffer(&gnss_receiver_fifo, gps_rmc_buffer, &temp_length, FIFO_READ_AND_CLEAN);
+                    gps_rmc_buffer[gps_rmc_length] = 0U;
                 }
             }
             else if(0 == strncmp((char *)&temp_gps[3], "GGA", 3))
@@ -525,7 +873,14 @@ void gnss_uart_callback (void)
                 {
                     gnss_gga_state = GPS_STATE_RECEIVED;
                     temp_length = fifo_used(&gnss_receiver_fifo);
+                    gps_gga_truncated = (GNSS_BUFFER_SIZE <= temp_length) ? 1U : 0U;
+                    if(0U != gps_gga_truncated)
+                    {
+                        temp_length = GNSS_BUFFER_SIZE - 1U;
+                    }
+                    gps_gga_length = temp_length;
                     fifo_read_buffer(&gnss_receiver_fifo, gps_gga_buffer, &temp_length, FIFO_READ_AND_CLEAN);
+                    gps_gga_buffer[gps_gga_length] = 0U;
                 }
             }
             else if(0 == strncmp((char *)&temp_gps[3], "THS", 3))
@@ -535,7 +890,14 @@ void gnss_uart_callback (void)
                 {
                     gnss_ths_state = GPS_STATE_RECEIVED;
                     temp_length = fifo_used(&gnss_receiver_fifo);
+                    gps_ths_truncated = (GNSS_BUFFER_SIZE <= temp_length) ? 1U : 0U;
+                    if(0U != gps_ths_truncated)
+                    {
+                        temp_length = GNSS_BUFFER_SIZE - 1U;
+                    }
+                    gps_ths_length = temp_length;
                     fifo_read_buffer(&gnss_receiver_fifo, gps_ths_buffer, &temp_length, FIFO_READ_AND_CLEAN);
+                    gps_ths_buffer[gps_ths_length] = 0U;
                 }
             }
             
@@ -569,6 +931,15 @@ void gnss_init (gps_device_enum gps_device)
     const uint8 close_gst[]     = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x08, 0x00, 0x02, 0x1F};
     const uint8 close_txt[]     = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x40, 0x00, 0x3A, 0x8F};
     const uint8 close_txt_ant[] = {0xF1, 0xD9, 0x06, 0x01, 0x03, 0x00, 0xF0, 0x20, 0x00, 0x1A, 0x4F};
+
+    memset(&gnss, 0, sizeof(gnss));
+    gnss_flag = 0U;
+    gps_rmc_length = 0U;
+    gps_gga_length = 0U;
+    gps_ths_length = 0U;
+    gps_rmc_truncated = 0U;
+    gps_gga_truncated = 0U;
+    gps_ths_truncated = 0U;
     
     if((TAU1201 == gps_device) || (GN42A == gps_device))
     {
@@ -615,3 +986,18 @@ void gnss_init (gps_device_enum gps_device)
     }
     
 }
+
+#if defined(GNSS_HOST_TEST)
+uint8 gnss_host_parse_sentence (const char *sentence, uint32 length, gnss_info_struct *parsed)
+{
+    uint8 buffer[GNSS_BUFFER_SIZE];
+
+    if((NULL == sentence) || (NULL == parsed) || (GNSS_BUFFER_SIZE <= length))
+    {
+        return 0U;
+    }
+    memset(buffer, 0, sizeof(buffer));
+    memcpy(buffer, sentence, length);
+    return gnss_parse_sentence_transaction(buffer, length, 0U, parsed);
+}
+#endif

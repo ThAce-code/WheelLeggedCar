@@ -34,6 +34,14 @@
 ********************************************************************************************************************/
 
 #include "zf_common_headfile.h"
+#include "camera_frame_consumer.h"
+#include "intercore_memory.h"
+#include "sensor_gnss.h"
+#include "intercore_transport.h"
+#include "single_gap_app.h"
+
+static intercore_transport_struct gnss_transport;
+static uint8 gnss_transport_attached;
 // 打开新的工程或者工程移动了位置务必执行以下操作
 // 第一步 关闭上面所有打开的文件
 // 第二步 project->clean  等待下方进度条走完
@@ -46,24 +54,60 @@
 
 int main(void)
 {
-    clock_init(SYSTEM_CLOCK_250M); 	// 时钟配置及系统初始化<务必保留>
-    debug_info_init();                  // 调试串口信息初始化
-     
-    // 此处编写用户代码 例如外设初始化代码等
+    clock_init(SYSTEM_CLOCK_250M);
 
-    
-    
-    
+    if(1U != intercore_memory_configure())
+    {
+        while(true)
+        {
+        }
+    }
 
-    // 此处编写用户代码 例如外设初始化代码等
+    pit_ms_init(PIT_CH2, 1);
+    (void)camera_frame_consumer_init();
+    (void)single_gap_app_init();
+    gnss_transport_attached = 0U;
+    if(0U == sensor_gnss_init())
+    {
+        while(true) { }
+    }
+
     while(true)
     {
-        // 此处编写需要循环执行的代码
-        
+        gnss_snapshot_struct snapshot;
+        intercore_gnss_payload_struct payload = {0};
+        uint32 now_ms;
 
-      
-      
-        // 此处编写需要循环执行的代码
+        single_gap_app_service(camera_frame_consumer_now_ms());
+        camera_frame_consumer_service();
+        now_ms = camera_frame_consumer_now_ms();
+        if(0U == gnss_transport_attached)
+        {
+            gnss_transport_attached = intercore_transport_cm7_1_attach(
+                &gnss_transport, intercore_memory_get_layout());
+        }
+        sensor_gnss_service(now_ms);
+        if(0U != sensor_gnss_take_snapshot(&snapshot))
+        {
+            payload.local_x_m = snapshot.local_x_m;
+            payload.local_y_m = snapshot.local_y_m;
+            payload.speed_mps = snapshot.speed_mps;
+            payload.course_deg = snapshot.course_deg;
+            payload.hdop = snapshot.hdop;
+            payload.position_sigma_m = snapshot.position_sigma_m;
+            payload.checksum_error_count = snapshot.checksum_error_count;
+            payload.timeout_count = snapshot.timeout_count;
+            payload.satellite_count = snapshot.satellite_count;
+            payload.fix_valid = snapshot.fix_valid;
+            payload.fix_quality = snapshot.fix_quality;
+            payload.origin_valid = snapshot.origin_valid;
+            if((0U != gnss_transport_attached) &&
+               (0U == intercore_transport_publish_gnss(
+                           &gnss_transport, &payload, snapshot.timestamp_ms)))
+            {
+                gnss_transport_attached = 0U;
+            }
+        }
     }
 }
 

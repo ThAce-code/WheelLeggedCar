@@ -10,3 +10,4 @@
 /project/iar/**/settings/
 __pycache__/
 *.pyc
+/project/tests/build/

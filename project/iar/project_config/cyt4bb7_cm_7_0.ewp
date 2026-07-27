@@ -734,7 +734,9 @@
                 </option>
                 <option>
                     <name>IlinkKeepSymbols</name>
-                    <state></state>
+                    <state>mt9v03x_h_num</state>
+                    <state>mt9v03x_w_num</state>
+                    <state>mt9v03x_image_temp</state>
                 </option>
                 <option>
                     <name>IlinkRawBinaryFile</name>
@@ -1117,6 +1119,9 @@
         <name>code</name>
         <group>
             <name>app</name>
+            <file><name>$PROJ_DIR$\..\..\code\camera_capture_producer.c</name></file>
+            <file><name>$PROJ_DIR$\..\..\code\camera_capture_producer.h</name></file>
+            <file><name>$PROJ_DIR$\..\..\code\camera_debug_config.h</name></file>
             <file>
                 <name>$PROJ_DIR$\..\..\code\app.c</name>
             </file>
@@ -1259,6 +1264,31 @@
         <file>
             <name>$PROJ_DIR$\..\..\code\本文件夹作用.txt</name>
         </file>
+    </group>
+    <group>
+        <name>intercore</name>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_protocol.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_transport.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\perception_intercore.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_notify_port.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_memory.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_camera.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_control.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\intercore_control.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\motion_command_router_port.h</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_pose_source.c</name></file>
+        <file><name>$PROJ_DIR$\..\..\code\single_gap_pose_source.h</name></file>
     </group>
     <group>
         <name>doc</name>
@@ -2128,6 +2158,12 @@
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_mpu6050.h</name>
+        </file>
+        <file>
+            <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_mt9v03x.c</name>
+        </file>
+        <file>
+            <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_mt9v03x.h</name>
         </file>
         <file>
             <name>$PROJ_DIR$\..\..\..\libraries\zf_device\zf_device_oled.c</name>

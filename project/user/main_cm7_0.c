@@ -37,9 +37,13 @@
 #include "zf_common_headfile.h"
 #include "app.h"
 #include "app_config.h"
+#include "camera_capture_producer.h"
+#include "intercore_memory.h"
+#include "single_gap_config.h"
 
 static void led_blink_error_code(uint8 code)
 {
+#if (SINGLE_GAP_ENABLE == 0U)
     uint8 i;
 
     while(1)
@@ -53,19 +57,34 @@ static void led_blink_error_code(uint8 code)
         }
         system_delay_ms(800);
     }
+#else
+    (void)code;
+    while(1)
+    {
+    }
+#endif
 }
 
 int main(void)
 {
     uint8 app_result;
+#if (SINGLE_GAP_ENABLE == 0U)
     uint32 now_ms;
     uint32 led_last_ms = 0;
+#endif
 
     clock_init(SYSTEM_CLOCK_250M);
     debug_init();
 
+#if (SINGLE_GAP_ENABLE == 0U)
     // P19.0 板载LED, 低电平有效, 初始高电平=灭
     gpio_init(P19_0, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+#endif
+
+    if(1U != intercore_memory_configure())
+    {
+        led_blink_error_code(4U);
+    }
 
     app_result = app_init();
     if(0U != app_result)
@@ -74,19 +93,24 @@ int main(void)
         led_blink_error_code(app_result);
     }
 
+    (void)camera_capture_producer_init();
+
     pit_ms_init(PIT_CH0, APP_TICK_PERIOD_MS);
     pit_us_init(PIT_CH1, APP_SERVO_CONTROL_PERIOD_US);
 
     for(;;)
     {
         app_run_once();
+        camera_capture_producer_service();
 
+#if (SINGLE_GAP_ENABLE == 0U)
         now_ms = app_get_ms();
         if(APP_HEARTBEAT_PERIOD_MS <= (now_ms - led_last_ms))
         {
             led_last_ms = now_ms;
             gpio_toggle_level(P19_0);
         }
+#endif
     }
 }
 

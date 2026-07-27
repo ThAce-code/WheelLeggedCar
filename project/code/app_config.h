@@ -7,8 +7,14 @@
 #define _app_config_h_
 
 #include "zf_common_headfile.h"
+#include "single_gap_config.h"
 
 #define APP_TICK_PERIOD_MS              (1U)
+#if SINGLE_GAP_MOTION_ENABLE
+#define APP_CAMERA_DEBUG_ONLY           (0U)
+#else
+#define APP_CAMERA_DEBUG_ONLY           (1U)
+#endif
 #define APP_SCHEDULER_IMU_ONLY          (0U)
 #define APP_HEARTBEAT_PERIOD_MS         (250U)
 #define APP_CHASSIS_PERIOD_MS           (5U)
@@ -24,7 +30,15 @@
 #define APP_IMU_GYRO_CAL_MAX_ABS_MEAN_DPS (5.0f)
 #define APP_IMU_GYRO_CAL_MAX_VARIANCE_DPS2 (4.0f)
 
+#define APP_TELEMETRY_PROFILE_BALANCE  (0U)
+#define APP_TELEMETRY_PROFILE_GNSS     (1U)
+#define APP_TELEMETRY_PROFILE          (APP_TELEMETRY_PROFILE_GNSS)
+
+#if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
+#define APP_TELEMETRY_PERIOD_MS         (20U)
+#else
 #define APP_TELEMETRY_PERIOD_MS         (10U)
+#endif
 #define APP_TELEMETRY_ENABLE            (1U)
 #define APP_TELEMETRY_BALANCE_ENABLE    (1U)
 
@@ -86,6 +100,10 @@
 #define APP_HOST_COMMAND_PERIOD_MS       (1U)
 #define APP_HOST_COMMAND_TIMEOUT_MS      (500U)
 #define APP_CHASSIS_CMD_TIMEOUT_MS       (500U)
+#define APP_INTERCORE_COMMAND_TIMEOUT_MS  (200U)
+#define APP_INTERCORE_FORWARD_LIMIT_RPM   (60.0f)
+#define APP_INTERCORE_TURN_LIMIT_DPS      (60.0f)
+#define APP_UART_LOCAL_COMMAND_VALID_MS   (500U)
 
 #define APP_MOTOR_RPM_LOOP_ENABLE       (1U)
 #define APP_MOTOR_OPEN_DUTY_REQUIRE_FEEDBACK   (0U)

@@ -289,6 +289,10 @@ static int16 actuator_motor_last_right_duty = 0;
 
 static void actuator_motor_send_duty(int16 left_duty, int16 right_duty)
 {
+#if APP_CAMERA_DEBUG_ONLY
+    left_duty = 0;
+    right_duty = 0;
+#endif
     actuator_motor_last_left_duty = left_duty;
     actuator_motor_last_right_duty = right_duty;
     bldc_foc_uart_set_duty(left_duty, right_duty);

@@ -244,16 +244,22 @@ class FfmpegCamera:
         """Terminate the ffmpeg subprocess and join the reader thread."""
         self._stop.set()
         if self._proc is not None:
+            process = self._proc
             try:
-                self._proc.stdout.close()
-            except Exception:
-                pass
-            self._proc.terminate()
-            try:
-                self._proc.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self._proc.kill()
-                self._proc.wait()
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            finally:
+                # On Windows, closing stdout while another thread is blocked
+                # in ReadFile can itself block.  Terminating ffmpeg first
+                # closes the writer end and releases that pending read.
+                try:
+                    process.stdout.close()
+                except Exception:
+                    pass
             self._proc = None
         if self._reader_thread is not None and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=2)

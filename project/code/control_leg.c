@@ -106,35 +106,6 @@ static uint8 control_leg_servo_angle_valid(uint8 servo_index, float angle_deg)
     return APP_TRUE;
 }
 
-static uint8 control_leg_ik_validation_point_valid(const leg_kinematics_config_struct *cfg,
-                                                    float x_mm,
-                                                    float y_mm)
-{
-    uint8 horizontal_band_valid;
-    uint8 vertical_band_valid;
-
-    if((NULL == cfg) ||
-       (APP_FALSE == control_leg_is_finite(x_mm)) ||
-       (APP_FALSE == control_leg_is_finite(y_mm)))
-    {
-        return APP_FALSE;
-    }
-    if((cfg->validate_x_min_mm > x_mm) || (cfg->validate_x_max_mm < x_mm) ||
-       (cfg->validate_y_min_mm > y_mm) || (cfg->validate_y_max_mm < y_mm))
-    {
-        return APP_FALSE;
-    }
-    horizontal_band_valid = ((cfg->validate_horizontal_y_min_mm <= y_mm) &&
-                             (cfg->validate_horizontal_y_max_mm >= y_mm)) ? APP_TRUE : APP_FALSE;
-    vertical_band_valid = ((cfg->validate_vertical_x_min_mm <= x_mm) &&
-                           (cfg->validate_vertical_x_max_mm >= x_mm)) ? APP_TRUE : APP_FALSE;
-    if((APP_TRUE != horizontal_band_valid) && (APP_TRUE != vertical_band_valid))
-    {
-        return APP_FALSE;
-    }
-    return APP_TRUE;
-}
-
 static float control_leg_absf(float value)
 {
     return (0.0f > value) ? -value : value;
@@ -866,10 +837,10 @@ void control_leg_update(uint32 now_ms)
                 }
                 control_leg_pose_start_if_changed(desired_deg, APP_SERVO_MAX_SPEED_DPS, now_ms);
                 control_leg_pose_update(now_ms);
-                control_leg_diag.left_x_mm = kinematics->reference_x_mm;
-                control_leg_diag.left_y_mm = kinematics->reference_y_mm;
-                control_leg_diag.right_x_mm = kinematics->reference_x_mm;
-                control_leg_diag.right_y_mm = kinematics->reference_y_mm;
+                control_leg_diag.left_x_mm = kinematics->physical_reference_x_mm;
+                control_leg_diag.left_y_mm = kinematics->physical_reference_y_mm;
+                control_leg_diag.right_x_mm = kinematics->physical_reference_x_mm;
+                control_leg_diag.right_y_mm = kinematics->physical_reference_y_mm;
                 control_leg_diag.ik_margin = (control_leg_ik_reference_left.singularity_margin <
                                                control_leg_ik_reference_right.singularity_margin) ?
                                               control_leg_ik_reference_left.singularity_margin :
@@ -1145,13 +1116,13 @@ uint8 control_leg_set_ik_reference(uint32 now_ms)
     kinematics = leg_config_get_kinematics();
     if((NULL == kinematics) ||
        (APP_TRUE != leg_kinematics_solve(APP_FALSE,
-                                          kinematics->reference_x_mm,
-                                          kinematics->reference_y_mm,
+                                          kinematics->physical_reference_x_mm,
+                                          kinematics->physical_reference_y_mm,
                                           NULL,
                                           &left_reference)) ||
        (APP_TRUE != leg_kinematics_solve(APP_TRUE,
-                                          kinematics->reference_x_mm,
-                                          kinematics->reference_y_mm,
+                                          kinematics->physical_reference_x_mm,
+                                          kinematics->physical_reference_y_mm,
                                           NULL,
                                           &right_reference)) ||
        (APP_TRUE != leg_kinematics_map_reference_pose(&left_reference,
@@ -1166,8 +1137,8 @@ uint8 control_leg_set_ik_reference(uint32 now_ms)
     control_leg_ik_previous_left = left_reference;
     control_leg_ik_previous_right = right_reference;
     control_leg_ik_reference_valid = APP_TRUE;
-    control_leg_ik_target_x_mm = kinematics->reference_x_mm;
-    control_leg_ik_target_y_mm = kinematics->reference_y_mm;
+    control_leg_ik_target_x_mm = kinematics->physical_reference_x_mm;
+    control_leg_ik_target_y_mm = kinematics->physical_reference_y_mm;
     control_leg_motion_state = LEG_MOTION_TRANSITION;
     control_leg_fault_reason = LEG_FAULT_NONE;
     control_leg_mode = LEG_MODE_IK_REFERENCE;
@@ -1176,16 +1147,13 @@ uint8 control_leg_set_ik_reference(uint32 now_ms)
 
 uint8 control_leg_set_xy(float x_mm, float y_mm, uint32 now_ms)
 {
-    const leg_kinematics_config_struct *kinematics;
-
     (void)now_ms;
     if((LEG_MOTION_FAULT == control_leg_motion_state) ||
        (APP_FALSE == control_leg_ik_reference_valid))
     {
         return APP_FALSE;
     }
-    kinematics = leg_config_get_kinematics();
-    if(APP_FALSE == control_leg_ik_validation_point_valid(kinematics, x_mm, y_mm))
+    if(APP_FALSE == leg_kinematics_target_valid(x_mm, y_mm))
     {
         return APP_FALSE;
     }

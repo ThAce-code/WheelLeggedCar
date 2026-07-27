@@ -42,10 +42,14 @@ cross-circle mode when measuring the wheel center in the calibrated side plane.
 ### Physical setup
 
 Print `cross_circle_markers_A4_10_12_14mm.pdf` at **Actual size / 100%** (never
-Fit to page). Mount the 14 mm marker as the fixed origin and the 10 mm marker at
+Fit to page). Mount the 10 mm marker as the fixed origin and the 14 mm marker at
 the wheel center. The 12 mm marker is unused in this workflow. The two printed
 marker faces must be coplanar; install a rigid spacer to remove the original
 approximately 30 mm face-depth difference.
+
+The current camera standoff is approximately 320 mm from the marker plane. This
+distance is not a calibration input; the 25 mm chessboard square size establishes
+the plane scale.
 
 Align the 9x6-inner-corner, 25 mm-square chessboard so its horizontal grid is
 parallel to vehicle front/rear and its vertical grid is parallel to vehicle
@@ -263,6 +267,17 @@ This shows you the target servo angles for each calibration pose. You command th
 to move to that pose (via `calib_ik_servo.ps1` in another terminal), then press SPACE
 to capture the camera measurement.
 
+The cross-circle marker is on the leg driven by servo0/servo2.  The default
+20-point set therefore holds servo1 and servo3 at 90 degrees and samples only
+the visible leg.  It contains the verified complementary sweep from
+`LIK,70,90,110,90` through `LIK,120,90,60,90`, common-mode points through
+`LIK,120,90,120,90`, and asymmetric points such as
+`LIK,110,90,120,90`.  The ordered path keeps adjacent visible-servo changes
+within 30 degrees.  `ref_start` and `ref_end` repeat `LIK,90,90,90,90`; more
+than 2 mm radial displacement between them blocks fitting as camera, marker,
+or mechanism drift.  Capturing the final point saves automatically; quitting
+early does not write an incomplete CSV.
+
 **Batch from pre-saved images:**
 ```bash
 python tools/calibration/calibrate_with_camera.py --images calib_frames/
@@ -405,6 +420,41 @@ python tools/fit_leg_ik_calibration.py --input data/ik_calib.csv --validation-re
 This prints MAE, RMSE, max error, and repeatability std before fitting,
 so you can verify the measurement system quality.
 
+The fitter keeps the measured `60/90/90/60/37 mm` link geometry fixed and
+identifies the mapping between servo commands and absolute physical wheel
+coordinates. The fixed chassis cross-circle marker remains `(0,0)`; measured
+positions are never re-zeroed around the neutral pose. Exactly one
+`ref_start`, `ref_mid`, and `ref_end` at `LIK,90,90,90,90` are required. Their
+mean anchors the 90-degree physical reference while their individual values
+remain in the residual and drift checks.
+
+The calibrated model fits two geometric reference angles, both discrete
+command directions, rotation or reflection-plus-rotation, and one uniform
+scale. It does not permit shear, independent axis scales, free translation, or
+link-length changes. Deterministic cross-validation must select the same
+direction/reflection class in every fold before a firmware candidate is
+printed.
+
+Only servo0/servo2 drive the measured forward model. Servo1/servo3 are not
+averaged into the result and the opposite side is not considered independently
+calibrated. The firmware candidate also contains the measured physical convex
+hull; `LXY` contracts this hull inward by 2 mm instead of accepting a rectangle
+formed from its extrema.
+
+For the current 20-point data, run:
+
+```powershell
+python tools/fit_leg_ik_calibration.py `
+  --input data/ik_calib_visible_leg_20pt.csv `
+  --kfold 5
+```
+
+Plane calibration also verifies the actual local homography directions against
+the saved `front_direction` and `down_direction`.  OpenCV's possible 180-degree
+chessboard corner-order reversal is normalized during calibration; an older
+plane file whose matrix contradicts its metadata is rejected and must be
+regenerated or explicitly migrated before collecting IK samples.
+
 **Reference thresholds** (guidance only, not enforced):
 | Metric | Excellent | Usually acceptable | Investigate |
 |--------|-----------|-------------------|-------------|
@@ -434,3 +484,4 @@ before proceeding to IK fitting.
 - opencv-python (cv2)
 - opencv-contrib-python (ArUco module)
 - numpy
+- scipy

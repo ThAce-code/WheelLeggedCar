@@ -244,9 +244,9 @@ static uint8 leg_kinematics_select_angle(float plus_rad,
     return APP_TRUE;
 }
 
-static uint8 leg_kinematics_workspace_valid(const leg_kinematics_config_struct *cfg,
-                                            float x_mm,
-                                            float y_mm)
+static uint8 leg_kinematics_model_workspace_valid(const leg_kinematics_config_struct *cfg,
+                                                  float x_mm,
+                                                  float y_mm)
 {
     if((cfg->x_min_mm > x_mm) || (cfg->x_max_mm < x_mm))
     {
@@ -259,9 +259,9 @@ static uint8 leg_kinematics_workspace_valid(const leg_kinematics_config_struct *
     return APP_TRUE;
 }
 
-static uint8 leg_kinematics_workspace_valid_fk(const leg_kinematics_config_struct *cfg,
-                                                float x_mm,
-                                                float y_mm)
+static uint8 leg_kinematics_model_workspace_valid_fk(const leg_kinematics_config_struct *cfg,
+                                                     float x_mm,
+                                                     float y_mm)
 {
     if(((cfg->x_min_mm - LEG_KINEMATICS_WORKSPACE_EPS) > x_mm) ||
        ((cfg->x_max_mm + LEG_KINEMATICS_WORKSPACE_EPS) < x_mm))
@@ -289,11 +289,142 @@ static float leg_kinematics_clamp_fk_workspace(float value, float minimum, float
     return value;
 }
 
-uint8 leg_kinematics_solve(uint8 right_side,
-                           float x_mm,
-                           float y_mm,
-                           const leg_ik_result_struct *previous,
-                           leg_ik_result_struct *result)
+uint8 leg_kinematics_target_valid(float x_mm, float y_mm)
+{
+    const leg_kinematics_config_struct *cfg;
+    uint8 i;
+
+    cfg = leg_config_get_kinematics();
+    if((NULL == cfg) ||
+       (APP_FALSE == leg_kinematics_is_finite(x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(y_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->physical_workspace_inset_mm)) ||
+       (0.0f > cfg->physical_workspace_inset_mm))
+    {
+        return APP_FALSE;
+    }
+
+    /* Vertices are stored counter-clockwise.  The signed distance from the
+       target to every directed edge must remain inside by the fitted margin. */
+    for(i = 0U; i < LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT; i++)
+    {
+        uint8 next;
+        float first_x;
+        float first_y;
+        float edge_x;
+        float edge_y;
+        float edge_length;
+        float edge_cross;
+
+        next = (uint8)((i + 1U) % LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT);
+        first_x = cfg->physical_workspace[i][0];
+        first_y = cfg->physical_workspace[i][1];
+        edge_x = cfg->physical_workspace[next][0] - first_x;
+        edge_y = cfg->physical_workspace[next][1] - first_y;
+        edge_length = sqrtf((edge_x * edge_x) + (edge_y * edge_y));
+        if((APP_FALSE == leg_kinematics_is_finite(edge_length)) ||
+           (LEG_KINEMATICS_EPS > edge_length))
+        {
+            return APP_FALSE;
+        }
+        edge_cross = (edge_x * (y_mm - first_y)) -
+                     (edge_y * (x_mm - first_x));
+        if(edge_cross < (cfg->physical_workspace_inset_mm * edge_length))
+        {
+            return APP_FALSE;
+        }
+    }
+    return APP_TRUE;
+}
+
+static uint8 leg_kinematics_physical_to_model(float physical_x_mm,
+                                               float physical_y_mm,
+                                               float *model_x_mm,
+                                               float *model_y_mm)
+{
+    const leg_kinematics_config_struct *cfg;
+    float delta_x;
+    float delta_y;
+
+    if((NULL == model_x_mm) || (NULL == model_y_mm))
+    {
+        return APP_FALSE;
+    }
+    cfg = leg_config_get_kinematics();
+    if((NULL == cfg) ||
+       (APP_FALSE == leg_kinematics_is_finite(physical_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(physical_y_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->model_to_physical_scale)) ||
+       (LEG_KINEMATICS_EPS > cfg->model_to_physical_scale))
+    {
+        return APP_FALSE;
+    }
+
+    delta_x = (physical_x_mm - cfg->physical_reference_x_mm) /
+              cfg->model_to_physical_scale;
+    delta_y = (physical_y_mm - cfg->physical_reference_y_mm) /
+              cfg->model_to_physical_scale;
+    /* Q is orthogonal, so Q^-1 is Q transposed. */
+    *model_x_mm = cfg->model_reference_x_mm +
+                  (cfg->model_to_physical_m00 * delta_x) +
+                  (cfg->model_to_physical_m10 * delta_y);
+    *model_y_mm = cfg->model_reference_y_mm +
+                  (cfg->model_to_physical_m01 * delta_x) +
+                  (cfg->model_to_physical_m11 * delta_y);
+    if((APP_FALSE == leg_kinematics_is_finite(*model_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(*model_y_mm)))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
+static uint8 leg_kinematics_model_to_physical(float model_x_mm,
+                                               float model_y_mm,
+                                               float *physical_x_mm,
+                                               float *physical_y_mm)
+{
+    const leg_kinematics_config_struct *cfg;
+    float delta_x;
+    float delta_y;
+
+    if((NULL == physical_x_mm) || (NULL == physical_y_mm))
+    {
+        return APP_FALSE;
+    }
+    cfg = leg_config_get_kinematics();
+    if((NULL == cfg) ||
+       (APP_FALSE == leg_kinematics_is_finite(model_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(model_y_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(cfg->model_to_physical_scale)) ||
+       (LEG_KINEMATICS_EPS > cfg->model_to_physical_scale))
+    {
+        return APP_FALSE;
+    }
+
+    delta_x = model_x_mm - cfg->model_reference_x_mm;
+    delta_y = model_y_mm - cfg->model_reference_y_mm;
+    *physical_x_mm = cfg->physical_reference_x_mm +
+                     cfg->model_to_physical_scale *
+                     ((cfg->model_to_physical_m00 * delta_x) +
+                      (cfg->model_to_physical_m01 * delta_y));
+    *physical_y_mm = cfg->physical_reference_y_mm +
+                     cfg->model_to_physical_scale *
+                     ((cfg->model_to_physical_m10 * delta_x) +
+                      (cfg->model_to_physical_m11 * delta_y));
+    if((APP_FALSE == leg_kinematics_is_finite(*physical_x_mm)) ||
+       (APP_FALSE == leg_kinematics_is_finite(*physical_y_mm)))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
+static uint8 leg_kinematics_solve_model(uint8 right_side,
+                                        float x_mm,
+                                        float y_mm,
+                                        const leg_ik_result_struct *previous,
+                                        leg_ik_result_struct *result)
 {
     const leg_kinematics_config_struct *cfg;
     const leg_height_profile_struct *profile;
@@ -336,10 +467,10 @@ uint8 leg_kinematics_solve(uint8 right_side,
     {
         return APP_FALSE;
     }
-    x = x_mm + cfg->x_offset_mm;
-    y = y_mm + cfg->y_offset_mm;
+    x = x_mm;
+    y = y_mm;
 
-    if((APP_FALSE == leg_kinematics_workspace_valid(cfg, x, y)) ||
+    if((APP_FALSE == leg_kinematics_model_workspace_valid(cfg, x, y)) ||
        (APP_FALSE == leg_kinematics_is_finite(x)) ||
        (APP_FALSE == leg_kinematics_is_finite(y)))
     {
@@ -388,6 +519,40 @@ uint8 leg_kinematics_solve(uint8 right_side,
     result->beta_rad = beta_rad;
     result->valid = APP_TRUE;
     return APP_TRUE;
+}
+
+uint8 leg_kinematics_solve(uint8 right_side,
+                           float x_mm,
+                           float y_mm,
+                           const leg_ik_result_struct *previous,
+                           leg_ik_result_struct *result)
+{
+    float model_x_mm;
+    float model_y_mm;
+
+    if(NULL == result)
+    {
+        return APP_FALSE;
+    }
+    result->servo_deg[0] = 0.0f;
+    result->servo_deg[1] = 0.0f;
+    result->alpha_rad = 0.0f;
+    result->beta_rad = 0.0f;
+    result->singularity_margin = 0.0f;
+    result->valid = APP_FALSE;
+
+    if((APP_FALSE == leg_kinematics_target_valid(x_mm, y_mm)) ||
+       (APP_FALSE == leg_kinematics_physical_to_model(x_mm, y_mm,
+                                                       &model_x_mm,
+                                                       &model_y_mm)))
+    {
+        return APP_FALSE;
+    }
+    return leg_kinematics_solve_model(right_side,
+                                       model_x_mm,
+                                       model_y_mm,
+                                       previous,
+                                       result);
 }
 
 uint8 leg_kinematics_map_reference_pose(const leg_ik_result_struct *left,
@@ -524,11 +689,11 @@ uint8 leg_kinematics_forward(uint8 right_side,
     plus_valid = ((APP_TRUE == leg_kinematics_is_finite(plus_x)) &&
                   (APP_TRUE == leg_kinematics_is_finite(plus_y)) &&
                   (0.0f < plus_y) &&
-                  (APP_TRUE == leg_kinematics_workspace_valid_fk(cfg, plus_x, plus_y))) ? APP_TRUE : APP_FALSE;
+                  (APP_TRUE == leg_kinematics_model_workspace_valid_fk(cfg, plus_x, plus_y))) ? APP_TRUE : APP_FALSE;
     minus_valid = ((APP_TRUE == leg_kinematics_is_finite(minus_x)) &&
                    (APP_TRUE == leg_kinematics_is_finite(minus_y)) &&
                    (0.0f < minus_y) &&
-                   (APP_TRUE == leg_kinematics_workspace_valid_fk(cfg, minus_x, minus_y))) ? APP_TRUE : APP_FALSE;
+                   (APP_TRUE == leg_kinematics_model_workspace_valid_fk(cfg, minus_x, minus_y))) ? APP_TRUE : APP_FALSE;
     if((APP_FALSE == plus_valid) && (APP_FALSE == minus_valid))
     {
         return APP_FALSE;
@@ -537,22 +702,22 @@ uint8 leg_kinematics_forward(uint8 right_side,
     plus_match = APP_FALSE;
     minus_match = APP_FALSE;
     if((APP_TRUE == plus_valid) &&
-       (APP_TRUE == leg_kinematics_solve(right_side,
-                                          plus_x - cfg->x_offset_mm,
-                                          plus_y - cfg->y_offset_mm,
-                                          NULL,
-                                          &plus_ik)) &&
+       (APP_TRUE == leg_kinematics_solve_model(right_side,
+                                                plus_x,
+                                                plus_y,
+                                                NULL,
+                                                &plus_ik)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >= leg_kinematics_wrapped_distance(alpha_rad, plus_ik.alpha_rad)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >= leg_kinematics_wrapped_distance(beta_rad, plus_ik.beta_rad)))
     {
         plus_match = APP_TRUE;
     }
     if((APP_TRUE == minus_valid) &&
-       (APP_TRUE == leg_kinematics_solve(right_side,
-                                          minus_x - cfg->x_offset_mm,
-                                          minus_y - cfg->y_offset_mm,
-                                          NULL,
-                                          &minus_ik)) &&
+       (APP_TRUE == leg_kinematics_solve_model(right_side,
+                                                minus_x,
+                                                minus_y,
+                                                NULL,
+                                                &minus_ik)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >= leg_kinematics_wrapped_distance(alpha_rad, minus_ik.alpha_rad)) &&
        (LEG_KINEMATICS_FK_MATCH_EPS >= leg_kinematics_wrapped_distance(beta_rad, minus_ik.beta_rad)))
     {
@@ -566,16 +731,10 @@ uint8 leg_kinematics_forward(uint8 right_side,
     /* The configured wheel centerline resolves the remaining dual-root FK pose. */
     if(((APP_TRUE == minus_match) && (APP_FALSE == plus_match)) ||
        ((APP_TRUE == minus_match) && (APP_TRUE == plus_match) &&
-        (leg_kinematics_absf(minus_x - cfg->x_offset_mm) <=
-         leg_kinematics_absf(plus_x - cfg->x_offset_mm))))
+        (leg_kinematics_absf(minus_x - cfg->model_reference_x_mm) <=
+         leg_kinematics_absf(plus_x - cfg->model_reference_x_mm))))
     {
-        *x_mm = minus_x - cfg->x_offset_mm;
-        *y_mm = minus_y - cfg->y_offset_mm;
+        return leg_kinematics_model_to_physical(minus_x, minus_y, x_mm, y_mm);
     }
-    else
-    {
-        *x_mm = plus_x - cfg->x_offset_mm;
-        *y_mm = plus_y - cfg->y_offset_mm;
-    }
-    return APP_TRUE;
+    return leg_kinematics_model_to_physical(plus_x, plus_y, x_mm, y_mm);
 }

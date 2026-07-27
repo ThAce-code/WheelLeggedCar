@@ -96,6 +96,33 @@ class FakeProcess:
         return self.returncode
 
 
+class TerminateFirstStdout:
+    def __init__(self, process):
+        self.process = process
+        self.closed = False
+
+    def close(self):
+        if not self.process.terminated:
+            raise RuntimeError("stdout closed before subprocess termination")
+        self.closed = True
+
+
+class TerminateFirstProcess:
+    def __init__(self):
+        self.terminated = False
+        self.stdout = TerminateFirstStdout(self)
+        self.stderr = None
+        self.returncode = None
+
+    def terminate(self):
+        self.terminated = True
+        self.returncode = 0
+
+    def wait(self, timeout=None):
+        del timeout
+        return self.returncode
+
+
 class TestCaptureSource(unittest.TestCase):
     def test_ffmpeg_source_forwards_timeout_and_closes(self):
         created = []
@@ -162,6 +189,14 @@ class TestCaptureSource(unittest.TestCase):
         camera._reader_thread.start()
         camera.close()
         self.assertFalse(camera._reader_thread.is_alive())
+
+    def test_ffmpeg_close_terminates_process_before_closing_stdout(self):
+        camera = FfmpegCamera("USB Camera", width=1, height=1)
+        process = TerminateFirstProcess()
+        camera._proc = process
+        camera.close()
+        self.assertTrue(process.terminated)
+        self.assertTrue(process.stdout.closed)
 
     def test_cli_arguments_default_to_opencv(self):
         parser = argparse.ArgumentParser()

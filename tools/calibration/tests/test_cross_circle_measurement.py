@@ -4,6 +4,7 @@ import sys
 import unittest
 from collections import deque
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -13,6 +14,7 @@ if str(CALIBRATION_DIR) not in sys.path:
 
 from cross_circle_detector import (  # noqa: E402
     CrossCircleCandidate,
+    CrossCircleDetector,
     CrossCircleMeasurementTracker,
     CrossCircleRoles,
 )
@@ -43,8 +45,8 @@ def candidate(center, diameter, confidence=0.9):
 def roles(origin=(0, 0), wheel=(0, 0), status="VALID",
           origin_confidence=0.9, wheel_confidence=0.9):
     return CrossCircleRoles(
-        origin=candidate(origin, 70, origin_confidence),
-        wheel=candidate(wheel, 50, wheel_confidence), status=status)
+        origin=candidate(origin, 50, origin_confidence),
+        wheel=candidate(wheel, 70, wheel_confidence), status=status)
 
 
 def ambiguous_roles():
@@ -75,6 +77,34 @@ def make_tracker(frames, jump_threshold_mm=20.0):
 
 
 class TestCrossCircleMeasurement(unittest.TestCase):
+    def test_physical_bounds_reject_false_pair_before_role_lock(self):
+        plane = PlaneCalibration(
+            H=np.diag([-1.0, 1.0, 1.0]),
+            camera_matrix=np.eye(3), dist_coeffs=np.zeros(4),
+            image_size=(1920, 1080), calib_path="camera_calib.npz",
+            backend="test", front_direction="left", down_direction="down",
+            board_cols=9, board_rows=6, square_size_mm=25.0, rmse_mm=0.0,
+            src_points_undistorted_px=np.zeros((4, 2)),
+            dst_points_mm=np.zeros((4, 2)))
+        detector = CrossCircleDetector()
+        actual_origin = candidate((0.0, 0.0), 28.7, 0.68)
+        false_origin = candidate((0.0, -50.0), 30.1, 0.90)
+        wheel = candidate((30.0, 50.0), 41.5, 0.90)
+        tracker = CrossCircleMeasurementTracker(
+            detector, plane, np.eye(3), np.zeros(4),
+            relative_bounds_mm=(-50.0, -10.0, 25.0, 95.0))
+
+        with mock.patch.object(
+                detector, "detect",
+                return_value=(false_origin, actual_origin, wheel)):
+            measurement = tracker.process(blank_frame())
+
+        self.assertTrue(tracker.current_sample_accepted)
+        self.assertAlmostEqual(measurement.x_mm, -30.0)
+        self.assertAlmostEqual(measurement.y_mm, 50.0)
+        np.testing.assert_allclose(
+            detector.locked_origin_center, actual_origin.center)
+
     def test_relative_axes_are_left_positive_and_down_positive(self):
         tracker, _ = make_tracker(
             frames=[roles(origin=(600, 400), wheel=(500, 520))] * 15)
@@ -124,6 +154,20 @@ class TestCrossCircleMeasurement(unittest.TestCase):
         for _ in frames:
             tracker.process(blank_frame())
         self.assertEqual(tracker.valid_frame_count, 5)
+
+    def test_stable_jump_cluster_replaces_history_and_can_reach_capture(self):
+        stale = roles(origin=(0, 0), wheel=(-10, 10))
+        stable = roles(origin=(0, 0), wheel=(-100, 100))
+        frames = [stale] * 8 + [stable] * 20
+        tracker, _ = make_tracker(frames)
+
+        for _ in frames:
+            tracker.process(blank_frame())
+
+        captured = tracker.capture()
+        self.assertIsNotNone(captured)
+        self.assertAlmostEqual(captured.x_mm, 100.0)
+        self.assertAlmostEqual(captured.y_mm, 100.0)
 
     def test_trace_fields_confidence_and_status_are_preserved(self):
         tracker, _ = make_tracker(frames=[roles(

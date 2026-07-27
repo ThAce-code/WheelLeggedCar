@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""Evaluate wheel-leg IK calibration samples and print candidate offsets.
+"""Fit visible-leg commands to absolute physical wheel-center coordinates.
 
-Now with train/validation split (requirement 10):
-  - Fits kinematics offsets on a TRAINING subset only
-  - Evaluates RMSE on an independent VALIDATION subset
-  - Reports both train and val metrics separately
+The fixed chassis marker is physical (0, 0), +X is vehicle forward, and +Y is
+downward.  The three named 90-degree reference captures anchor the fitted
+similarity; they are not subtracted to create a neutral-relative coordinate
+system.
 
 Usage:
-    python tools/fit_leg_ik_calibration.py --input data/ik_calib.csv
-    python tools/fit_leg_ik_calibration.py --input data.csv --val-split 0.2
-    python tools/fit_leg_ik_calibration.py --input data.csv --val-samples 5
-    python tools/fit_leg_ik_calibration.py --input data.csv --kfold 5
-    python tools/fit_leg_ik_calibration.py --input data.csv --validation-report report.json
+    python tools/fit_leg_ik_calibration.py \
+        --input data/ik_calib_visible_leg_20pt.csv --kfold 5
 """
 
 from __future__ import annotations
@@ -22,9 +19,17 @@ import json
 import math
 import random
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
+
+import numpy as np
+from scipy.optimize import least_squares
+
+
+REFERENCE_LABELS = ("ref_start", "ref_mid", "ref_end")
+NEUTRAL_COMMAND_DEG = 90.0
+FIT_ROOT = "plus"
 
 
 @dataclass(frozen=True)
@@ -34,12 +39,6 @@ class KinematicsConfig:
     l3_mm: float = 90.0
     l4_mm: float = 60.0
     l5_mm: float = 37.0
-    x_min_mm: float = -35.0
-    x_max_mm: float = 35.0
-    y_min_mm: float = 35.0
-    y_max_mm: float = 150.0
-    x_offset_mm: float = 0.0
-    y_offset_mm: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -52,12 +51,39 @@ class Sample:
 
 
 @dataclass(frozen=True)
+class SimilarityCandidate:
+    alpha_ref_deg: float
+    beta_ref_deg: float
+    direction_a: int
+    direction_b: int
+    determinant: int
+    rotation_deg: float
+    scale: float
+    matrix: Tuple[float, float, float, float]
+    reference_physical_x_mm: float
+    reference_physical_y_mm: float
+    reference_local_x_mm: float
+    reference_local_y_mm: float
+    objective_sse: float
+
+
+@dataclass(frozen=True)
 class Prediction:
     sample: Sample
     predicted_x_mm: float
     predicted_y_mm: float
     error_x_mm: float
     error_y_mm: float
+    radial_error_mm: float
+
+
+@dataclass(frozen=True)
+class FitMetrics:
+    predictions: Tuple[Prediction, ...]
+    rmse_x_mm: float
+    rmse_y_mm: float
+    radial_rmse_mm: float
+    max_radial_error_mm: float
 
 
 def finite_float(value: str) -> Optional[float]:
@@ -81,74 +107,122 @@ def read_samples(path: Path) -> List[Sample]:
     samples: List[Sample] = []
     with path.open(newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
-            note = (row.get("note") or "").lower()
-            if "skip" in note:
+            if "skip" in (row.get("note") or "").lower():
                 continue
             measured_x = first_float(row, ("measured_x_mm", "x_mm"))
             measured_y = first_float(row, ("measured_y_mm", "y_mm"))
-            servo = (
-                first_float(row, ("cmd_a0_deg", "servo0_output_deg", "servo0_deg")),
-                first_float(row, ("cmd_a1_deg", "servo1_output_deg", "servo1_deg")),
-                first_float(row, ("cmd_a2_deg", "servo2_output_deg", "servo2_deg")),
-                first_float(row, ("cmd_a3_deg", "servo3_output_deg", "servo3_deg")),
-            )
-            if measured_x is None or measured_y is None or any(v is None for v in servo):
-                continue
-            samples.append(
-                Sample(
-                    sample_id=row.get("sample_id", str(len(samples))),
-                    label=row.get("label", ""),
-                    servo=(servo[0], servo[1], servo[2], servo[3]),
-                    measured_x_mm=measured_x,
-                    measured_y_mm=measured_y,
+            servo_values = tuple(
+                first_float(row, names)
+                for names in (
+                    ("cmd_a0_deg", "servo0_output_deg", "servo0_deg"),
+                    ("cmd_a1_deg", "servo1_output_deg", "servo1_deg"),
+                    ("cmd_a2_deg", "servo2_output_deg", "servo2_deg"),
+                    ("cmd_a3_deg", "servo3_output_deg", "servo3_deg"),
                 )
             )
+            if (measured_x is None or measured_y is None or
+                    any(value is None for value in servo_values)):
+                continue
+            samples.append(Sample(
+                sample_id=row.get("sample_id", str(len(samples))),
+                label=row.get("label", ""),
+                servo=(servo_values[0], servo_values[1],
+                       servo_values[2], servo_values[3]),
+                measured_x_mm=measured_x,
+                measured_y_mm=measured_y,
+            ))
     return samples
+
+
+def validate_sample_coverage(
+    samples: Sequence[Sample], min_x_span_mm: float, min_y_span_mm: float,
+) -> Optional[str]:
+    if not samples:
+        return "no usable samples"
+    if any(sample.measured_y_mm <= 0.0 for sample in samples):
+        return ("measured Y violates the vehicle coordinate convention: "
+                "wheel-center down must be positive")
+    x_values = [sample.measured_x_mm for sample in samples]
+    y_values = [sample.measured_y_mm for sample in samples]
+    x_span = max(x_values) - min(x_values)
+    y_span = max(y_values) - min(y_values)
+    if x_span < min_x_span_mm:
+        return (f"X coverage is only {x_span:.3f} mm; require at least "
+                f"{min_x_span_mm:.3f} mm")
+    if y_span < min_y_span_mm:
+        return (f"Y coverage is only {y_span:.3f} mm; require at least "
+                f"{min_y_span_mm:.3f} mm")
+    return None
+
+
+def validate_reference_samples(samples: Sequence[Sample]) -> Optional[str]:
+    selected = {label: [s for s in samples if s.label == label]
+                for label in REFERENCE_LABELS}
+    if any(len(selected[label]) != 1 for label in REFERENCE_LABELS):
+        return "reference fit requires exactly one ref_start, ref_mid, and ref_end"
+    for label in REFERENCE_LABELS:
+        if any(abs(value - NEUTRAL_COMMAND_DEG) > 1e-6
+               for value in selected[label][0].servo):
+            return f"{label} must contain the four 90-degree commands"
+    return None
+
+
+def reference_physical_point(samples: Sequence[Sample]) -> Tuple[float, float]:
+    error = validate_reference_samples(samples)
+    if error is not None:
+        raise ValueError(error)
+    references = [sample for sample in samples
+                  if sample.label in REFERENCE_LABELS]
+    return (
+        sum(sample.measured_x_mm for sample in references) / len(references),
+        sum(sample.measured_y_mm for sample in references) / len(references),
+    )
+
+
+def validate_reference_drift(
+    samples: Sequence[Sample], max_drift_mm: float,
+) -> Optional[str]:
+    start = [sample for sample in samples if sample.label == "ref_start"]
+    end = [sample for sample in samples if sample.label == "ref_end"]
+    if not start and not end:
+        return None
+    if len(start) != 1 or len(end) != 1:
+        return "reference drift check requires exactly one ref_start and ref_end"
+    drift_mm = math.hypot(
+        end[0].measured_x_mm - start[0].measured_x_mm,
+        end[0].measured_y_mm - start[0].measured_y_mm)
+    if drift_mm > max_drift_mm:
+        return (f"reference drift is {drift_mm:.3f} mm; limit is "
+                f"{max_drift_mm:.3f} mm")
+    return None
+
+
+def reference_drift_mm(samples: Sequence[Sample]) -> float:
+    start = next(sample for sample in samples if sample.label == "ref_start")
+    end = next(sample for sample in samples if sample.label == "ref_end")
+    return math.hypot(end.measured_x_mm - start.measured_x_mm,
+                      end.measured_y_mm - start.measured_y_mm)
 
 
 def parse_current_config(config_path: Path) -> KinematicsConfig:
     if not config_path.exists():
         return KinematicsConfig()
-
     text = config_path.read_text(encoding="utf-8", errors="ignore")
-    pattern = re.compile(
-        r"(?P<l1>[-+]?\d+(?:\.\d+)?)f,\s*/\*\s*L1[\s\S]*?"
-        r"(?P<l2>[-+]?\d+(?:\.\d+)?)f,\s*/\*\s*L2[\s\S]*?"
-        r"(?P<l3>[-+]?\d+(?:\.\d+)?)f,\s*/\*\s*L3[\s\S]*?"
-        r"(?P<l4>[-+]?\d+(?:\.\d+)?)f,\s*/\*\s*L4[\s\S]*?"
-        r"(?P<l5>[-+]?\d+(?:\.\d+)?)f,\s*/\*\s*L5[\s\S]*?"
-        r"(?P<x_min>[-+]?\d+(?:\.\d+)?)f,\s*"
-        r"(?P<x_max>[-+]?\d+(?:\.\d+)?)f,\s*"
-        r"(?P<y_min>[-+]?\d+(?:\.\d+)?)f,\s*"
-        r"(?P<y_max>[-+]?\d+(?:\.\d+)?)f,\s*"
-        r"(?P<x_offset>[-+]?\d+(?:\.\d+)?)f,\s*"
-        r"(?P<y_offset>[-+]?\d+(?:\.\d+)?)f,",
-        re.MULTILINE,
-    )
-    match = pattern.search(text)
-    if not match:
-        return KinematicsConfig()
-
-    values = {name: float(value) for name, value in match.groupdict().items()}
-    return KinematicsConfig(
-        l1_mm=values["l1"],
-        l2_mm=values["l2"],
-        l3_mm=values["l3"],
-        l4_mm=values["l4"],
-        l5_mm=values["l5"],
-        x_min_mm=values["x_min"],
-        x_max_mm=values["x_max"],
-        y_min_mm=values["y_min"],
-        y_max_mm=values["y_max"],
-        x_offset_mm=values["x_offset"],
-        y_offset_mm=values["y_offset"],
-    )
+    values = {}
+    for name in ("l1_mm", "l2_mm", "l3_mm", "l4_mm", "l5_mm"):
+        match = re.search(
+            rf"\.{name}\s*=\s*([-+]?\d+(?:\.\d+)?)f", text)
+        if match is None:
+            return KinematicsConfig()
+        values[name] = float(match.group(1))
+    return KinematicsConfig(**values)
 
 
-def circle_fk_candidates(cfg: KinematicsConfig, servo_a_deg: float, servo_b_deg: float
-                         ) -> List[Tuple[float, float, str]]:
-    alpha = math.radians(servo_a_deg)
-    beta = math.radians(servo_b_deg)
+def circle_fk_candidates(
+    cfg: KinematicsConfig, alpha_deg: float, beta_deg: float,
+) -> List[Tuple[float, float, str]]:
+    alpha = math.radians(alpha_deg)
+    beta = math.radians(beta_deg)
     c_x = cfg.l1_mm * math.cos(alpha)
     c_y = cfg.l1_mm * math.sin(alpha)
     d_x = cfg.l5_mm + cfg.l4_mm * math.cos(beta)
@@ -156,413 +230,442 @@ def circle_fk_candidates(cfg: KinematicsConfig, servo_a_deg: float, servo_b_deg:
     dx = d_x - c_x
     dy = d_y - c_y
     distance = math.hypot(dx, dy)
-    if distance <= 1e-6:
+    if distance <= 1e-9:
         return []
-
-    projection = ((cfg.l2_mm * cfg.l2_mm) - (cfg.l3_mm * cfg.l3_mm) + (distance * distance)) / (2.0 * distance)
-    root_term = (cfg.l2_mm * cfg.l2_mm) - (projection * projection)
-    if root_term < 0.0:
+    projection = ((cfg.l2_mm ** 2 - cfg.l3_mm ** 2 + distance ** 2) /
+                  (2.0 * distance))
+    root_term = cfg.l2_mm ** 2 - projection ** 2
+    if root_term < -1e-7:
         return []
-
     height = math.sqrt(max(root_term, 0.0))
     base_x = c_x + projection * dx / distance
     base_y = c_y + projection * dy / distance
-    candidates = [
-        (base_x - dy * height / distance, base_y + dx * height / distance, "plus"),
-        (base_x + dy * height / distance, base_y - dx * height / distance, "minus"),
+    return [
+        (base_x - dy * height / distance,
+         base_y + dx * height / distance, "plus"),
+        (base_x + dy * height / distance,
+         base_y - dx * height / distance, "minus"),
     ]
-    valid = []
-    for x_mm, y_mm, root in candidates:
-        if y_mm <= 0.0:
-            continue
-        if not (cfg.x_min_mm <= x_mm - cfg.x_offset_mm <= cfg.x_max_mm):
-            continue
-        if not (cfg.y_min_mm <= y_mm - cfg.y_offset_mm <= cfg.y_max_mm):
-            continue
-        valid.append((x_mm, y_mm, root))
-    return valid
 
 
-def forward_pair(cfg: KinematicsConfig, servo_a_deg: float, servo_b_deg: float
-                 ) -> Optional[Tuple[float, float]]:
-    candidates = circle_fk_candidates(cfg, servo_a_deg, servo_b_deg)
-    if not candidates:
+def five_bar_forward(
+    cfg: KinematicsConfig, alpha_deg: float, beta_deg: float,
+    root: str = FIT_ROOT,
+) -> Optional[Tuple[float, float]]:
+    for x_mm, y_mm, candidate_root in circle_fk_candidates(
+            cfg, alpha_deg, beta_deg):
+        if candidate_root == root and y_mm > 0.0:
+            return (x_mm, y_mm)
+    return None
+
+
+def similarity_matrix(rotation_deg: float, determinant: int
+                      ) -> Tuple[float, float, float, float]:
+    angle = math.radians(rotation_deg)
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return (cosine, -determinant * sine,
+            sine, determinant * cosine)
+
+
+def _candidate_from_parameters(
+    cfg: KinematicsConfig,
+    parameters: Sequence[float],
+    direction_a: int,
+    direction_b: int,
+    determinant: int,
+    reference_physical: Tuple[float, float],
+    objective_sse: float,
+) -> Optional[SimilarityCandidate]:
+    alpha_ref_deg, beta_ref_deg, rotation_deg, log_scale = parameters
+    reference_local = five_bar_forward(
+        cfg, alpha_ref_deg, beta_ref_deg, FIT_ROOT)
+    if reference_local is None:
         return None
-    def sort_key(c: Tuple[float, float, str]) -> Tuple[float, int]:
-        return (abs(c[0] - cfg.x_offset_mm), 0 if c[2] == "minus" else 1)
-    selected_x, selected_y, _root = sorted(candidates, key=sort_key)[0]
-    return selected_x - cfg.x_offset_mm, selected_y - cfg.y_offset_mm
-
-
-def predict_sample(cfg: KinematicsConfig, sample: Sample) -> Optional[Tuple[float, float]]:
-    left = forward_pair(cfg, sample.servo[0], sample.servo[2])
-    right = forward_pair(cfg, sample.servo[1], sample.servo[3])
-    pairs = [pair for pair in (left, right) if pair is not None]
-    if not pairs:
-        return None
-    return (
-        sum(pair[0] for pair in pairs) / len(pairs),
-        sum(pair[1] for pair in pairs) / len(pairs),
+    return SimilarityCandidate(
+        alpha_ref_deg=float(alpha_ref_deg),
+        beta_ref_deg=float(beta_ref_deg),
+        direction_a=direction_a,
+        direction_b=direction_b,
+        determinant=determinant,
+        rotation_deg=float(rotation_deg),
+        scale=float(math.exp(log_scale)),
+        matrix=similarity_matrix(rotation_deg, determinant),
+        reference_physical_x_mm=reference_physical[0],
+        reference_physical_y_mm=reference_physical[1],
+        reference_local_x_mm=reference_local[0],
+        reference_local_y_mm=reference_local[1],
+        objective_sse=float(objective_sse),
     )
 
 
-def evaluate(cfg: KinematicsConfig, samples: Iterable[Sample]) -> List[Prediction]:
-    predictions: List[Prediction] = []
+def model_to_physical(
+    candidate: SimilarityCandidate, x_mm: float, y_mm: float,
+) -> Tuple[float, float]:
+    m00, m01, m10, m11 = candidate.matrix
+    dx = x_mm - candidate.reference_local_x_mm
+    dy = y_mm - candidate.reference_local_y_mm
+    return (
+        candidate.reference_physical_x_mm +
+        candidate.scale * (m00 * dx + m01 * dy),
+        candidate.reference_physical_y_mm +
+        candidate.scale * (m10 * dx + m11 * dy),
+    )
+
+
+def physical_to_model(
+    candidate: SimilarityCandidate, x_mm: float, y_mm: float,
+) -> Tuple[float, float]:
+    m00, m01, m10, m11 = candidate.matrix
+    dx = (x_mm - candidate.reference_physical_x_mm) / candidate.scale
+    dy = (y_mm - candidate.reference_physical_y_mm) / candidate.scale
+    return (
+        candidate.reference_local_x_mm + m00 * dx + m10 * dy,
+        candidate.reference_local_y_mm + m01 * dx + m11 * dy,
+    )
+
+
+def predict_candidate(
+    candidate: SimilarityCandidate, sample: Sample,
+    cfg: Optional[KinematicsConfig] = None,
+) -> Optional[Tuple[float, float]]:
+    cfg = cfg or KinematicsConfig()
+    alpha_deg = (candidate.alpha_ref_deg + candidate.direction_a *
+                 (sample.servo[0] - NEUTRAL_COMMAND_DEG))
+    beta_deg = (candidate.beta_ref_deg + candidate.direction_b *
+                (sample.servo[2] - NEUTRAL_COMMAND_DEG))
+    local = five_bar_forward(cfg, alpha_deg, beta_deg, FIT_ROOT)
+    if local is None:
+        return None
+    return model_to_physical(candidate, *local)
+
+
+def _fit_residuals(
+    parameters: Sequence[float],
+    samples: Sequence[Sample],
+    cfg: KinematicsConfig,
+    direction_a: int,
+    direction_b: int,
+    determinant: int,
+    reference_physical: Tuple[float, float],
+) -> np.ndarray:
+    candidate = _candidate_from_parameters(
+        cfg, parameters, direction_a, direction_b, determinant,
+        reference_physical, 0.0)
+    if candidate is None:
+        return np.full(len(samples) * 2, 1000.0, dtype=np.float64)
+    residuals = []
     for sample in samples:
-        predicted = predict_sample(cfg, sample)
+        predicted = predict_candidate(candidate, sample, cfg)
         if predicted is None:
-            continue
-        pred_x, pred_y = predicted
-        predictions.append(
-            Prediction(
-                sample=sample,
-                predicted_x_mm=pred_x,
-                predicted_y_mm=pred_y,
-                error_x_mm=pred_x - sample.measured_x_mm,
-                error_y_mm=pred_y - sample.measured_y_mm,
-            )
-        )
-    return predictions
+            residuals.extend((1000.0, 1000.0))
+        else:
+            residuals.extend((predicted[0] - sample.measured_x_mm,
+                              predicted[1] - sample.measured_y_mm))
+    return np.asarray(residuals, dtype=np.float64)
 
 
-def rmse(values: Sequence[float]) -> float:
+def fit_similarity_candidate(
+    samples: Sequence[Sample],
+    cfg: Optional[KinematicsConfig] = None,
+    reference_physical: Optional[Tuple[float, float]] = None,
+) -> SimilarityCandidate:
+    if len(samples) < 4:
+        raise ValueError("at least four samples are required")
+    cfg = cfg or KinematicsConfig()
+    if reference_physical is None:
+        reference_physical = reference_physical_point(samples)
+
+    starts = (
+        (170.0, 0.0, 175.0, math.log(0.95)),
+        (150.0, -20.0, 0.0, 0.0),
+        (190.0, 20.0, -180.0, 0.0),
+    )
+    lower = np.asarray((120.0, -60.0, -360.0, math.log(0.5)))
+    upper = np.asarray((220.0, 60.0, 360.0, math.log(1.5)))
+    best: Optional[SimilarityCandidate] = None
+
+    for direction_a in (-1, 1):
+        for direction_b in (-1, 1):
+            for determinant in (-1, 1):
+                for start in starts:
+                    result = least_squares(
+                        _fit_residuals,
+                        np.asarray(start, dtype=np.float64),
+                        bounds=(lower, upper),
+                        args=(samples, cfg, direction_a, direction_b,
+                              determinant, reference_physical),
+                        max_nfev=3000,
+                        xtol=1e-11,
+                        ftol=1e-11,
+                        gtol=1e-11,
+                    )
+                    candidate = _candidate_from_parameters(
+                        cfg, result.x, direction_a, direction_b, determinant,
+                        reference_physical, float(np.dot(result.fun, result.fun)))
+                    if candidate is not None and (
+                            best is None or
+                            candidate.objective_sse < best.objective_sse):
+                        best = candidate
+    if best is None:
+        raise ValueError("no finite similarity candidate could be fitted")
+    return best
+
+
+def _rmse(values: Sequence[float]) -> float:
     if not values:
         return float("nan")
     return math.sqrt(sum(value * value for value in values) / len(values))
 
 
-def fit_offset_candidate(cfg: KinematicsConfig, predictions: Sequence[Prediction]) -> KinematicsConfig:
-    if not predictions:
-        return cfg
-    mean_error_x = sum(pred.error_x_mm for pred in predictions) / len(predictions)
-    mean_error_y = sum(pred.error_y_mm for pred in predictions) / len(predictions)
-    return replace(
-        cfg,
-        x_offset_mm=cfg.x_offset_mm + mean_error_x,
-        y_offset_mm=cfg.y_offset_mm + mean_error_y,
+def evaluate_candidate(
+    candidate: SimilarityCandidate,
+    samples: Iterable[Sample],
+    cfg: Optional[KinematicsConfig] = None,
+) -> FitMetrics:
+    cfg = cfg or KinematicsConfig()
+    predictions = []
+    for sample in samples:
+        predicted = predict_candidate(candidate, sample, cfg)
+        if predicted is None:
+            continue
+        error_x = predicted[0] - sample.measured_x_mm
+        error_y = predicted[1] - sample.measured_y_mm
+        predictions.append(Prediction(
+            sample=sample,
+            predicted_x_mm=predicted[0],
+            predicted_y_mm=predicted[1],
+            error_x_mm=error_x,
+            error_y_mm=error_y,
+            radial_error_mm=math.hypot(error_x, error_y),
+        ))
+    return FitMetrics(
+        predictions=tuple(predictions),
+        rmse_x_mm=_rmse([item.error_x_mm for item in predictions]),
+        rmse_y_mm=_rmse([item.error_y_mm for item in predictions]),
+        radial_rmse_mm=_rmse([item.radial_error_mm for item in predictions]),
+        max_radial_error_mm=max(
+            (item.radial_error_mm for item in predictions), default=float("nan")),
     )
 
 
-# =======================================================================
-# Train / validation split helpers (requirement 10)
-# =======================================================================
+def convex_hull(points: Sequence[Tuple[float, float]]
+                ) -> List[Tuple[float, float]]:
+    unique = sorted(set(points))
+    if len(unique) <= 1:
+        return unique
 
-def split_train_val(
-    samples: List[Sample],
-    val_split: float = 0.2,
-    val_count: int = 0,
-    seed: int = 42,
-) -> Tuple[List[Sample], List[Sample]]:
-    """Split samples into training and validation sets.
+    def cross(origin, first, second):
+        return ((first[0] - origin[0]) * (second[1] - origin[1]) -
+                (first[1] - origin[1]) * (second[0] - origin[0]))
 
-    Stratified by label when possible -- each unique label appears
-    proportionally in both sets.
-
-    Args:
-        samples: All samples.
-        val_split: Fraction of samples for validation (0.0-1.0).
-        val_count: Absolute number of validation samples (overrides val_split if > 0).
-        seed: Random seed for reproducibility.
-
-    Returns:
-        (train_samples, val_samples)
-    """
-    if len(samples) < 2:
-        return list(samples), []
-
-    rng = random.Random(seed)
-
-    # Group by label for stratified split
-    from collections import defaultdict
-    by_label: dict[str, List[Sample]] = defaultdict(list)
-    for s in samples:
-        by_label[s.label].append(s)
-
-    train: List[Sample] = []
-    val: List[Sample] = []
-
-    total_val = val_count if val_count > 0 else max(1, int(len(samples) * val_split))
-
-    # Try stratified: take proportional val samples from each label group
-    allocated = 0
-    label_items = sorted(by_label.items(), key=lambda x: len(x[1]), reverse=True)
-
-    for i, (label, group) in enumerate(label_items):
-        group_copy = list(group)
-        rng.shuffle(group_copy)
-
-        if i == len(label_items) - 1:
-            # Last group: take whatever remains to hit the target
-            n_val = total_val - allocated
-        else:
-            n_val = max(0, min(len(group_copy) - 1,
-                               int(len(group_copy) / len(samples) * total_val)))
-
-        n_val = max(0, min(n_val, len(group_copy) - 1))
-        val.extend(group_copy[:n_val])
-        train.extend(group_copy[n_val:])
-        allocated += n_val
-
-    # If we didn't hit the target (e.g. single label), simple random split
-    if len(val) < 1 and len(samples) >= 2:
-        rng.shuffle(samples)
-        val_count_actual = max(1, int(len(samples) * val_split))
-        return samples[val_count_actual:], samples[:val_count_actual]
-
-    return train, val
+    lower: List[Tuple[float, float]] = []
+    for point in unique:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], point) <= 0.0:
+            lower.pop()
+        lower.append(point)
+    upper: List[Tuple[float, float]] = []
+    for point in reversed(unique):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], point) <= 0.0:
+            upper.pop()
+        upper.append(point)
+    return lower[:-1] + upper[:-1]
 
 
-def kfold_splits(samples: List[Sample], k: int = 5, seed: int = 42
+def point_in_inset_hull(
+    point: Tuple[float, float],
+    hull: Sequence[Tuple[float, float]],
+    inset_mm: float,
+) -> bool:
+    if len(hull) < 3 or inset_mm < 0.0:
+        return False
+    for index, first in enumerate(hull):
+        second = hull[(index + 1) % len(hull)]
+        edge_x = second[0] - first[0]
+        edge_y = second[1] - first[1]
+        edge_length = math.hypot(edge_x, edge_y)
+        if edge_length <= 1e-9:
+            return False
+        signed_distance = (
+            edge_x * (point[1] - first[1]) -
+            edge_y * (point[0] - first[0])) / edge_length
+        if signed_distance < inset_mm - 1e-9:
+            return False
+    return True
+
+
+def kfold_splits(samples: Sequence[Sample], k: int, seed: int
                  ) -> List[Tuple[List[Sample], List[Sample]]]:
-    """Generate k train/validation fold pairs.
-
-    Returns k tuples of (train_samples, val_samples).
-    """
-    rng = random.Random(seed)
+    if k < 2 or k > len(samples):
+        raise ValueError("kfold must be between 2 and the sample count")
     shuffled = list(samples)
-    rng.shuffle(shuffled)
-
-    fold_size = len(shuffled) // k
-    folds: List[Tuple[List[Sample], List[Sample]]] = []
-
-    for i in range(k):
-        val_start = i * fold_size
-        val_end = (i + 1) * fold_size if i < k - 1 else len(shuffled)
-        val = shuffled[val_start:val_end]
-        train = shuffled[:val_start] + shuffled[val_end:]
-        folds.append((train, val))
-
-    return folds
+    random.Random(seed).shuffle(shuffled)
+    buckets = [shuffled[index::k] for index in range(k)]
+    result = []
+    for index in range(k):
+        validation = buckets[index]
+        training = [item for bucket_index, bucket in enumerate(buckets)
+                    if bucket_index != index for item in bucket]
+        result.append((training, validation))
+    return result
 
 
-def print_summary(name: str, predictions: Sequence[Prediction]) -> None:
-    print(f"  {name}_n={len(predictions)}")
-    print(f"  {name}_rmse_x_mm={rmse([p.error_x_mm for p in predictions]):.3f}")
-    print(f"  {name}_rmse_y_mm={rmse([p.error_y_mm for p in predictions]):.3f}")
-    if predictions:
-        worst = max(predictions, key=lambda p: abs(p.error_y_mm))
-        print(f"  {name}_worst_y sample={worst.sample.sample_id} "
-              f"label={worst.sample.label} error_y_mm={worst.error_y_mm:.3f}")
+def print_candidate(candidate: SimilarityCandidate,
+                    hull: Sequence[Tuple[float, float]]) -> None:
+    m00, m01, m10, m11 = candidate.matrix
+    print("\ncandidate_leg_physical_calibration")
+    print("/* anchored physical-coordinate candidate; review before copying */")
+    print(f".physical_reference_x_mm = {candidate.reference_physical_x_mm:.6f}f,")
+    print(f".physical_reference_y_mm = {candidate.reference_physical_y_mm:.6f}f,")
+    print(f".alpha_reference_deg = {candidate.alpha_ref_deg:.6f}f,")
+    print(f".beta_reference_deg = {candidate.beta_ref_deg:.6f}f,")
+    print(f".command_direction_a = {candidate.direction_a:.1f}f,")
+    print(f".command_direction_b = {candidate.direction_b:.1f}f,")
+    print(f".model_to_physical_scale = {candidate.scale:.9f}f,")
+    print(f".model_to_physical_m00 = {m00:.9f}f,")
+    print(f".model_to_physical_m01 = {m01:.9f}f,")
+    print(f".model_to_physical_m10 = {m10:.9f}f,")
+    print(f".model_to_physical_m11 = {m11:.9f}f,")
+    print(f".model_reference_x_mm = {candidate.reference_local_x_mm:.6f}f,")
+    print(f".model_reference_y_mm = {candidate.reference_local_y_mm:.6f}f,")
+    print(f".physical_workspace_vertex_count = {len(hull)}U,")
+    print(".physical_workspace = {")
+    for x_mm, y_mm in hull:
+        print(f"    {{{x_mm:.3f}f, {y_mm:.3f}f}},")
+    print("},")
+    print(".physical_workspace_inset_mm = 2.000f,")
 
 
-def print_candidate_config(cfg: KinematicsConfig) -> None:
-    print("candidate_leg_config")
-    print("/* candidate kinematics block; review before copying into project/code/leg_config.c")
-    print(f" * l1_mm = {cfg.l1_mm:.3f}f")
-    print(f" * l2_mm = {cfg.l2_mm:.3f}f")
-    print(f" * l3_mm = {cfg.l3_mm:.3f}f")
-    print(f" * l4_mm = {cfg.l4_mm:.3f}f")
-    print(f" * l5_mm = {cfg.l5_mm:.3f}f")
-    print(f" * x_offset_mm = {cfg.x_offset_mm:.3f}f")
-    print(f" * y_offset_mm = {cfg.y_offset_mm:.3f}f")
-    print(" */")
+def print_metrics(name: str, metrics: FitMetrics) -> None:
+    print(f"  {name}: n={len(metrics.predictions)} "
+          f"x_rmse={metrics.rmse_x_mm:.3f} mm "
+          f"y_rmse={metrics.rmse_y_mm:.3f} mm "
+          f"radial_rmse={metrics.radial_rmse_mm:.3f} mm "
+          f"max={metrics.max_radial_error_mm:.3f} mm")
+
+
+def _load_validation_report(path: Optional[Path]) -> Optional[str]:
+    if path is None:
+        return None
+    if not path.exists():
+        return f"Validation report not found: {path}"
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return f"Failed to parse validation report: {exc}"
+    required = ("mae_mm", "rmse_mm", "max_error_mm",
+                "repeatability_std_mm")
+    missing = [name for name in required if name not in report]
+    if missing:
+        return f"Validation report missing required fields: {missing}"
+    print("MEASUREMENT SYSTEM VALIDATION")
+    for name in required:
+        print(f"  {name}={float(report[name]):.3f}")
+    return None
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Evaluate IK calibration with train/validation split",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
-    parser.add_argument("--config", default=Path("project/code/leg_config.c"), type=Path)
-    parser.add_argument("--val-split", default=0.2, type=float,
-                        help="Fraction of samples for validation (default: 0.2)")
-    parser.add_argument("--val-samples", default=0, type=int,
-                        help="Absolute number of validation samples (overrides --val-split)")
-    parser.add_argument("--kfold", default=0, type=int,
-                        help="Run k-fold cross-validation (e.g. --kfold 5)")
-    parser.add_argument("--seed", default=42, type=int,
-                        help="Random seed for splits (default: 42)")
-    parser.add_argument("--no-split", action="store_true",
-                        help="Use all data for both fit and eval (legacy behavior)")
-    parser.add_argument("--validation-report", type=Path, default=None,
-                        help="Path to validate_measurement.py JSON report. "
-                             "If provided, prints MAE/RMSE/max_error/repeatability "
-                             "before fitting.")
+    parser.add_argument("--config", default=Path("project/code/leg_config.c"),
+                        type=Path)
+    parser.add_argument("--kfold", default=0, type=int)
+    parser.add_argument("--seed", default=42, type=int)
+    parser.add_argument("--no-split", action="store_true")
+    parser.add_argument("--validation-report", type=Path, default=None)
+    parser.add_argument("--min-x-span-mm", type=float, default=10.0)
+    parser.add_argument("--min-y-span-mm", type=float, default=10.0)
+    parser.add_argument("--max-reference-drift-mm", type=float, default=2.0)
+    parser.add_argument("--expected-samples", type=int, default=20)
     args = parser.parse_args()
 
-    # -- Read and display validation report if provided --
-    if args.validation_report:
-        if not args.validation_report.exists():
-            print(f"[ERROR] Validation report not found: {args.validation_report}")
-            return 1
-        try:
-            report = json.loads(args.validation_report.read_text(encoding="utf-8"))
-            required = ["mae_mm", "rmse_mm", "max_error_mm", "repeatability_std_mm"]
-            missing = [k for k in required if k not in report]
-            if missing:
-                print(f"[ERROR] Validation report missing required fields: {missing}")
-                print(f"  Found fields: {list(report.keys())}")
-                return 1
-            print(f"\n{'='*60}")
-            print(f"  MEASUREMENT SYSTEM VALIDATION (pre-fit gate)")
-            print(f"  Report: {args.validation_report}")
-            print(f"{'='*60}")
-            print(f"  MAE:                {report['mae_mm']:.3f} mm")
-            print(f"  RMSE:               {report['rmse_mm']:.3f} mm")
-            print(f"  Max error:          {report['max_error_mm']:.3f} mm")
-            print(f"  Repeatability std:  {report.get('repeatability_std_mm', 0):.3f} mm")
-            print(f"{'='*60}")
-            print(f"  Reference thresholds (guidance only, not enforced):")
-            if report['mae_mm'] <= 1.0:
-                print(f"    MAE <= 1.0 mm  : Excellent")
-            elif report['mae_mm'] <= 2.0:
-                print(f"    MAE 1.0-2.0 mm : Usually acceptable")
-            else:
-                print(f"    MAE > 3.0 mm   : Recommend investigating measurement system")
-        except (json.JSONDecodeError, KeyError) as exc:
-            print(f"[ERROR] Failed to parse validation report: {exc}")
-            return 1
+    report_error = _load_validation_report(args.validation_report)
+    if report_error is not None:
+        print(f"[ERROR] {report_error}")
+        return 1
 
     samples = read_samples(args.input)
-    if len(samples) == 0:
-        print("[ERROR] No usable samples found.")
+    if len(samples) != args.expected_samples:
+        print(f"[ERROR] expected {args.expected_samples} usable samples; "
+              f"found {len(samples)}")
         return 2
+    reference_error = validate_reference_samples(samples)
+    if reference_error is not None:
+        print(f"[ERROR] {reference_error}")
+        return 3
+    coverage_error = validate_sample_coverage(
+        samples, args.min_x_span_mm, args.min_y_span_mm)
+    if coverage_error is not None:
+        print(f"[ERROR] {coverage_error}")
+        return 3
+    drift_error = validate_reference_drift(
+        samples, args.max_reference_drift_mm)
+    if drift_error is not None:
+        print(f"[ERROR] {drift_error}")
+        return 3
 
     cfg = parse_current_config(args.config)
+    reference = reference_physical_point(samples)
+    candidate = fit_similarity_candidate(samples, cfg, reference)
+    metrics = evaluate_candidate(candidate, samples, cfg)
+    if len(metrics.predictions) != len(samples):
+        print("[ERROR] fitted model did not predict every sample")
+        return 4
 
-    if args.no_split:
-        # -- Legacy: fit and evaluate on all data --
-        print(f"\n{'='*60}")
-        print(f"  IK FIT (legacy: all {len(samples)} samples)")
-        print(f"{'='*60}")
-        current_pred = evaluate(cfg, samples)
-        candidate = fit_offset_candidate(cfg, current_pred)
-        candidate_pred = evaluate(candidate, samples)
-        print_summary("current", current_pred)
-        print_summary("candidate", candidate_pred)
-        print_candidate_config(candidate)
-        print(f"\n[WARN] Fit + eval on same data -- optimistic. "
-              f"Use --val-split for honest metrics.")
-        return 0
+    print("\nANCHORED PHYSICAL-COORDINATE FIT")
+    print(f"  samples={len(samples)}")
+    print(f"  reference=({reference[0]:.6f},{reference[1]:.6f}) mm")
+    print(f"  reference_drift={reference_drift_mm(samples):.3f} mm")
+    print(f"  directions=({candidate.direction_a},{candidate.direction_b})")
+    print(f"  determinant={candidate.determinant}")
+    print(f"  scale={candidate.scale:.9f}")
+    print_metrics("full", metrics)
 
+    cv_radial = []
+    cv_directions = []
     if args.kfold > 0:
-        # -- K-fold cross-validation --
-        print(f"\n{'='*60}")
-        print(f"  IK FIT -- {args.kfold}-FOLD CROSS-VALIDATION")
-        print(f"  Total samples: {len(samples)}")
-        print(f"{'='*60}")
+        print(f"\n{args.kfold}-FOLD CROSS-VALIDATION")
+        for index, (training, validation) in enumerate(
+                kfold_splits(samples, args.kfold, args.seed), start=1):
+            fold_candidate = fit_similarity_candidate(
+                training, cfg, reference)
+            fold_metrics = evaluate_candidate(
+                fold_candidate, validation, cfg)
+            print_metrics(f"fold_{index}_validation", fold_metrics)
+            print(f"    directions=({fold_candidate.direction_a},"
+                  f"{fold_candidate.direction_b}) "
+                  f"determinant={fold_candidate.determinant} "
+                  f"scale={fold_candidate.scale:.6f}")
+            cv_radial.append(fold_metrics.radial_rmse_mm)
+            cv_directions.append((fold_candidate.direction_a,
+                                  fold_candidate.direction_b,
+                                  fold_candidate.determinant))
 
-        folds = kfold_splits(samples, args.kfold, args.seed)
-        fold_train_rmse_x: List[float] = []
-        fold_train_rmse_y: List[float] = []
-        fold_val_rmse_x: List[float] = []
-        fold_val_rmse_y: List[float] = []
-        all_candidates: List[KinematicsConfig] = []
+    errors = []
+    if not 0.8 <= candidate.scale <= 1.2:
+        errors.append(f"scale {candidate.scale:.6f} is outside [0.8,1.2]")
+    if metrics.radial_rmse_mm > 2.0:
+        errors.append(f"full radial RMSE {metrics.radial_rmse_mm:.3f} exceeds 2 mm")
+    if metrics.max_radial_error_mm > 3.0:
+        errors.append(f"full max error {metrics.max_radial_error_mm:.3f} exceeds 3 mm")
+    if cv_radial and sum(cv_radial) / len(cv_radial) > 2.0:
+        errors.append("mean cross-validation radial RMSE exceeds 2 mm")
+    if cv_directions and len(set(cv_directions)) != 1:
+        errors.append("direction/reflection selection is unstable across folds")
+    if cv_directions and cv_directions[0] != (
+            candidate.direction_a, candidate.direction_b,
+            candidate.determinant):
+        errors.append("full-fit direction/reflection differs from cross-validation")
+    if errors:
+        for error in errors:
+            print(f"[ERROR] {error}")
+        print("[ERROR] Refusing to print a firmware candidate.")
+        return 5
 
-        for i, (train, val) in enumerate(folds):
-            # Fit on training fold
-            train_pred = evaluate(cfg, train)
-            candidate = fit_offset_candidate(cfg, train_pred)
-            all_candidates.append(candidate)
-
-            # Evaluate on training fold
-            train_metrics = evaluate(candidate, train)
-            tr_x = rmse([p.error_x_mm for p in train_metrics])
-            tr_y = rmse([p.error_y_mm for p in train_metrics])
-
-            # Evaluate on validation fold (UNSEEN data)
-            val_pred = evaluate(candidate, val)
-            v_x = rmse([p.error_x_mm for p in val_pred])
-            v_y = rmse([p.error_y_mm for p in val_pred])
-
-            fold_train_rmse_x.append(tr_x)
-            fold_train_rmse_y.append(tr_y)
-            fold_val_rmse_x.append(v_x)
-            fold_val_rmse_y.append(v_y)
-
-            print(f"\n  Fold {i+1}/{args.kfold}: "
-                  f"train n={len(train)} val n={len(val)}")
-            print(f"    train RMSE: x={tr_x:.3f}  y={tr_y:.3f} mm")
-            print(f"    val   RMSE: x={v_x:.3f}  y={v_y:.3f} mm")
-            print(f"    x_offset={candidate.x_offset_mm:.3f}  "
-                  f"y_offset={candidate.y_offset_mm:.3f}")
-
-        print(f"\n{'-'*60}")
-        print(f"  CROSS-VALIDATION SUMMARY ({args.kfold} folds)")
-        print(f"  Train RMSE x: "
-              f"{sum(fold_train_rmse_x)/len(fold_train_rmse_x):.3f} +/- "
-              f"{np_std(fold_train_rmse_x):.3f} mm")
-        print(f"  Train RMSE y: "
-              f"{sum(fold_train_rmse_y)/len(fold_train_rmse_y):.3f} +/- "
-              f"{np_std(fold_train_rmse_y):.3f} mm")
-        print(f"  Val   RMSE x: "
-              f"{sum(fold_val_rmse_x)/len(fold_val_rmse_x):.3f} +/- "
-              f"{np_std(fold_val_rmse_x):.3f} mm")
-        print(f"  Val   RMSE y: "
-              f"{sum(fold_val_rmse_y)/len(fold_val_rmse_y):.3f} +/- "
-              f"{np_std(fold_val_rmse_y):.3f} mm")
-
-        # Report the mean candidate (averaged offsets)
-        mean_x_off = sum(c.x_offset_mm for c in all_candidates) / len(all_candidates)
-        mean_y_off = sum(c.y_offset_mm for c in all_candidates) / len(all_candidates)
-        mean_candidate = replace(cfg, x_offset_mm=mean_x_off, y_offset_mm=mean_y_off)
-        print(f"\n  Mean candidate (k={args.kfold} folds):")
-        print_candidate_config(mean_candidate)
-
-    else:
-        # -- Single train/val split --
-        train, val = split_train_val(samples, args.val_split, args.val_samples, args.seed)
-        print(f"\n{'='*60}")
-        print(f"  IK FIT -- TRAIN/VALIDATION SPLIT")
-        print(f"  Total: {len(samples)}  |  "
-              f"Train: {len(train)}  |  Val: {len(val)}")
-        print(f"  Split: val_split={args.val_split}  seed={args.seed}")
-        print(f"{'='*60}")
-
-        if len(val) == 0:
-            print("[ERROR] Validation set is empty. Reduce --val-split or add more samples.")
-            return 1
-
-        # -- Fit on TRAINING ONLY --
-        train_pred = evaluate(cfg, train)
-        candidate = fit_offset_candidate(cfg, train_pred)
-
-        # -- Evaluate on TRAINING --
-        train_metrics = evaluate(candidate, train)
-        print(f"\n  TRAINING SET ({len(train)} samples):")
-        print_summary("train", train_metrics)
-
-        # -- Evaluate on VALIDATION (UNSEEN) --
-        val_metrics = evaluate(candidate, val)
-        print(f"\n  VALIDATION SET ({len(val)} samples) -- UNSEEN during fit:")
-        print_summary("val", val_metrics)
-
-        # Also evaluate current config on both
-        current_train = evaluate(cfg, train)
-        current_val = evaluate(cfg, val)
-        print(f"\n  Current config baseline:")
-        print(f"    train RMSE: x={rmse([p.error_x_mm for p in current_train]):.3f}  "
-              f"y={rmse([p.error_y_mm for p in current_train]):.3f} mm")
-        print(f"    val   RMSE: x={rmse([p.error_x_mm for p in current_val]):.3f}  "
-              f"y={rmse([p.error_y_mm for p in current_val]):.3f} mm")
-
-        print(f"\n{'-'*60}")
-        print(f"  CANDIDATE CONFIG (fitted on TRAINING set only)")
-        print_candidate_config(candidate)
-
-        # Print individual validation predictions for manual inspection
-        if val_metrics:
-            print(f"\n  Validation set detail:")
-            print(f"  {'label':<16} {'meas_x':>8} {'meas_y':>8} "
-                  f"{'pred_x':>8} {'pred_y':>8} {'err_x':>8} {'err_y':>8}")
-            for p in sorted(val_metrics, key=lambda p: abs(p.error_y_mm), reverse=True):
-                print(f"  {p.sample.label:<16} "
-                      f"{p.sample.measured_x_mm:>8.2f} {p.sample.measured_y_mm:>8.2f} "
-                      f"{p.predicted_x_mm:>8.2f} {p.predicted_y_mm:>8.2f} "
-                      f"{p.error_x_mm:>+8.3f} {p.error_y_mm:>+8.3f}")
-
+    hull = convex_hull([(sample.measured_x_mm, sample.measured_y_mm)
+                        for sample in samples])
+    print_candidate(candidate, hull)
     return 0
-
-
-def np_std(values: List[float]) -> float:
-    """Compute sample standard deviation."""
-    if len(values) < 2:
-        return 0.0
-    mean = sum(values) / len(values)
-    variance = sum((v - mean) ** 2 for v in values) / (len(values) - 1)
-    return math.sqrt(variance)
 
 
 if __name__ == "__main__":

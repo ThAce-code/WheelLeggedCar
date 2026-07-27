@@ -59,16 +59,20 @@ int main(void)
     leg_ik_result_struct right_target = {0};
     float reference_cmd[LEG_SERVO_COUNT];
     float target_cmd[LEG_SERVO_COUNT];
-    static const float wide_cross_points[][2] = {
-        {-35.0f, 55.0f},
-        { 35.0f, 55.0f},
-        {  0.0f, 35.0f},
-        {  0.0f, 140.0f}
+    static const float physical_points[][2] = {
+        {-18.0000f, 47.3567f},
+        {-23.5000f, 47.3567f},
+        {-20.7667f, 44.0000f},
+        {-20.7667f, 51.0000f}
     };
     unsigned int i;
 
-    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, 0.0f, 55.0f, NULL, &left_ref)) ||
-       (APP_TRUE != leg_kinematics_solve(APP_TRUE, 0.0f, 55.0f, NULL, &right_ref)) ||
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE,
+                                         -20.766667f, 47.356667f,
+                                         NULL, &left_ref)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE,
+                                         -20.766667f, 47.356667f,
+                                         NULL, &right_ref)) ||
        (APP_TRUE != leg_kinematics_map_reference_pose(&left_ref, &right_ref, reference_cmd)))
     {
         return 1;
@@ -80,43 +84,58 @@ int main(void)
     {
         return 2;
     }
-    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, 5.0f, 55.0f, &left_ref, &left_target)) ||
-       (APP_TRUE != leg_kinematics_solve(APP_TRUE, 5.0f, 55.0f, &right_ref, &right_target)) ||
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, -18.0f, 47.3567f, &left_ref, &left_target)) ||
+       (APP_TRUE != leg_kinematics_solve(APP_TRUE, -18.0f, 47.3567f, &right_ref, &right_target)) ||
        (APP_TRUE != leg_kinematics_map_target_pose(&left_ref, &right_ref, &left_target, &right_target, target_cmd)))
     {
         return 3;
     }
-    for(i = 0U; i < (sizeof(wide_cross_points) / sizeof(wide_cross_points[0])); i++)
+    for(i = 0U; i < (sizeof(physical_points) / sizeof(physical_points[0])); i++)
     {
-        if((APP_TRUE != leg_kinematics_solve(APP_FALSE, wide_cross_points[i][0], wide_cross_points[i][1], &left_ref, &left_target)) ||
-           (APP_TRUE != leg_kinematics_solve(APP_TRUE, wide_cross_points[i][0], wide_cross_points[i][1], &right_ref, &right_target)) ||
+        if((APP_TRUE != leg_kinematics_solve(APP_FALSE, physical_points[i][0], physical_points[i][1], &left_ref, &left_target)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_TRUE, physical_points[i][0], physical_points[i][1], &right_ref, &right_target)) ||
            (APP_TRUE != leg_kinematics_map_target_pose(&left_ref, &right_ref, &left_target, &right_target, target_cmd)))
         {
             return (int)(10U + i);
         }
+    }
+    if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
+    {
+        return 20;
     }
     return 0;
 }
 '@ | Set-Content (Join-Path $Path "test_leg_ik_zero_calibration.c") -NoNewline
 }
 
-function Test-WideCrossPoint {
+function Test-PhysicalHullPoint {
     param([double]$X, [double]$Y)
 
-    if(($X -lt -35.0) -or ($X -gt 35.0) -or ($Y -lt 35.0) -or ($Y -gt 140.0)) {
-        return $false
+    $hull = @(
+        @(-40.620, 47.370), @(-30.910, 39.630),
+        @(-20.380, 32.170), @(-15.040, 47.600),
+        @(-22.030, 88.490), @(-31.420, 74.120),
+        @(-37.940, 59.340), @(-39.580, 53.010)
+    )
+    for($i = 0; $i -lt $hull.Count; $i++) {
+        $first = $hull[$i]
+        $second = $hull[($i + 1) % $hull.Count]
+        $edgeX = $second[0] - $first[0]
+        $edgeY = $second[1] - $first[1]
+        $length = [math]::Sqrt($edgeX * $edgeX + $edgeY * $edgeY)
+        $distance = ($edgeX * ($Y - $first[1]) - $edgeY * ($X - $first[0])) / $length
+        if($distance -lt 2.0) {
+            return $false
+        }
     }
-    $horizontalBand = ($Y -ge 45.0) -and ($Y -le 75.0)
-    $verticalBand = ($X -ge -15.0) -and ($X -le 15.0)
-    return $horizontalBand -or $verticalBand
+    return $true
 }
 
 Assert-Contains "project/code/leg_config.h" "ik_offset_deg" "Missing per-servo IK offset configuration."
-Assert-Contains "project/code/leg_config.h" "validate_x_min_mm" "Missing restricted IK validation workspace configuration."
-Assert-Contains "project/code/leg_config.h" "validate_horizontal_y_min_mm" "Missing horizontal validation-band configuration."
-Assert-Contains "project/code/leg_config.h" "validate_vertical_x_min_mm" "Missing vertical validation-band configuration."
-Assert-Contains "project/code/control_leg.c" "validate_horizontal_y_min_mm" "LXY validation must enforce the horizontal band."
-Assert-Contains "project/code/control_leg.c" "validate_vertical_x_min_mm" "LXY validation must enforce the vertical band."
+Assert-Contains "project/code/leg_config.h" "physical_workspace" "Missing calibrated physical IK workspace configuration."
+Assert-Contains "project/code/leg_config.h" "physical_workspace_inset_mm" "Missing physical workspace safety inset."
+Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_target_valid" "Missing physical target validation API."
+Assert-Contains "project/code/control_leg.c" "leg_kinematics_target_valid" "LXY validation must enforce the calibrated physical hull."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_reference_pose" "Missing reference-pose mapping API."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_target_pose" "Missing target-pose mapping API."
 Assert-Contains "project/code/control_leg.h" "control_leg_set_ik_reference" "Missing reference-pose controller API."
@@ -129,21 +148,17 @@ Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'X' == line\[1\
 Assert-Contains "project/code/host_command.c" "control_leg_set_ik_reference" "LIKREF must enter the reference controller mode."
 Assert-Contains "project/code/host_command.c" "control_leg_set_xy" "LXY must enter the restricted XY controller mode."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF" "Hardware procedure must include LIKREF."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55" "Hardware procedure must include reference XY check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,5,55" "Hardware procedure must include positive X check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-5,55" "Hardware procedure must include negative X check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,52" "Hardware procedure must include lower Y check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,58" "Hardware procedure must include higher Y check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,35,55" "Hardware procedure must include the wide positive-X endpoint."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,140" "Hardware procedure must include the wide Y endpoint."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-20.7667,47.3567" "Hardware procedure must include the measured reference XY check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55" "Hardware procedure must explicitly identify the rejected uncalibrated target."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-20.7667,51.0" "Hardware procedure must include higher physical Y check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-18.0,47.3567" "Hardware procedure must include the forward physical X check."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "contracted" "Hardware procedure must describe the calibrated hull inset."
 
-if(-not (Test-WideCrossPoint -X 35 -Y 55)) { throw "Wide cross must accept +X endpoint." }
-if(-not (Test-WideCrossPoint -X -35 -Y 55)) { throw "Wide cross must accept -X endpoint." }
-if(-not (Test-WideCrossPoint -X 0 -Y 35)) { throw "Wide cross must accept upper Y endpoint." }
-if(-not (Test-WideCrossPoint -X 0 -Y 140)) { throw "Wide cross must accept lower Y endpoint." }
-if(Test-WideCrossPoint -X 35 -Y 140) { throw "Wide cross must reject the far corner." }
-if(Test-WideCrossPoint -X 16 -Y 140) { throw "Wide cross must reject points outside the vertical band." }
-if(Test-WideCrossPoint -X 35 -Y 76) { throw "Wide cross must reject points outside the horizontal band." }
+if(-not (Test-PhysicalHullPoint -X -20.7667 -Y 47.3567)) { throw "Physical reference must be inside the inset hull." }
+if(-not (Test-PhysicalHullPoint -X -18.0 -Y 47.3567)) { throw "Forward test point must be inside the inset hull." }
+if(-not (Test-PhysicalHullPoint -X -23.5 -Y 47.3567)) { throw "Rearward test point must be inside the inset hull." }
+if(Test-PhysicalHullPoint -X 0.0 -Y 55.0) { throw "Uncalibrated X=0 target must be rejected." }
+if(Test-PhysicalHullPoint -X -40.620 -Y 47.370) { throw "A hull vertex must be rejected by the 2 mm inset." }
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-ik-zero-" + [Guid]::NewGuid().ToString())
 $originalPath = $null

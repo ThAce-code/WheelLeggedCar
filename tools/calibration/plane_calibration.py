@@ -71,6 +71,19 @@ def compute_plane_calibration(
 
     undistorted = undistort_points(corners, camera_matrix, dist_coeffs)
     grid = undistorted.reshape(board_rows, board_cols, 2)
+    # OpenCV guarantees a row-major grid, but not which physical corner is
+    # returned first.  A 180-degree reversal otherwise silently reverses both
+    # vehicle axes while leaving the requested provenance unchanged.
+    horizontal_dx = float(np.mean(grid[:, -1, 0] - grid[:, 0, 0]))
+    vertical_dy = float(np.mean(grid[-1, :, 1] - grid[0, :, 1]))
+    if abs(horizontal_dx) < 1.0 or abs(vertical_dy) < 1.0:
+        raise ValueError(
+            "chessboard orientation is ambiguous; align board columns "
+            "left-to-right and rows top-to-bottom in the image")
+    if horizontal_dx < 0.0:
+        grid = grid[:, ::-1, :]
+    if vertical_dy < 0.0:
+        grid = grid[::-1, :, :]
     destinations = np.empty((board_rows, board_cols, 2), dtype=np.float64)
     for row in range(board_rows):
         for col in range(board_cols):
@@ -94,7 +107,7 @@ def compute_plane_calibration(
     rmse = float(np.sqrt(np.mean(np.sum((mapped[inliers] - dst[inliers]) ** 2, axis=1))))
     if rmse > 0.5:
         raise ValueError(f"plane RMSE {rmse:.3f} mm exceeds 0.5 mm")
-    return PlaneCalibration(
+    calibration = PlaneCalibration(
         H=H, camera_matrix=np.asarray(camera_matrix, dtype=np.float64),
         dist_coeffs=np.asarray(dist_coeffs, dtype=np.float64),
         image_size=(int(image_size[0]), int(image_size[1])),
@@ -105,6 +118,8 @@ def compute_plane_calibration(
         src_points_undistorted_px=src, dst_points_mm=dst,
         inlier_count=int(np.count_nonzero(inliers)),
     )
+    _validate_integrity(calibration)
+    return calibration
 
 
 def _paths(path: Path | str) -> tuple[Path, Path]:
@@ -196,6 +211,20 @@ def _validate_integrity(calibration: PlaneCalibration) -> None:
     if calibration.point_domain != "undistorted_px":
         raise ValueError(
             f"point domain mismatch: expected undistorted_px, got {calibration.point_domain!r}")
+    center = np.mean(source, axis=0)
+    mapped = calibration.map_undistorted_points(np.array([
+        center,
+        center + np.array([1.0, 0.0]),
+        center + np.array([0.0, 1.0]),
+    ]))
+    image_right_delta_x = float(mapped[1, 0] - mapped[0, 0])
+    image_down_delta_y = float(mapped[2, 1] - mapped[0, 1])
+    expected_right_sign = -1.0 if calibration.front_direction == "left" else 1.0
+    expected_down_sign = 1.0 if calibration.down_direction == "down" else -1.0
+    if (expected_right_sign * image_right_delta_x <= 0.0 or
+            expected_down_sign * image_down_delta_y <= 0.0):
+        raise ValueError(
+            "axis orientation contradicts front/down direction metadata")
 
 
 def _same_calibration_path(stored: str, expected: str) -> bool:

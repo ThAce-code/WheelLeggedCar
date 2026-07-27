@@ -98,6 +98,19 @@ class TestPlaneCalibration(unittest.TestCase):
         self.assertLess(calibration.rmse_mm, 0.05)
         self.assertEqual(calibration.inlier_count, 54)
 
+    def test_compute_normalizes_reversed_opencv_corner_order(self):
+        calibration = compute_plane_calibration(
+            synthetic_distorted_corners()[::-1].copy(), K, D, (1920, 1080),
+            "camera_calib.npz", "ffmpeg-dshow", "left", "down", 9, 6, 25.0)
+        center = np.mean(calibration.src_points_undistorted_px, axis=0)
+        mapped = calibration.map_undistorted_points(np.array([
+            center,
+            center + np.array([1.0, 0.0]),
+            center + np.array([0.0, 1.0]),
+        ]))
+        self.assertLess(mapped[1, 0] - mapped[0, 0], 0.0)
+        self.assertGreater(mapped[2, 1] - mapped[0, 1], 0.0)
+
     def test_missing_detection_reports_zero_corners(self):
         self.assertEqual(_detected_corner_count(None), 0)
 
@@ -130,6 +143,17 @@ class TestPlaneCalibration(unittest.TestCase):
         self.assertEqual(loaded.backend, "ffmpeg-dshow")
         self.assertEqual(loaded.inlier_count, calibration.inlier_count)
         np.testing.assert_allclose(loaded.H, calibration.H)
+
+    def test_load_rejects_axis_direction_that_contradicts_metadata(self):
+        calibration = make_synthetic_plane_calibration()
+        output_reflection = np.diag([-1.0, -1.0, 1.0])
+        calibration.H = output_reflection @ calibration.H
+        calibration.dst_points_mm = -calibration.dst_points_mm
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "plane_homography"
+            save_plane_calibration(base, calibration)
+            with self.assertRaisesRegex(ValueError, "axis orientation"):
+                load_plane_calibration(base)
 
     def test_relative_calibration_identity_survives_working_directory_change(self):
         original_cwd = Path.cwd()

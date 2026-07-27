@@ -1,0 +1,2 @@
+﻿sample_id,label,cmd_a0_deg,cmd_a1_deg,cmd_a2_deg,cmd_a3_deg,servo0_deg,servo1_deg,servo2_deg,servo3_deg,ik_valid,leg_mode,measured_x_mm,measured_y_mm,note
+0,mid_center,90.0,90.0,90.0,90.0,90.0,90.0,90.0,90.0,0,0,0,50,""

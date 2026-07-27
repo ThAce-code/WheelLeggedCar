@@ -19,8 +19,12 @@
 #define APP_IMU_INT1_PIN                (P19_3)
 #define APP_IMU_STALE_TIMEOUT_MS        (30U)
 #define APP_BALANCE_IMU_MAX_AGE_MS      (15U)
+#define APP_IMU_PITCH_RATE_LPF_ALPHA    (0.50f)
+#define APP_IMU_GYRO_CAL_RETRY_COUNT    (3U)
+#define APP_IMU_GYRO_CAL_MAX_ABS_MEAN_DPS (5.0f)
+#define APP_IMU_GYRO_CAL_MAX_VARIANCE_DPS2 (4.0f)
 
-#define APP_TELEMETRY_PERIOD_MS         (5U)
+#define APP_TELEMETRY_PERIOD_MS         (10U)
 #define APP_TELEMETRY_ENABLE            (1U)
 #define APP_TELEMETRY_BALANCE_ENABLE    (1U)
 
@@ -31,17 +35,20 @@
 /* --- Servo actuator configuration --- */
 #define APP_SERVO_COUNT                 (4U)
 #define APP_SERVO_ACTIVE_MASK           (0x0FU)
-#define APP_SERVO_PWM_FREQ_HZ           (50U)
-#define APP_SERVO_PWM_PERIOD_US         (20000U)
+#define APP_SERVO_PWM_FREQ_HZ           (300U)
+#define APP_SERVO_CONTROL_PERIOD_US     (1000000U / APP_SERVO_PWM_FREQ_HZ)
 #define APP_SERVO_MIN_PULSE_US          (500U)
 #define APP_SERVO_MID_PULSE_US          (1500U)
 #define APP_SERVO_MAX_PULSE_US          (2500U)
 #define APP_SERVO_MIN_DEG               (0.0f)
 #define APP_SERVO_MID_DEG               (90.0f)
 #define APP_SERVO_MAX_DEG               (180.0f)
-#define APP_SERVO_MAX_SPEED_DPS         (450.0f)
-#define APP_SERVO_MAX_UPDATE_GAP_MS     (20U)
-#define APP_SERVO_PERIOD_MS             (10U)
+#define APP_SERVO_MAX_SPEED_DPS         (90.0f)
+#define APP_LEG_FAST_SERVO_MAX_SPEED_DPS (180.0f)
+#define APP_SERVO_LPF_ALPHA             (0.05f)
+#define APP_SERVO_SETTLE_ERROR_DEG      (0.2f)
+#define APP_SERVO_SETTLE_MS             (100U)
+#define APP_SERVO_SETTLE_TICKS          ((APP_SERVO_SETTLE_MS * APP_SERVO_PWM_FREQ_HZ + 999U) / 1000U)
 #define APP_SERVO_TEST_ENABLE           (0U)
 
 #define APP_SERVO0_PWM_CH               TCPWM_CH13_P00_3
@@ -65,6 +72,7 @@
 #define APP_BLDC_SAFE_START_LIMIT       (1000.0f)
 #define APP_BLDC_SEND_PERIOD_MS         (20U)
 #define APP_BLDC_FEEDBACK_TIMEOUT_MS    (100U)
+#define APP_BLDC_FEEDBACK_RPM_ABS_MAX   (5000)
 #define APP_BLDC_PER_SIDE_RPM_TIMEOUT_MS (200U)
 #define APP_BLDC_FEEDBACK_REQUEST_MS    (200U)
 #define APP_BLDC_START_FEEDBACK         (1U)
@@ -75,8 +83,9 @@
 #define APP_BLDC_TEST_STEP_MS           (3000U)
 #define APP_BLDC_TEST_REPEAT            (1U)
 
-#define APP_HOST_COMMAND_PERIOD_MS       (5U)
-#define APP_HOST_COMMAND_TIMEOUT_MS      (0U)
+#define APP_HOST_COMMAND_PERIOD_MS       (1U)
+#define APP_HOST_COMMAND_TIMEOUT_MS      (500U)
+#define APP_CHASSIS_CMD_TIMEOUT_MS       (500U)
 
 #define APP_MOTOR_RPM_LOOP_ENABLE       (1U)
 #define APP_MOTOR_OPEN_DUTY_REQUIRE_FEEDBACK   (0U)
@@ -147,6 +156,7 @@
 #define APP_LEG_CALIB_ENABLE            (0U)
 #define APP_LEG_CALIB_SERVO_ID          LEG_SERVO_FL
 #define APP_LEG_CALIB_OFFSET_DEG        (0.0f)
+#define APP_LEG_DIRECT_STEP_TEST_ENABLE (0U)
 
 #define APP_LEG_VERIFY_ENABLE           (0U)
 #define APP_LEG_VERIFY_DELAY_MS         (2000U)

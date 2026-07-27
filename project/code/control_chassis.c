@@ -5,6 +5,7 @@
 
 #include "control_chassis.h"
 #include "app_config.h"
+#include "control_leg.h"
 #include "actuator_motor.h"
 #include "sensor_imu.h"
 
@@ -105,6 +106,44 @@ static float control_chassis_ramp_toward(float current, float target, float max_
     return current - max_delta;
 }
 
+static void control_chassis_resolve_leg_motion_policy(const leg_diag_struct *leg,
+                                                      const leg_height_profile_struct *height_profile,
+                                                      float configured_forward_limit_rpm,
+                                                      float configured_fast_forward_limit_rpm,
+                                                      uint8 fast_requested,
+                                                      float *forward_limit_rpm,
+                                                      float *fast_forward_limit_rpm,
+                                                      uint8 *effective_fast_enable)
+{
+    if((NULL == leg) ||
+       (NULL == height_profile) ||
+       (NULL == forward_limit_rpm) ||
+       (NULL == fast_forward_limit_rpm) ||
+       (NULL == effective_fast_enable))
+    {
+        return;
+    }
+
+    if((LEG_MOTION_FAULT == leg->motion_state) || (APP_FALSE == leg->drive_allowed))
+    {
+        *forward_limit_rpm = 0.0f;
+        *fast_forward_limit_rpm = 0.0f;
+        *effective_fast_enable = APP_FALSE;
+    }
+    else if(LEG_MOTION_TRANSITION == leg->motion_state)
+    {
+        *forward_limit_rpm = height_profile->transition_forward_limit_rpm;
+        *fast_forward_limit_rpm = height_profile->transition_forward_limit_rpm;
+        *effective_fast_enable = APP_FALSE;
+    }
+    else
+    {
+        *forward_limit_rpm = configured_forward_limit_rpm;
+        *fast_forward_limit_rpm = configured_fast_forward_limit_rpm;
+        *effective_fast_enable = (APP_TRUE == fast_requested) ? APP_TRUE : APP_FALSE;
+    }
+}
+
 static void control_chassis_clear_output(void)
 {
     control_chassis_output.pitch_offset_deg = 0.0f;
@@ -123,6 +162,8 @@ static void control_chassis_clear_output(void)
     control_chassis_output.speed_integral = 0.0f;
     control_chassis_output.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
     control_chassis_output.speed_ff_rpm = 0.0f;
+    control_chassis_output.forward_limit_eff_rpm = APP_CHASSIS_FORWARD_RPM_LIMIT;
+    control_chassis_output.fast_forward_limit_eff_rpm = APP_CHASSIS_FAST_FORWARD_RPM_LIMIT;
     control_chassis_output.imu_age_ms = 0U;
     control_chassis_output.wheel_age_ms = 0U;
     control_chassis_output.enable = APP_FALSE;
@@ -173,12 +214,22 @@ void control_chassis_update(uint32 now_ms)
     float turn_unsat_rpm;
     uint8 turn_saturated;
     float forward_limit_rpm;
+    float height_forward_limit_rpm;
+    float height_fast_forward_limit_rpm;
     float raw_fast_blend;
     float speed_pitch_limit_deg;
+    uint8 effective_fast_enable = APP_FALSE;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     const wheel_feedback_struct *wheel_feedback;
     float dt_s;
+
+    if((APP_TRUE == control_chassis_cmd.enable) &&
+       (0U != control_chassis_cmd.last_cmd_ms) &&
+       (APP_CHASSIS_CMD_TIMEOUT_MS < (now_ms - control_chassis_cmd.last_cmd_ms)))
+    {
+        control_chassis_stop(now_ms);
+    }
 
     if(0U == control_chassis_cmd.last_update_ms)
     {
@@ -209,9 +260,36 @@ void control_chassis_update(uint32 now_ms)
         control_chassis_cmd.target_turn_dps = 0.0f;
     }
 
-    forward_limit_rpm = (APP_TRUE == control_chassis_cmd.fast_enable) ?
-                        APP_CHASSIS_FAST_FORWARD_RPM_LIMIT :
-                        APP_CHASSIS_FORWARD_RPM_LIMIT;
+    {
+        const leg_diag_struct *leg;
+        const leg_height_profile_struct *height_profile;
+        float height_norm;
+
+        leg = control_leg_get_diag();
+        height_profile = leg_config_get_height_profile();
+        height_norm = control_chassis_limit_abs(leg->height_norm, 1.0f);
+        height_forward_limit_rpm =
+            control_chassis_lerp(height_profile->chassis_forward_limit_low_rpm,
+                                 height_profile->chassis_forward_limit_high_rpm,
+                                 height_norm);
+        height_fast_forward_limit_rpm =
+            control_chassis_lerp(height_profile->chassis_fast_forward_limit_low_rpm,
+                                 height_profile->chassis_fast_forward_limit_high_rpm,
+                                 height_norm);
+
+        control_chassis_resolve_leg_motion_policy(leg,
+                                                  height_profile,
+                                                  height_forward_limit_rpm,
+                                                  height_fast_forward_limit_rpm,
+                                                  control_chassis_cmd.fast_enable,
+                                                  &height_forward_limit_rpm,
+                                                  &height_fast_forward_limit_rpm,
+                                                  &effective_fast_enable);
+
+        forward_limit_rpm = (APP_TRUE == effective_fast_enable) ?
+                            height_fast_forward_limit_rpm :
+                            height_forward_limit_rpm;
+    }
 
     target_forward_rpm = control_chassis_limit_abs(control_chassis_cmd.target_forward_rpm,
                                                    forward_limit_rpm);
@@ -233,7 +311,7 @@ void control_chassis_update(uint32 now_ms)
     raw_fast_blend = control_chassis_smoothstep(APP_CHASSIS_FAST_BLEND_START_RPM,
                                                  APP_CHASSIS_FAST_BLEND_FULL_RPM,
                                                  control_chassis_absf(control_chassis_cmd.actual_forward_rpm));
-    if(APP_FALSE == control_chassis_cmd.fast_enable)
+    if(APP_FALSE == effective_fast_enable)
     {
         raw_fast_blend = 0.0f;
     }
@@ -361,6 +439,8 @@ void control_chassis_update(uint32 now_ms)
     control_chassis_output.speed_integral = control_chassis_cmd.speed_integral;
     control_chassis_output.speed_pitch_limit_deg = control_chassis_cmd.speed_pitch_limit_deg;
     control_chassis_output.speed_ff_rpm = control_chassis_cmd.speed_ff_rpm;
+    control_chassis_output.forward_limit_eff_rpm = height_forward_limit_rpm;
+    control_chassis_output.fast_forward_limit_eff_rpm = height_fast_forward_limit_rpm;
     control_chassis_output.imu_age_ms = imu_age_ms;
     control_chassis_output.wheel_age_ms = wheel_age_ms;
     control_chassis_output.enable = APP_TRUE;
@@ -390,9 +470,39 @@ void control_chassis_set_cmd(float forward_rpm, float turn_rpm, uint8 enable, ui
         return;
     }
 
-    forward_limit_rpm = (APP_TRUE == control_chassis_cmd.fast_enable) ?
-                        APP_CHASSIS_FAST_FORWARD_RPM_LIMIT :
-                        APP_CHASSIS_FORWARD_RPM_LIMIT;
+    {
+        const leg_diag_struct *leg;
+        const leg_height_profile_struct *height_profile;
+        float height_forward_limit_rpm;
+        float height_fast_forward_limit_rpm;
+        float height_norm;
+        uint8 effective_fast_enable = APP_FALSE;
+
+        leg = control_leg_get_diag();
+        height_profile = leg_config_get_height_profile();
+        height_norm = control_chassis_limit_abs(leg->height_norm, 1.0f);
+        height_forward_limit_rpm =
+            control_chassis_lerp(height_profile->chassis_forward_limit_low_rpm,
+                                 height_profile->chassis_forward_limit_high_rpm,
+                                 height_norm);
+        height_fast_forward_limit_rpm =
+            control_chassis_lerp(height_profile->chassis_fast_forward_limit_low_rpm,
+                                 height_profile->chassis_fast_forward_limit_high_rpm,
+                                 height_norm);
+
+        control_chassis_resolve_leg_motion_policy(leg,
+                                                  height_profile,
+                                                  height_forward_limit_rpm,
+                                                  height_fast_forward_limit_rpm,
+                                                  control_chassis_cmd.fast_enable,
+                                                  &height_forward_limit_rpm,
+                                                  &height_fast_forward_limit_rpm,
+                                                  &effective_fast_enable);
+
+        forward_limit_rpm = (APP_TRUE == effective_fast_enable) ?
+                            height_fast_forward_limit_rpm :
+                            height_forward_limit_rpm;
+    }
 
     control_chassis_cmd.target_forward_rpm = control_chassis_limit_abs(forward_rpm,
                                                                        forward_limit_rpm);

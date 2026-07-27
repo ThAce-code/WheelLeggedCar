@@ -92,6 +92,7 @@ typedef struct
     int16 last_tx_left;
     int16 last_tx_right;
     uint32 checksum_error_count;
+    uint32 feedback_range_error_count;
     uint32 unknown_frame_count;
     uint32 tx_frame_count;
     uint8 last_tx_func;
@@ -173,6 +174,8 @@ typedef struct
     float speed_integral;
     float speed_pitch_limit_deg;
     float speed_ff_rpm;
+    float forward_limit_eff_rpm;
+    float fast_forward_limit_eff_rpm;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     uint8 enable;
@@ -216,6 +219,13 @@ typedef struct
     float speed_term_rpm;
     float pos_term_rpm;
     float ff_term_rpm;
+    float leg_height_norm;
+    float balance_pitch_kp_eff;
+    float balance_pitch_rate_kd_eff;
+    float balance_wheel_speed_ks_eff;
+    float balance_pitch_setpoint_base_eff_deg;
+    float chassis_forward_limit_eff_rpm;
+    float chassis_fast_forward_limit_eff_rpm;
     uint32 drive_imu_age_ms;
     uint32 drive_wheel_age_ms;
     uint8 output_enable;
@@ -227,5 +237,64 @@ typedef struct
     float angle_deg[4];
     uint8 enable[4];
 }servo_cmd_struct;
+
+typedef struct
+{
+    float target_deg[4];
+    float filtered_deg[4];
+    float output_deg[4];
+    float max_error_deg;
+    uint8 settled;
+    uint8 fast_mode;
+    uint8 direct_bypass;
+}actuator_servo_diag_struct;
+
+typedef enum
+{
+    LEG_MOTION_LOCKED = 0,
+    LEG_MOTION_STABLE,
+    LEG_MOTION_TRANSITION,
+    LEG_MOTION_FAULT
+}leg_motion_state_enum;
+
+typedef enum
+{
+    LEG_FAULT_NONE = 0,
+    LEG_FAULT_IK_INVALID,
+    LEG_FAULT_IK_MARGIN,
+    LEG_FAULT_SERVO_LIMIT
+}leg_fault_reason_enum;
+
+typedef struct
+{
+    float target_height_mm;
+    float actual_height_mm;
+    float height_ref_mm;
+    float height_rate_mm_s;
+    float height_norm;
+    float ik_margin;
+    float left_x_mm;
+    float left_y_mm;
+    float right_x_mm;
+    float right_y_mm;
+    float servo_target_deg[4];
+    float servo_actual_deg[4];
+    float servo_filtered_deg[4];
+    float servo_max_error_deg;
+    float servo_s7_progress;
+    uint32 servo_s7_remaining_ms;
+    uint8 servo_settled;
+    uint8 servo_fast_mode;
+    uint8 servo_direct_bypass;
+    uint8 servo_trajectory_mode;
+    float drive_forward_limit_rpm;
+    uint8 mode;
+    uint8 ik_valid;
+    uint8 output_enable;
+    uint8 drive_allowed;
+    leg_motion_state_enum motion_state;
+    leg_fault_reason_enum fault_reason;
+    uint32 ik_error_count;
+}leg_diag_struct;
 
 #endif

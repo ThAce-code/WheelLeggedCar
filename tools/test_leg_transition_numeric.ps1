@@ -1,0 +1,596 @@
+$ErrorActionPreference = "Stop"
+
+function Assert-Equal {
+    param(
+        [double]$Actual,
+        [double]$Expected,
+        [string]$Message
+    )
+
+    if($Actual -ne $Expected) {
+        throw ("{0}: expected {1}, got {2}" -f $Message, $Expected, $Actual)
+    }
+}
+
+function Assert-Contains {
+    param(
+        [string]$Path,
+        [string]$Pattern,
+        [string]$Message
+    )
+
+    $text = Get-Content $Path -Raw
+    if($text -notmatch $Pattern) {
+        throw $Message
+    }
+}
+
+function Assert-Near {
+    param(
+        [double]$Actual,
+        [double]$Expected,
+        [double]$Tolerance,
+        [string]$Message
+    )
+
+    if([math]::Abs($Actual - $Expected) -gt $Tolerance) {
+        throw ("{0}: expected {1} +/- {2}, got {3}" -f $Message, $Expected, $Tolerance, $Actual)
+    }
+}
+
+function Step-HeightSupervisor {
+    param(
+        [double]$ReferenceMm,
+        [double]$RateMmS,
+        [double]$AccelMmS2,
+        [double]$TargetMm,
+        [double]$MaxSpeedMmS,
+        [double]$MaxAccelMmS2,
+        [double]$MaxJerkMmS3,
+        [double]$PositionKpS,
+        [double]$RateKpS,
+        [double]$DtS
+    )
+
+    $errorMm = $TargetMm - $ReferenceMm
+    $desiredRateMmS = [math]::Max(-$MaxSpeedMmS, [math]::Min($errorMm * $PositionKpS, $MaxSpeedMmS))
+    $desiredAccelMmS2 = [math]::Max(-$MaxAccelMmS2,
+        [math]::Min($RateKpS * ($desiredRateMmS - $RateMmS), $MaxAccelMmS2))
+    $accelDeltaMmS2 = [math]::Max(-$MaxJerkMmS3 * $DtS,
+        [math]::Min($desiredAccelMmS2 - $AccelMmS2, $MaxJerkMmS3 * $DtS))
+    $AccelMmS2 += $accelDeltaMmS2
+    $AccelMmS2 = [math]::Max(-$MaxAccelMmS2, [math]::Min($AccelMmS2, $MaxAccelMmS2))
+    $RateMmS = [math]::Max(-$MaxSpeedMmS, [math]::Min($RateMmS + ($AccelMmS2 * $DtS), $MaxSpeedMmS))
+    $nextReferenceMm = $ReferenceMm + ($RateMmS * $DtS)
+    if(([math]::Abs($TargetMm - $nextReferenceMm) -le 0.01) -and
+       ([math]::Abs($RateMmS) -le 0.05) -and
+       ([math]::Abs($AccelMmS2) -le ($MaxJerkMmS3 * $DtS))) {
+        $nextReferenceMm = $TargetMm
+        $RateMmS = 0.0
+        $AccelMmS2 = 0.0
+    }
+    return @($nextReferenceMm, $RateMmS, $AccelMmS2)
+}
+
+function Assert-JerkLimitedHeightTrajectory {
+    param(
+        [double]$PositionKpS,
+        [double]$RateKpS
+    )
+    $referenceMm = 55.0
+    $rateMmS = 0.0
+    $accelMmS2 = 0.0
+    $targetMm = 65.0
+    for($step = 0; $step -lt 5000; $step++) {
+        if(200 -eq $step) {
+            $targetMm = 45.0
+        }
+        $previousAccelMmS2 = $accelMmS2
+        $result = Step-HeightSupervisor -ReferenceMm $referenceMm -RateMmS $rateMmS -AccelMmS2 $accelMmS2 -TargetMm $targetMm -MaxSpeedMmS 20.0 -MaxAccelMmS2 20.0 -MaxJerkMmS3 80.0 -PositionKpS $PositionKpS -RateKpS $RateKpS -DtS 0.01
+        $referenceMm = $result[0]
+        $rateMmS = $result[1]
+        $accelMmS2 = $result[2]
+        if((20.0 + 0.0001) -lt [math]::Abs($rateMmS)) {
+            throw "Height trajectory exceeded 20 mm/s."
+        }
+        if((20.0 + 0.0001) -lt [math]::Abs($accelMmS2)) {
+            throw "Height trajectory exceeded 20 mm/s2."
+        }
+        if((0.8 + 0.0001) -lt [math]::Abs($accelMmS2 - $previousAccelMmS2)) {
+            throw ("Height trajectory exceeded 80 mm/s3 at 10 ms: step {0}." -f $step)
+        }
+        $halfDeltaDeg = 0.5 * (($referenceMm - 55.0) / 0.595)
+        $servoFl = 90.0 + $halfDeltaDeg
+        $servoFr = 90.0 - $halfDeltaDeg
+        $servoRl = 90.0 - $halfDeltaDeg
+        $servoRr = 90.0 + $halfDeltaDeg
+        Assert-Near -Actual $servoFl -Expected $servoRr -Tolerance 0.0001 -Message "FL/RR empirical synchronization"
+        Assert-Near -Actual $servoFr -Expected $servoRl -Tolerance 0.0001 -Message "FR/RL empirical synchronization"
+        Assert-Near -Actual ($servoFl + $servoFr) -Expected 180.0 -Tolerance 0.0001 -Message "Front differential pair center"
+        Assert-Near -Actual ($servoRr - $servoRl) -Expected (($referenceMm - 55.0) / 0.595) -Tolerance 0.0001 -Message "Empirical height differential"
+        if(($step -gt 200) -and (45.0 -eq $referenceMm) -and (0.0 -eq $rateMmS) -and (0.0 -eq $accelMmS2)) {
+            return
+        }
+    }
+    throw ("Jerk-limited height trajectory did not settle: target {0}, reference {1}, rate {2}, accel {3}." -f $targetMm, $referenceMm, $rateMmS, $accelMmS2)
+}
+
+function Get-S7Blend([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u4 = $u2 * $u2
+    return $u4 * (35.0 - 84.0 * $u + 70.0 * $u2 - 20.0 * $u2 * $u)
+}
+
+function Get-S7Derivative1([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u3 = $u2 * $u
+    return (140.0 * $u3) - (420.0 * $u3 * $u) + (420.0 * $u3 * $u2) - (140.0 * $u3 * $u2 * $u)
+}
+
+function Get-S7Derivative2([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    $u3 = $u2 * $u
+    return (420.0 * $u2) - (1680.0 * $u3) + (2100.0 * $u3 * $u) - (840.0 * $u3 * $u2)
+}
+
+function Get-S7Derivative3([double]$u) {
+    $u = [math]::Max(0.0, [math]::Min($u, 1.0))
+    $u2 = $u * $u
+    return (840.0 * $u) - (5040.0 * $u2) + (8400.0 * $u2 * $u) - (4200.0 * $u2 * $u2)
+}
+
+function Get-FastHeightReference {
+    param(
+        [double]$StartMm,
+        [double]$TargetMm,
+        [double]$ElapsedMs,
+        [double]$DurationMs
+    )
+
+    $u = [math]::Max(0.0, [math]::Min($ElapsedMs / $DurationMs, 1.0))
+    $blend = Get-S7Blend $u
+    return $StartMm + (($TargetMm - $StartMm) * $blend)
+}
+
+function Assert-FastHeightTrajectory {
+    param(
+        [double]$StartMm,
+        [double]$TargetMm,
+        [double]$LowMm,
+        [double]$HighMm,
+        [double]$DurationMs
+    )
+
+    $previousMm = $StartMm
+    $direction = [math]::Sign($TargetMm - $StartMm)
+    for($elapsedMs = 0; $elapsedMs -lt $DurationMs; $elapsedMs += 6) {
+        $referenceMm = Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $elapsedMs -DurationMs $DurationMs
+        if(($LowMm -gt $referenceMm) -or ($HighMm -lt $referenceMm)) {
+            throw ("Fast height reference overshot its command interval at {0} ms: {1}." -f $elapsedMs, $referenceMm)
+        }
+        if((0.0 -lt $direction) -and ($previousMm -gt ($referenceMm + 0.000001))) {
+            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        }
+        if((0.0 -gt $direction) -and ($previousMm -lt ($referenceMm - 0.000001))) {
+            throw ("Fast height reference reversed before its target at {0} ms." -f $elapsedMs)
+        }
+        $previousMm = $referenceMm
+    }
+    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs 0.0 -DurationMs $DurationMs) -Expected $StartMm -Tolerance 0.000001 -Message "Fast height start reference"
+    Assert-Near -Actual (Get-FastHeightReference -StartMm $StartMm -TargetMm $TargetMm -ElapsedMs $DurationMs -DurationMs $DurationMs) -Expected $TargetMm -Tolerance 0.000001 -Message "Fast height completes at configured duration"
+}
+
+function Assert-SoftFaultSafeRate {
+    $angleDeg = 135.0
+    for($step = 0; $step -lt 20; $step++) {
+        $previousAngleDeg = $angleDeg
+        $angleDeg += [math]::Sign(90.0 - $angleDeg) * [math]::Min([math]::Abs(90.0 - $angleDeg), 4.5)
+        if((4.5 + 0.0001) -lt [math]::Abs($angleDeg - $previousAngleDeg)) {
+            throw "Soft-fault safe target exceeded 4.5 degrees per 10 ms."
+        }
+    }
+    Assert-Equal -Actual $angleDeg -Expected 90.0 -Message "Soft fault must approach 90 degree safe target"
+}
+
+function Assert-InsufficientIkMarginFault {
+    $ikMargin = 0.19
+    $minimumMargin = 0.20
+    $motionState = if($ikMargin -lt $minimumMargin) { "FAULT" } else { "TRANSITION" }
+    $driveAllowed = ($motionState -ne "FAULT")
+
+    if($motionState -ne "FAULT") {
+        throw "Insufficient IK margin must enter FAULT."
+    }
+    if($driveAllowed) {
+        throw "Insufficient IK margin fault must deny drive."
+    }
+}
+
+function Resolve-ChassisMotionPolicy {
+    param(
+        [string]$MotionState,
+        [bool]$DriveAllowed,
+        [bool]$FastRequested,
+        [double]$ConfiguredForwardLimitRpm,
+        [double]$ConfiguredFastForwardLimitRpm,
+        [double]$TransitionForwardLimitRpm
+    )
+
+    if(($MotionState -eq "FAULT") -or (-not $DriveAllowed)) {
+        return @{
+            ForwardLimitRpm = 0.0
+            EffectiveFast = $false
+        }
+    }
+    if($MotionState -eq "TRANSITION") {
+        return @{
+            ForwardLimitRpm = $TransitionForwardLimitRpm
+            EffectiveFast = $false
+        }
+    }
+    return @{
+        ForwardLimitRpm = if($FastRequested) { $ConfiguredFastForwardLimitRpm } else { $ConfiguredForwardLimitRpm }
+        EffectiveFast = $FastRequested
+    }
+}
+
+function Assert-MotionPolicy {
+    $transition = Resolve-ChassisMotionPolicy -MotionState "TRANSITION" -DriveAllowed $true -FastRequested $true -ConfiguredForwardLimitRpm 80.0 -ConfiguredFastForwardLimitRpm 220.0 -TransitionForwardLimitRpm 30.0
+    Assert-Equal -Actual $transition.ForwardLimitRpm -Expected 30.0 -Message "Transition forward limit"
+    if($transition.EffectiveFast) {
+        throw "Transition must disable effective fast blend without clearing the operator request."
+    }
+
+    $fault = Resolve-ChassisMotionPolicy -MotionState "FAULT" -DriveAllowed $false -FastRequested $true -ConfiguredForwardLimitRpm 80.0 -ConfiguredFastForwardLimitRpm 220.0 -TransitionForwardLimitRpm 30.0
+    Assert-Equal -Actual $fault.ForwardLimitRpm -Expected 0.0 -Message "Fault forward limit"
+    if($fault.EffectiveFast) {
+        throw "Fault must disable effective fast blend."
+    }
+}
+
+function Assert-S7Properties {
+    Assert-Near -Actual (Get-S7Blend 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 p(0)=0"
+    Assert-Near -Actual (Get-S7Blend 1.0) -Expected 1.0 -Tolerance 0.000001 -Message "S7 p(1)=1"
+
+    # Monotonicity check
+    $prev = 0.0
+    for($u = 0.001; $u -le 1.001; $u += 0.001) {
+        $val = Get-S7Blend ([math]::Min($u, 1.0))
+        if($val -lt ($prev - 0.000001)) {
+            throw ("S7 blend not monotonic at u={0}: prev={1}, val={2}" -f $u, $prev, $val)
+        }
+        $prev = $val
+    }
+
+    # Derivatives zero at both endpoints
+    Assert-Near -Actual (Get-S7Derivative1 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 velocity zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative1 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 velocity zero at u=1"
+    Assert-Near -Actual (Get-S7Derivative2 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 acceleration zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative2 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 acceleration zero at u=1"
+    Assert-Near -Actual (Get-S7Derivative3 0.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 jerk zero at u=0"
+    Assert-Near -Actual (Get-S7Derivative3 1.0) -Expected 0.0 -Tolerance 0.000001 -Message "S7 jerk zero at u=1"
+}
+
+function Assert-SharedPoseTrajectory {
+    $startDeg = @(90.0, 90.0, 90.0, 90.0)
+    $targetDeg = @(114.0, 66.0, 108.0, 72.0)
+    $maxDelta = 0.0
+    for($i = 0; $i -lt 4; $i++) {
+        $delta = [math]::Abs($targetDeg[$i] - $startDeg[$i])
+        if($delta -gt $maxDelta) { $maxDelta = $delta }
+    }
+    $durationS = [math]::Max(0.10, 2.1875 * $maxDelta / 90.0)
+    $durationMs = $durationS * 1000.0
+    $samplesPerMs = 6
+
+    for($t = 0.0; $t -lt $durationMs; $t += $samplesPerMs) {
+        $u = [math]::Min($t / $durationMs, 1.0)
+        $blend = Get-S7Blend $u
+        for($i = 0; $i -lt 4; $i++) {
+            $expectedAngle = $startDeg[$i] + ($targetDeg[$i] - $startDeg[$i]) * $blend
+            if(($expectedAngle -lt 0.0) -or ($expectedAngle -gt 180.0)) {
+                throw ("Shared-pose channel {0} exceeded angle bounds at t={1} ms: {2}" -f $i, $t, $expectedAngle)
+            }
+        }
+    }
+
+    # All channels reach target on same sample
+    for($i = 0; $i -lt 4; $i++) {
+        $finalAngle = $startDeg[$i] + ($targetDeg[$i] - $startDeg[$i]) * (Get-S7Blend 1.0)
+        Assert-Near -Actual $finalAngle -Expected $targetDeg[$i] -Tolerance 0.000001 -Message ("Shared-pose channel {0} reaches target" -f $i)
+    }
+}
+
+function Assert-StableGateModel {
+    # Planner complete but actuator not settled -> keep TRANSITION
+    $plannerComplete = $true
+    $actuatorSettled = $false
+    $actuatorError = 0.21
+    $settleThreshold = 0.2
+
+    $motionState = if($plannerComplete -and $actuatorSettled -and ($actuatorError -le $settleThreshold)) {
+        "STABLE"
+    } else {
+        "TRANSITION"
+    }
+
+    if($motionState -ne "TRANSITION") {
+        throw "Motion state must remain TRANSITION when planner is complete but actuator error exceeds settle threshold."
+    }
+
+    # Actuator settled after 30 ticks -> STABLE
+    $actuatorSettled = $true
+    $actuatorError = 0.01
+    $motionState = if($plannerComplete -and $actuatorSettled -and ($actuatorError -le $settleThreshold)) {
+        "STABLE"
+    } else {
+        "TRANSITION"
+    }
+
+    if($motionState -ne "STABLE") {
+        throw "Motion state must become STABLE only after planner completes and actuator settles."
+    }
+}
+
+function Assert-HeightCommandRange {
+    param([hashtable]$Config)
+
+    $lowReject = 29.0
+    $highReject = 81.0
+    $phase1RejectedHigh = 120.0
+    if(($lowReject -ge $Config["low_height_mm"]) -and ($lowReject -le $Config["high_height_mm"])) {
+        throw "29 mm command must be outside the extended empirical height interval."
+    }
+    if(($highReject -ge $Config["low_height_mm"]) -and ($highReject -le $Config["high_height_mm"])) {
+        throw "81 mm command must be outside the extended empirical height interval."
+    }
+    if(($phase1RejectedHigh -ge $Config["low_height_mm"]) -and ($phase1RejectedHigh -le $Config["high_height_mm"])) {
+        throw "120 mm command must be outside the empirical Phase 1 height interval."
+    }
+}
+
+function Get-LegTransitionConfig {
+    $text = Get-Content "project/code/leg_config.c" -Raw
+    $names = @(
+        "low_height_mm",
+        "high_height_mm",
+        "default_height_mm",
+        "max_height_speed_mm_s",
+        "max_height_accel_mm_s2",
+        "max_height_jerk_mm_s3",
+        "height_position_kp_s",
+        "height_rate_kp_s",
+        "height_settle_error_mm",
+        "height_settle_ms",
+        "fast_height_transition_ms",
+        "ik_min_margin",
+        "safe_support_height_mm"
+    )
+    $config = @{}
+
+    foreach($name in $names) {
+        $match = [regex]::Match($text, "\.$name\s*=\s*([-+]?\d+(?:\.\d+)?)(?:f|U)")
+        if(-not $match.Success) {
+            throw ("Missing named transition setting: {0}" -f $name)
+        }
+        $config[$name] = [double]$match.Groups[1].Value
+    }
+    return $config
+}
+
+function New-HostHeaders {
+    param([string]$Path)
+
+    @'
+#ifndef _app_types_h_
+#define _app_types_h_
+#include <stddef.h>
+typedef unsigned char uint8;
+typedef unsigned int uint32;
+typedef enum { APP_FALSE = 0, APP_TRUE = 1 } app_bool_enum;
+#endif
+'@ | Set-Content (Join-Path $Path "app_types.h") -NoNewline
+
+    @'
+#ifndef _leg_config_h_
+#define _leg_config_h_
+#include "app_types.h"
+typedef enum { LEG_SERVO_FL = 0, LEG_SERVO_FR = 1, LEG_SERVO_RL = 2, LEG_SERVO_RR = 3, LEG_SERVO_COUNT = 4 } leg_servo_id_enum;
+typedef struct { uint8 servo_index; float safe_deg; float neutral_deg; float min_deg; float max_deg; float direction; float ik_offset_deg; float mount_x; float mount_y; } leg_servo_config_struct;
+typedef enum { LEG_IK_BRANCH_PLUS = 0, LEG_IK_BRANCH_MINUS = 1 } leg_ik_branch_enum;
+typedef struct { float l1_mm; float l2_mm; float l3_mm; float l4_mm; float l5_mm; float x_min_mm; float x_max_mm; float y_min_mm; float y_max_mm; float x_offset_mm; float y_offset_mm; float validate_x_min_mm; float validate_x_max_mm; float validate_y_min_mm; float validate_y_max_mm; float validate_horizontal_y_min_mm; float validate_horizontal_y_max_mm; float validate_vertical_x_min_mm; float validate_vertical_x_max_mm; float reference_x_mm; float reference_y_mm; leg_ik_branch_enum left_alpha_branch; leg_ik_branch_enum left_beta_branch; leg_ik_branch_enum right_alpha_branch; leg_ik_branch_enum right_beta_branch; } leg_kinematics_config_struct;
+typedef struct { float low_height_mm; float high_height_mm; float default_height_mm; float max_height_speed_mm_s; float max_height_accel_mm_s2; float max_height_jerk_mm_s3; float height_position_kp_s; float height_rate_kp_s; float height_settle_error_mm; uint32 height_settle_ms; uint32 fast_height_transition_ms; float ik_min_margin; float safe_support_height_mm; float transition_forward_limit_rpm; float balance_pitch_kp_low; float balance_pitch_kp_high; float balance_pitch_rate_kd_low; float balance_pitch_rate_kd_high; float balance_wheel_speed_ks_low; float balance_wheel_speed_ks_high; float balance_pitch_setpoint_low_deg; float balance_pitch_setpoint_high_deg; float chassis_forward_limit_low_rpm; float chassis_forward_limit_high_rpm; float chassis_fast_forward_limit_low_rpm; float chassis_fast_forward_limit_high_rpm; } leg_height_profile_struct;
+typedef struct { leg_servo_config_struct servo[LEG_SERVO_COUNT]; leg_kinematics_config_struct kinematics; leg_height_profile_struct height_profile; float height_min; float height_max; float pitch_limit; float roll_limit; } leg_config_struct;
+const leg_config_struct *leg_config_get(void);
+const leg_servo_config_struct *leg_config_get_servo(uint8 leg_id);
+const leg_kinematics_config_struct *leg_config_get_kinematics(void);
+const leg_height_profile_struct *leg_config_get_height_profile(void);
+#endif
+'@ | Set-Content (Join-Path $Path "leg_config.h") -NoNewline
+
+    @'
+#ifndef _app_config_h_
+#define _app_config_h_
+#define APP_BALANCE_FINITE_ABS_LIMIT (100000.0f)
+#endif
+'@ | Set-Content (Join-Path $Path "app_config.h") -NoNewline
+}
+
+function New-NumericHarness {
+    param([string]$Path)
+
+    @'
+#include "leg_kinematics.h"
+#include "leg_config.h"
+#include <math.h>
+#include <stdio.h>
+
+static float wrapped_delta_deg(float current_deg, float previous_deg)
+{
+    float delta = current_deg - previous_deg;
+    while(delta > 180.0f) { delta -= 360.0f; }
+    while(delta < -180.0f) { delta += 360.0f; }
+    return fabsf(delta);
+}
+
+static int check_side(uint8 right_side)
+{
+    int height;
+    leg_ik_result_struct previous = {0};
+    for(height = 35; height <= 80; height++)
+    {
+        float x_mm;
+        float y_mm;
+        leg_ik_result_struct result;
+        if((APP_TRUE != leg_kinematics_solve(right_side, 0.0f, (float)height, &previous, &result)) ||
+           (APP_TRUE != result.valid))
+        {
+            printf("IK rejected side %u height %d\\n", (unsigned int)right_side, height);
+            return 1;
+        }
+        if((!isfinite(result.servo_deg[0])) || (!isfinite(result.servo_deg[1])) ||
+           (!isfinite(result.singularity_margin)) || (0.20f > result.singularity_margin))
+        {
+            printf("IK margin/output invalid side %u height %d\\n", (unsigned int)right_side, height);
+            return 1;
+        }
+        if((APP_TRUE == previous.valid) &&
+           ((8.0f < wrapped_delta_deg(result.servo_deg[0], previous.servo_deg[0])) ||
+            (8.0f < wrapped_delta_deg(result.servo_deg[1], previous.servo_deg[1]))))
+        {
+            printf("IK discontinuity side %u height %d\\n", (unsigned int)right_side, height);
+            return 1;
+        }
+        if((APP_TRUE != leg_kinematics_forward(right_side, result.servo_deg[0], result.servo_deg[1], &x_mm, &y_mm)) ||
+           (0.5f < fabsf(x_mm)) || (0.5f < fabsf(y_mm - (float)height)))
+        {
+            printf("FK mismatch side %u height %d: %.3f, %.3f\\n", (unsigned int)right_side, height, x_mm, y_mm);
+            return 1;
+        }
+        previous = result;
+    }
+    return 0;
+}
+
+int main(void)
+{
+    leg_ik_result_struct result = {0};
+    const leg_kinematics_config_struct *cfg = leg_config_get_kinematics();
+    const float off_center_x_mm = -20.0f;
+    float degenerate_offset_mm;
+    float off_center_y_mm;
+    float forward_x_mm;
+    float forward_y_mm;
+    if(0 == cfg)
+    {
+        return 1;
+    }
+    degenerate_offset_mm = off_center_x_mm - cfg->l5_mm + cfg->l4_mm;
+    off_center_y_mm = sqrtf((cfg->l3_mm * cfg->l3_mm) -
+                            (degenerate_offset_mm * degenerate_offset_mm));
+    if((0 != check_side(APP_FALSE)) || (0 != check_side(APP_TRUE)))
+    {
+        return 1;
+    }
+    if((APP_TRUE != leg_kinematics_solve(APP_FALSE, off_center_x_mm, off_center_y_mm, 0, &result)) ||
+       (APP_TRUE != result.valid) ||
+       (0.20f >= result.singularity_margin) ||
+       (!isfinite(result.servo_deg[0])) ||
+       (!isfinite(result.servo_deg[1])) ||
+       (APP_TRUE != leg_kinematics_forward(APP_FALSE, result.servo_deg[0], result.servo_deg[1],
+                                           &forward_x_mm, &forward_y_mm)) ||
+       (0.5f < fabsf(forward_x_mm - off_center_x_mm)) ||
+       (0.5f < fabsf(forward_y_mm - off_center_y_mm)))
+    {
+        printf("Off-center denominator-degenerate IK point rejected or incorrect: %.3f, %.3f, margin %.3f\\n",
+               result.servo_deg[0], result.servo_deg[1], result.singularity_margin);
+        return 1;
+    }
+    if(APP_TRUE == leg_kinematics_solve(APP_FALSE, 36.0f, 80.0f, 0, &result))
+    {
+        printf("Out-of-workspace point accepted\\n");
+        return 1;
+    }
+    if(APP_TRUE == leg_kinematics_solve(APP_FALSE, 0.0f, 150.0f, 0, &result))
+    {
+        printf("Tangent-circle point accepted\\n");
+        return 1;
+    }
+    return 0;
+}
+'@ | Set-Content (Join-Path $Path "test_leg_kinematics.c") -NoNewline
+}
+
+$config = Get-LegTransitionConfig
+Assert-Equal -Actual $config["low_height_mm"] -Expected 30.0 -Message "Extended empirical low height"
+Assert-Equal -Actual $config["high_height_mm"] -Expected 80.0 -Message "Extended empirical high height"
+Assert-Equal -Actual $config["default_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 default height"
+Assert-Equal -Actual $config["max_height_speed_mm_s"] -Expected 20.0 -Message "Fast-response maximum height speed"
+Assert-Equal -Actual $config["max_height_accel_mm_s2"] -Expected 20.0 -Message "Fast-response maximum height acceleration"
+Assert-Equal -Actual $config["max_height_jerk_mm_s3"] -Expected 80.0 -Message "Maximum height jerk"
+Assert-Equal -Actual $config["height_position_kp_s"] -Expected 2.0 -Message "Fast-response height position velocity gain"
+Assert-Equal -Actual $config["height_rate_kp_s"] -Expected 4.0 -Message "Height velocity acceleration gain"
+Assert-Equal -Actual $config["height_settle_error_mm"] -Expected 1.0 -Message "Height settle error"
+Assert-Equal -Actual $config["height_settle_ms"] -Expected 300.0 -Message "Height settle time"
+Assert-Equal -Actual $config["fast_height_transition_ms"] -Expected 500.0 -Message "Fast height transition duration"
+Assert-Equal -Actual $config["ik_min_margin"] -Expected 0.20 -Message "IK minimum margin"
+Assert-Equal -Actual $config["safe_support_height_mm"] -Expected 55.0 -Message "Empirical Phase 1 safe support height"
+Assert-HeightCommandRange -Config $config
+
+Assert-Contains "project/code/leg_kinematics.h" "singularity_margin" "IK result must publish singularity margin."
+Assert-Contains "project/code/leg_kinematics.h" "const leg_ik_result_struct \*previous" "IK solve API must accept the previous solution."
+Assert-Contains "project/code/leg_kinematics.c" "leg_kinematics_forward" "IK must implement forward kinematics."
+
+Assert-JerkLimitedHeightTrajectory -PositionKpS $config["height_position_kp_s"] -RateKpS $config["height_rate_kp_s"]
+Assert-FastHeightTrajectory -StartMm 45.0 -TargetMm 65.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 30.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-FastHeightTrajectory -StartMm 55.0 -TargetMm 80.0 -LowMm $config["low_height_mm"] -HighMm $config["high_height_mm"] -DurationMs $config["fast_height_transition_ms"]
+Assert-SoftFaultSafeRate
+Assert-InsufficientIkMarginFault
+Assert-MotionPolicy
+Assert-S7Properties
+Assert-SharedPoseTrajectory
+Assert-StableGateModel
+
+$tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-kinematics-" + [Guid]::NewGuid().ToString())
+New-Item -ItemType Directory -Path $tempPath | Out-Null
+try {
+    New-HostHeaders $tempPath
+    New-NumericHarness $tempPath
+    Copy-Item "project/code/leg_kinematics.c" (Join-Path $tempPath "leg_kinematics.c")
+    Copy-Item "project/code/leg_kinematics.h" (Join-Path $tempPath "leg_kinematics.h")
+    Copy-Item "project/code/leg_config.c" (Join-Path $tempPath "leg_config.c")
+
+    $compiler = (Get-Command gcc -ErrorAction Stop).Source
+    $compilerDirectory = Split-Path $compiler
+    $originalPath = $env:PATH
+    $env:PATH = $compilerDirectory + [System.IO.Path]::PathSeparator + $env:PATH
+    $binary = Join-Path $tempPath "test_leg_kinematics.exe"
+    $compileOutput = & $compiler -std=c99 -Wall -Werror -I $tempPath `
+        (Join-Path $tempPath "leg_kinematics.c") `
+        (Join-Path $tempPath "leg_config.c") `
+        (Join-Path $tempPath "test_leg_kinematics.c") `
+        -lm -o $binary 2>&1
+    if(0 -ne $LASTEXITCODE) {
+        $compileOutput | Write-Host
+        throw ("Unable to compile numeric IK harness (exit {0})." -f $LASTEXITCODE)
+    }
+    $env:PATH = $originalPath
+    & $binary
+    if(0 -ne $LASTEXITCODE) {
+        throw "IK numeric sweep failed."
+    }
+}
+finally {
+    if($null -ne $originalPath) {
+        $env:PATH = $originalPath
+    }
+    if(Test-Path $tempPath) {
+        Remove-Item -Recurse -Force $tempPath
+    }
+}
+
+Write-Host "leg transition numeric checks passed"

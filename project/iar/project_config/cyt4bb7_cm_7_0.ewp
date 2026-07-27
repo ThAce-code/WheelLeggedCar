@@ -1157,6 +1157,18 @@
                 <name>$PROJ_DIR$\..\..\code\sensor_imu.h</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\imu_rate_filter.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\imu_rate_filter.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\imu_gyro_calibration.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\imu_gyro_calibration.h</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\lsm6dsv16x_driver.c</name>
             </file>
             <file>
@@ -1181,6 +1193,12 @@
                 <name>$PROJ_DIR$\..\..\code\actuator_servo.h</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\servo_motion.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\servo_motion.h</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\actuator_motor.h</name>
             </file>
             <file>
@@ -1200,6 +1218,12 @@
             </file>
             <file>
                 <name>$PROJ_DIR$\..\..\code\leg_config.h</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\leg_kinematics.c</name>
+            </file>
+            <file>
+                <name>$PROJ_DIR$\..\..\code\leg_kinematics.h</name>
             </file>
             <file>
                 <name>$PROJ_DIR$\..\..\code\control_leg.c</name>

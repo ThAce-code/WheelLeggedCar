@@ -11,15 +11,24 @@
 #include "actuator_servo.h"
 
 static uint8 app_safety_fault = APP_FALSE;
+static uint8 app_safety_armed = APP_FALSE;
 
 static float app_absf(float value)
 {
     return (0.0f > value) ? -value : value;
 }
 
+static uint8 app_safety_is_finite(float value)
+{
+    return ((value == value) &&
+            (3.402823466e+38F >= value) &&
+            (-3.402823466e+38F <= value)) ? APP_TRUE : APP_FALSE;
+}
+
 void app_safety_init(void)
 {
     app_safety_fault = APP_FALSE;
+    app_safety_armed = APP_FALSE;
 }
 
 void app_safety_update(uint32 now_ms)
@@ -31,13 +40,19 @@ void app_safety_update(uint32 now_ms)
         return;
     }
 
-    if(APP_SAFETY_ARM_DELAY_MS > now_ms)
+    if(APP_FALSE == app_safety_armed)
     {
-        return;
+        if(APP_SAFETY_ARM_DELAY_MS > now_ms)
+        {
+            return;
+        }
+        app_safety_armed = APP_TRUE;
     }
 
     imu = sensor_imu_get_state();
     if((APP_FALSE == imu->healthy) ||
+       (APP_FALSE == app_safety_is_finite(imu->roll)) ||
+       (APP_FALSE == app_safety_is_finite(imu->pitch)) ||
        (APP_ROLL_LIMIT_DEG < app_absf(imu->roll)) ||
        (APP_PITCH_LIMIT_DEG < app_absf(imu->pitch)))
     {
@@ -59,6 +74,6 @@ void app_safety_force_fault(void)
 
     app_safety_fault = APP_TRUE;
     app_state_set(APP_STATE_FAULT);
-    actuator_motor_stop();
     actuator_servo_disable();
+    actuator_motor_stop();
 }

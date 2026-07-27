@@ -33,8 +33,22 @@ Assert-Near $schedule[1].AtSeconds 1.5 0.0001 "second command time"
 Assert-True ($schedule[2].Command -eq "C,0,0") "third command text"
 Assert-True ((Convert-CsvField "C,0,0") -eq '"C,0,0"') "CSV fields with commas must be quoted"
 Assert-True ((Convert-CsvField 'note "quoted"') -eq '"note ""quoted"""') "CSV quotes must be escaped"
+# 4 metadata + 55 telemetry + note = 60 fields
+Assert-True (($Fields.Split(",").Count -eq 60)) "CSV header must contain metadata, 55 telemetry fields, and note"
 
-$values = [single[]](1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0, 4.0, 0.2, 20.0, 18.5, 0.9, 5.0, 0.0, 0.0, 0.0, 2.5, 3.5, 4.5, 0.6, 0.05, 5.0, 10.0, 0.25, 12.0, 9.0, 1.5, 2.4, -8.0, 3.0, 20.0, 0.0, 1.5)
+# 55-float test frame: indices 0-45 control data, 46-54 timing diagnostics
+$values = [single[]](
+    1234.0, 2.0, 1.5, 4.5, 90.0, -12.25, 9.75, 1.0, 48.0, 47.0, -120.0, -118.0,
+    3.0, 100.0, 95.0, 0.3, 1.0, 1.0,
+    88.0, 92.0, 89.0, 91.0,
+    91.0, 89.0, 89.0, 91.0,
+    90.5, 89.5, 89.5, 90.5,
+    0.5, 0.0, 0.5,
+    95.0, 95.0,
+    96.5, 4.0, 0.42, 2.0, 1.0,
+    35.0, 1.0, 1.0, 0.0, 2.0, 250.0,
+    42.0, 3.0, 7.0, 4.0, 12345.0, 987.0, 2.0, 6.0, -1.75
+)
 $buffer = New-Object System.Collections.Generic.List[byte]
 $buffer.Add(0x55)
 foreach($value in $values) {
@@ -48,6 +62,7 @@ foreach($byte in [byte[]](0x00, 0x00, 0x80, 0x7F)) {
 
 $frames = @(Pop-BalanceFrames -Buffer $buffer)
 Assert-True ($frames.Count -eq 1) "expected one parsed frame"
+# 0-11: core motor/balance/IMU
 Assert-Near $frames[0].time_ms 1234.0 0.001 "time_ms"
 Assert-Near $frames[0].balance_mode 2.0 0.001 "balance_mode"
 Assert-Near $frames[0].roll_deg 1.5 0.001 "roll_deg"
@@ -60,32 +75,55 @@ Assert-Near $frames[0].left_motor_rpm 48.0 0.001 "left_motor_rpm"
 Assert-Near $frames[0].right_motor_rpm 47.0 0.001 "right_motor_rpm"
 Assert-Near $frames[0].left_duty -120.0 0.001 "left_duty"
 Assert-Near $frames[0].right_duty -118.0 0.001 "right_duty"
-Assert-Near $frames[0].balance_kp 4.0 0.001 "balance_kp"
-Assert-Near $frames[0].balance_kd 0.2 0.001 "balance_kd"
-Assert-Near $frames[0].forward_target_rpm 20.0 0.001 "forward_target_rpm"
-Assert-Near $frames[0].forward_actual_rpm 18.5 0.001 "forward_actual_rpm"
-Assert-Near $frames[0].speed_pitch_offset_deg 0.9 0.001 "speed_pitch_offset_deg"
-Assert-Near $frames[0].pitch_setpoint_deg 5.0 0.001 "pitch_setpoint_deg"
-Assert-Near $frames[0].turn_target_dps 0.0 0.001 "turn_target_dps"
-Assert-Near $frames[0].gyro_z_dps 0.0 0.001 "gyro_z_dps"
-Assert-Near $frames[0].turn_rpm 0.0 0.001 "turn_rpm"
-Assert-Near $frames[0].gyro_z_raw_dps 2.5 0.001 "gyro_z_raw_dps"
-Assert-Near $frames[0].turn_error_dps 3.5 0.001 "turn_error_dps"
-Assert-Near $frames[0].turn_integral 4.5 0.001 "turn_integral"
-Assert-Near $frames[0].turn_kp 0.6 0.001 "turn_kp"
-Assert-Near $frames[0].turn_ki 0.05 0.001 "turn_ki"
-Assert-Near $frames[0].imu_age_ms 5.0 0.001 "imu_age_ms"
-Assert-Near $frames[0].wheel_age_ms 10.0 0.001 "wheel_age_ms"
-Assert-Near $frames[0].fast_blend 0.25 0.001 "fast_blend"
-Assert-Near $frames[0].speed_integral 12.0 0.001 "speed_integral"
-Assert-Near $frames[0].speed_pitch_limit_deg 9.0 0.001 "speed_pitch_limit_deg"
-Assert-Near $frames[0].speed_ff_rpm 1.5 0.001 "speed_ff_rpm"
-Assert-Near $frames[0].wheel_speed_ks 2.4 0.001 "wheel_speed_ks"
-Assert-Near $frames[0].pitch_term_rpm -8.0 0.001 "pitch_term_rpm"
-Assert-Near $frames[0].rate_term_rpm 3.0 0.001 "rate_term_rpm"
-Assert-Near $frames[0].speed_term_rpm 20.0 0.001 "speed_term_rpm"
-Assert-Near $frames[0].pos_term_rpm 0.0 0.001 "pos_term_rpm"
-Assert-Near $frames[0].ff_term_rpm 1.5 0.001 "ff_term_rpm"
+# 12-17: leg height/IK
+Assert-Near $frames[0].leg_mode 3.0 0.001 "leg_mode"
+Assert-Near $frames[0].leg_target_height_mm 100.0 0.001 "leg_target_height_mm"
+Assert-Near $frames[0].leg_height_cmd_est_mm 95.0 0.001 "leg_height_cmd_est_mm"
+Assert-Near $frames[0].leg_height_norm 0.3 0.001 "leg_height_norm"
+Assert-Near $frames[0].leg_ik_valid 1.0 0.001 "leg_ik_valid"
+Assert-Near $frames[0].leg_output_enable 1.0 0.001 "leg_output_enable"
+# 18-21: servo output
+Assert-Near $frames[0].servo0_output_deg 88.0 0.001 "servo0_output_deg"
+# 22-25: servo targets
+Assert-Near $frames[0].servo0_target_deg 91.0 0.001 "servo0_target_deg"
+# 26-29: servo filtered
+Assert-Near $frames[0].servo0_filtered_deg 90.5 0.001 "servo0_filtered_deg"
+# 30-32: settle diagnostics
+Assert-Near $frames[0].servo_max_error_deg 0.5 0.001 "servo_max_error_deg"
+Assert-Near $frames[0].servo_settled 0.0 0.001 "servo_settled"
+Assert-Near $frames[0].servo_s7_progress 0.5 0.001 "servo_s7_progress"
+# 35-39: leg motion state
+Assert-Near $frames[0].leg_height_ref_mm 96.5 0.001 "leg_height_ref_mm"
+Assert-Near $frames[0].leg_height_rate_mm_s 4.0 0.001 "leg_height_rate_mm_s"
+Assert-Near $frames[0].leg_ik_margin 0.42 0.001 "leg_ik_margin"
+Assert-Near $frames[0].leg_motion_state 2.0 0.001 "leg_motion_state"
+Assert-Near $frames[0].leg_fault_reason 1.0 0.001 "leg_fault_reason"
+# 40-45: safety and trajectory mode
+Assert-Near $frames[0].leg_drive_forward_limit_rpm 35.0 0.001 "leg_drive_forward_limit_rpm"
+Assert-Near $frames[0].leg_drive_allowed 1.0 0.001 "leg_drive_allowed"
+Assert-Near $frames[0].servo_fast_mode 1.0 0.001 "servo_fast_mode"
+Assert-Near $frames[0].servo_direct_bypass 0.0 0.001 "servo_direct_bypass"
+Assert-Near $frames[0].servo_trajectory_mode 2.0 0.001 "servo_trajectory_mode"
+Assert-Near $frames[0].servo_s7_remaining_ms 250.0 0.001 "servo_s7_remaining_ms"
+# 46-54: timing and sample-integrity diagnostics
+Assert-Near $frames[0].firmware_frame_sequence 42.0 0.001 "firmware_frame_sequence"
+Assert-Near $frames[0].telemetry_drop_count 3.0 0.001 "telemetry_drop_count"
+Assert-Near $frames[0].scheduler_missed_tick_count 7.0 0.001 "scheduler_missed_tick_count"
+Assert-Near $frames[0].scheduler_max_gap_ms 4.0 0.001 "scheduler_max_gap_ms"
+Assert-Near $frames[0].servo_tick_count 12345.0 0.001 "servo_tick_count"
+Assert-Near $frames[0].imu_int_count 987.0 0.001 "imu_int_count"
+Assert-Near $frames[0].imu_invalid_count 2.0 0.001 "imu_invalid_count"
+Assert-Near $frames[0].imu_age_ms 6.0 0.001 "imu_age_ms"
+Assert-Near $frames[0].gyro_y_raw_dps -1.75 0.001 "gyro_y_raw_dps"
+
+Assert-True ($Fields -match "servo0_target_deg") "CSV header must include servo target"
+Assert-True ($Fields -match "servo0_filtered_deg") "CSV header must include servo filtered"
+Assert-True ($Fields -match "servo_max_error_deg") "CSV header must include max error"
+Assert-True ($Fields -match "servo_settled") "CSV header must include settled"
+Assert-True ($Fields -match "servo_s7_progress") "CSV header must include S7 progress"
+Assert-True ($Fields -match "leg_drive_allowed") "CSV header must include drive permission"
+Assert-True ($Fields -match "servo_trajectory_mode") "CSV header must include trajectory mode"
+Assert-True ($Fields -notmatch "leg_actual_height_mm") "CSV header must not imply measured height"
 Assert-True ($buffer.Count -eq 0) "buffer should be consumed after frame"
 
 Write-Host "collect_balance_data tests passed"

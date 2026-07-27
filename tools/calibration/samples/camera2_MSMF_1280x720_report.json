@@ -1,0 +1,27 @@
+{
+  "camera_index": 2,
+  "backend": "MSMF",
+  "requested_resolution": "1280x720",
+  "requested_fps": 30.0,
+  "cap_prop_resolution": "1280x720",
+  "cap_prop_fps": 30.0,
+  "actual_frame_shape": [
+    720,
+    1280,
+    3
+  ],
+  "measured_fps": 19.92,
+  "fourcc": "N/A",
+  "fourcc_int": "0x00000016",
+  "frames_read": 30,
+  "frames_ok": 30,
+  "passed": true,
+  "error_message": "",
+  "sharpness_mean": 0.0,
+  "sharpness_std": 0.0,
+  "sample_paths": [
+    "D:\\smartcar\\WheelLeggedCar_cyt4bb7_v1\\.worktree\\leg-control-speed-assist\\tools\\calibration\\samples\\camera2_MSMF_1280x720_frame01.png",
+    "D:\\smartcar\\WheelLeggedCar_cyt4bb7_v1\\.worktree\\leg-control-speed-assist\\tools\\calibration\\samples\\camera2_MSMF_1280x720_frame16.png",
+    "D:\\smartcar\\WheelLeggedCar_cyt4bb7_v1\\.worktree\\leg-control-speed-assist\\tools\\calibration\\samples\\camera2_MSMF_1280x720_frame30.png"
+  ]
+}

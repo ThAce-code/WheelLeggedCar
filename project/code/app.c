@@ -37,7 +37,7 @@ uint8 app_init(void)
     if(0U == result)
     {
         control_leg_set_body_cmd(0.0f, 0.0f, 0.0f);
-        control_leg_set_mode(LEG_MODE_ATTITUDE);
+        control_leg_set_mode(LEG_MODE_LOCK);
         app_state_set(APP_STATE_STANDBY);
     }
     else
@@ -51,6 +51,7 @@ uint8 app_init(void)
 void app_run_once(void)
 {
     app_scheduler_run_pending();
+    telemetry_service();
 }
 
 uint32 app_get_ms(void)

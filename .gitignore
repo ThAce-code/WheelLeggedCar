@@ -8,3 +8,5 @@
 /project/iar/**/Obj/
 /project/iar/project_config/Debug/
 /project/iar/**/settings/
+__pycache__/
+*.pyc

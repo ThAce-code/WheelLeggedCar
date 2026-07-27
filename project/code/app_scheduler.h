@@ -12,5 +12,7 @@ void app_scheduler_init(void);
 void app_scheduler_tick_1ms(void);
 void app_scheduler_run_pending(void);
 uint32 app_scheduler_get_ms(void);
+uint32 app_scheduler_get_missed_tick_count(void);
+uint32 app_scheduler_get_max_gap_ms(void);
 
 #endif

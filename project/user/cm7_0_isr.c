@@ -9,6 +9,7 @@
 #include "app_config.h"
 #include "sensor_imu.h"
 #include "bldc_foc_uart.h"
+#include "actuator_servo.h"
 // **************************** PIT interrupt handlers ****************************
 void pit0_ch0_isr()
 {
@@ -25,10 +26,7 @@ void pit0_ch0_isr()
 void pit0_ch1_isr()
 {
     pit_isr_flag_clear(PIT_CH1);
-	
-	
-	
-	
+    actuator_servo_tick_300hz();
 }
 
 

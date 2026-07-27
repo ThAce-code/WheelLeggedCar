@@ -7,14 +7,19 @@
 #include "actuator_motor.h"
 #include "control_chassis.h"
 #include "control_balance.h"
+#include "control_leg.h"
+#include "app_config.h"
 #include "lsm6dsv16x_driver.h"
 #include "zf_common_debug.h"
+#include "zf_common_interrupt.h"
 
-#define HOST_COMMAND_RX_BUFFER_LEN       (32U)
+#define HOST_COMMAND_RX_BUFFER_LEN       (64U)
 #define HOST_COMMAND_LINE_MAX            (32U)
+#define HOST_COMMAND_LINE_TIMEOUT_MS     (100U)
 
 static char host_command_line[HOST_COMMAND_LINE_MAX];
 static uint8 host_command_index = 0;
+static uint32 host_command_last_byte_ms = 0U;
 
 static uint8 host_command_is_space(uint8 ch)
 {
@@ -302,6 +307,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float drive_turn_kp;
     float ks;
     float pos_kp;
+    float fourth;
     float period_ms_f;
     uint8 read_index = 0;
     uint8 write_index = 0;
@@ -319,6 +325,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
 
     if(APP_TRUE == host_command_match_stop(line))
     {
+        control_leg_set_mode(LEG_MODE_LOCK);
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
         control_chassis_set_fast_enable(APP_FALSE);
         control_chassis_stop(now_ms);
@@ -332,9 +339,86 @@ static void host_command_process_line(char *line, uint32 now_ms)
        ('_' == line[3]) && ('Z' == line[4]) && ('E' == line[5]) &&
        ('R' == line[6]) && ('O' == line[7]) && ('\0' == line[8]))
     {
-        lsm6dsv16x_gyro_offset_init();
-        actuator_motor_record_command_error(APP_FALSE);
+        if(0U == lsm6dsv16x_gyro_offset_init())
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+        }
+        else
+        {
+            actuator_motor_record_command_error(APP_TRUE);
+        }
         return;
+    }
+
+    if(('L' == line[0]) && ('H' == line[1]) && ('F' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_number(&line[4], &value)))
+    {
+        if(APP_TRUE == control_leg_set_fast_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('L' == line[0]) && ('H' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_number(&line[3], &value)))
+    {
+        if(APP_TRUE == control_leg_set_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+#if (APP_LEG_DIRECT_STEP_TEST_ENABLE == 1U)
+    if(('L' == line[0]) && ('J' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_number(&line[3], &value)))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_direct_step_height(value, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+#endif
+
+    if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) &&
+       ('R' == line[3]) && ('E' == line[4]) && ('F' == line[5]) && ('\0' == line[6]))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_ik_reference(now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('L' == line[0]) && ('X' == line[1]) && ('Y' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[4], &value, &period_ms_f)))
+    {
+        control_chassis_stop(now_ms);
+        control_balance_set_mode(BALANCE_MODE_OFF);
+        actuator_motor_set_mode_stop();
+        if(APP_TRUE == control_leg_set_xy(value, period_ms_f, now_ms))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('L' == line[0]) && ('I' == line[1]) && ('K' == line[2]) && (',' == line[3]) &&
+       (APP_TRUE == host_command_parse_four_numbers(&line[4], &kp, &ki, &kd, &fourth)))
+    {
+        if(APP_TRUE == control_leg_set_calib_angles(kp, ki, kd, fourth))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
     }
 
     if(('B' == line[0]) && ('Z' == line[1]) && ('\0' == line[2]))
@@ -500,6 +584,7 @@ static void host_command_push_byte(uint8 ch, uint32 now_ms)
             host_command_line[host_command_index] = '\0';
             host_command_process_line(host_command_line, now_ms);
             host_command_index = 0;
+            host_command_last_byte_ms = 0U;
         }
         return;
     }
@@ -508,10 +593,12 @@ static void host_command_push_byte(uint8 ch, uint32 now_ms)
     {
         host_command_line[host_command_index] = (char)ch;
         host_command_index++;
+        host_command_last_byte_ms = now_ms;
     }
     else if((HOST_COMMAND_LINE_MAX - 1U) <= host_command_index)
     {
         host_command_index = 0;
+        host_command_last_byte_ms = 0U;
         actuator_motor_record_command_error(APP_TRUE);
     }
 }
@@ -520,6 +607,7 @@ void host_command_init(void)
 {
     host_command_index = 0;
     host_command_line[0] = '\0';
+    host_command_last_byte_ms = 0U;
 }
 
 void host_command_update(uint32 now_ms)
@@ -527,10 +615,19 @@ void host_command_update(uint32 now_ms)
     uint8 buffer[HOST_COMMAND_RX_BUFFER_LEN];
     uint32 count;
     uint32 index;
+    uint32 primask;
 
-    (void)now_ms;
+    if((0U < host_command_index) &&
+       (HOST_COMMAND_LINE_TIMEOUT_MS < (now_ms - host_command_last_byte_ms)))
+    {
+        host_command_index = 0U;
+        host_command_last_byte_ms = 0U;
+        actuator_motor_record_command_error(APP_TRUE);
+    }
 
+    primask = interrupt_global_disable();
     count = debug_read_ring_buffer(buffer, HOST_COMMAND_RX_BUFFER_LEN);
+    interrupt_global_enable(primask);
     for(index = 0; index < count; index++)
     {
         host_command_push_byte(buffer[index], now_ms);

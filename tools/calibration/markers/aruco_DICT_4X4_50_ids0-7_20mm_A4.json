@@ -1,0 +1,23 @@
+{
+  "dictionary": "DICT_4X4_50",
+  "marker_ids": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "marker_black_size_mm": 20.0,
+  "quiet_zone_mm": 5.0,
+  "marker_total_size_mm": 30.0,
+  "page_size": "A4",
+  "orientation": "landscape",
+  "page_width_mm": 297.0,
+  "page_height_mm": 210.0,
+  "layout_rows": 2,
+  "layout_cols": 4,
+  "print_scale": "100_percent_actual_size"
+}

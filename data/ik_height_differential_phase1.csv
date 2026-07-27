@@ -1,0 +1,6 @@
+sample_id,label,cmd_a0_deg,cmd_a1_deg,cmd_a2_deg,cmd_a3_deg,measured_left_y_mm,measured_right_y_mm,measured_y_mm,note
+0,diff_retract_20,80,100,100,80,44,43,43.5,"measured differential height; both sides retract"
+1,diff_retract_10,85,95,95,85,50,47,48.5,"measured differential height; both sides retract"
+2,diff_center_0,90,90,90,90,55,55,55.0,"safe center from measured 90 degree pose"
+3,diff_extend_10,95,85,85,95,62,60,61.0,"measured differential height; both sides extend"
+4,diff_extend_20,100,80,80,100,68,66,67.0,"measured differential height; both sides extend"

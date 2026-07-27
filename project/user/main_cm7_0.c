@@ -70,11 +70,12 @@ int main(void)
     app_result = app_init();
     if(0U != app_result)
     {
-        // IMU 初始化失败: 闪 1 次=WHO_AM_I, 2 次=基础初始化, 3 次=SFLP/FIFO
+        // IMU 初始化失败: 闪1次=WHO_AM_I, 2次=基础初始化, 3次=SFLP/FIFO, 4次=陀螺仪未静止
         led_blink_error_code(app_result);
     }
 
     pit_ms_init(PIT_CH0, APP_TICK_PERIOD_MS);
+    pit_us_init(PIT_CH1, APP_SERVO_CONTROL_PERIOD_US);
 
     for(;;)
     {

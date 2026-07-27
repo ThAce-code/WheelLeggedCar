@@ -38,7 +38,7 @@
 
 #include "zf_common_typedef.h"
 
-#define PWM_DUTY_MAX     10000                 // PWM最大占空比  最大占空比越大占空比的步进值越小
+#define PWM_DUTY_MAX     20000                 // PWM最大占空比  最大占空比越大占空比的步进值越小
 
 // 此枚举定义不允许用户修改
 typedef enum // 枚举PWM引脚

@@ -9,7 +9,6 @@
 #include "app_safety.h"
 #include "sensor_imu.h"
 #include "control_leg.h"
-#include "actuator_servo.h"
 #include "actuator_motor.h"
 #include "control_chassis.h"
 #include "control_balance.h"
@@ -18,6 +17,9 @@
 
 static volatile uint32 app_tick_ms = 0;
 static volatile uint8 app_scheduler_pending = APP_FALSE;
+static uint32 app_scheduler_last_run_ms = 0U;
+static uint32 app_scheduler_missed_tick_count = 0U;
+static uint32 app_scheduler_max_gap_ms = 0U;
 
 static uint8 app_task_elapsed(uint32 now_ms, uint32 *last_ms, uint32 period_ms)
 {
@@ -33,6 +35,9 @@ void app_scheduler_init(void)
 {
     app_tick_ms = 0;
     app_scheduler_pending = APP_FALSE;
+    app_scheduler_last_run_ms = 0U;
+    app_scheduler_missed_tick_count = 0U;
+    app_scheduler_max_gap_ms = 0U;
 }
 
 void app_scheduler_tick_1ms(void)
@@ -51,10 +56,13 @@ void app_scheduler_run_pending(void)
     static uint32 telemetry_last_ms = 0;
     static uint32 host_command_last_ms = 0;
     static uint32 leg_last_ms = 0;
-    static uint32 servo_last_ms = 0;
     static uint32 chassis_last_ms = 0;
     static uint32 balance_last_ms = 0;
     uint32 now_ms;
+    uint32 gap_ms;
+#if (APP_IMU_USE_INT1 == 1U)
+    uint32 imu_source_ms;
+#endif
 
     if(APP_FALSE == app_scheduler_pending)
     {
@@ -63,15 +71,26 @@ void app_scheduler_run_pending(void)
     app_scheduler_pending = APP_FALSE;
     now_ms = app_tick_ms;
 
+    gap_ms = now_ms - app_scheduler_last_run_ms;
+    if(1U < gap_ms)
+    {
+        app_scheduler_missed_tick_count += gap_ms - 1U;
+    }
+    if(app_scheduler_max_gap_ms < gap_ms)
+    {
+        app_scheduler_max_gap_ms = gap_ms;
+    }
+    app_scheduler_last_run_ms = now_ms;
+
     if(APP_TRUE == app_task_elapsed(now_ms, &host_command_last_ms, APP_HOST_COMMAND_PERIOD_MS))
     {
         host_command_update(now_ms);
     }
 
 #if (APP_IMU_USE_INT1 == 1U)
-    if(APP_TRUE == sensor_imu_take_data_ready())
+    if(APP_TRUE == sensor_imu_take_data_ready(&imu_source_ms))
     {
-        sensor_imu_update(now_ms);
+        sensor_imu_update(imu_source_ms);
     }
 #else
     if(APP_TRUE == app_task_elapsed(now_ms, &imu_last_ms, APP_IMU_PERIOD_MS))
@@ -103,6 +122,11 @@ void app_scheduler_run_pending(void)
         app_safety_update(now_ms);
     }
 
+    if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
+    {
+        control_leg_update(now_ms);
+    }
+
     if(APP_TRUE == app_task_elapsed(now_ms, &chassis_last_ms, APP_CHASSIS_PERIOD_MS))
     {
         control_chassis_update(now_ms);
@@ -122,19 +146,19 @@ void app_scheduler_run_pending(void)
     {
         telemetry_update(now_ms);
     }
-
-    if(APP_TRUE == app_task_elapsed(now_ms, &leg_last_ms, APP_LEG_CONTROL_PERIOD_MS))
-    {
-        control_leg_update(now_ms);
-    }
-
-    if(APP_TRUE == app_task_elapsed(now_ms, &servo_last_ms, APP_SERVO_PERIOD_MS))
-    {
-        actuator_servo_update(now_ms);
-    }
 }
 
 uint32 app_scheduler_get_ms(void)
 {
     return app_tick_ms;
+}
+
+uint32 app_scheduler_get_missed_tick_count(void)
+{
+    return app_scheduler_missed_tick_count;
+}
+
+uint32 app_scheduler_get_max_gap_ms(void)
+{
+    return app_scheduler_max_gap_ms;
 }

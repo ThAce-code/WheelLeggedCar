@@ -29,7 +29,7 @@ Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_RPM_LIMIT" "Mis
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_LIMIT_DPS" "Missing turn-rate limit."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_FORWARD_RAMP_RPM_S" "Missing forward ramp."
 Assert-Contains "project/code/app_config.h" "APP_CHASSIS_TURN_RATE_RAMP_DPS_S" "Missing turn-rate ramp."
-Assert-NotContains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS" "Chassis command timeout must stay disabled."
+Assert-Contains "project/code/app_config.h" "APP_CHASSIS_CMD_TIMEOUT_MS\s+\(500U\)" "Chassis command timeout must stop stale host motion."
 
 # V2 struct fields
 Assert-Contains "project/code/app_types.h" "target_forward_rpm" "Missing target forward field."

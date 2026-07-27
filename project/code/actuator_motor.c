@@ -182,10 +182,17 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
 
     bldc_foc_uart_copy_feedback(&raw_snapshot);
     raw = &raw_snapshot;
+#if APP_MOTOR_DRIVER_CHANNELS_SWAPPED
+    actuator_motor_feedback.left_motor_rpm = raw->right_motor_rpm;
+    actuator_motor_feedback.right_motor_rpm = raw->left_motor_rpm;
+    actuator_motor_feedback.left_reduced_angle = raw->right_reduced_angle;
+    actuator_motor_feedback.right_reduced_angle = raw->left_reduced_angle;
+#else
     actuator_motor_feedback.left_motor_rpm = raw->left_motor_rpm;
     actuator_motor_feedback.right_motor_rpm = raw->right_motor_rpm;
     actuator_motor_feedback.left_reduced_angle = raw->left_reduced_angle;
     actuator_motor_feedback.right_reduced_angle = raw->right_reduced_angle;
+#endif
     actuator_motor_feedback.last_rx_ms = raw->last_rx_ms;
 
     if(APP_TRUE == raw->online)
@@ -215,15 +222,15 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
             int16 abs_left_rpm;
             int16 abs_right_rpm;
 
-            abs_left_rpm = (raw->left_motor_rpm >= 0)
-                         ? raw->left_motor_rpm
-                         : (int16)(-raw->left_motor_rpm);
-            abs_right_rpm = (raw->right_motor_rpm >= 0)
-                          ? raw->right_motor_rpm
-                          : (int16)(-raw->right_motor_rpm);
+            abs_left_rpm = (actuator_motor_feedback.left_motor_rpm >= 0)
+                         ? actuator_motor_feedback.left_motor_rpm
+                         : (int16)(-actuator_motor_feedback.left_motor_rpm);
+            abs_right_rpm = (actuator_motor_feedback.right_motor_rpm >= 0)
+                          ? actuator_motor_feedback.right_motor_rpm
+                          : (int16)(-actuator_motor_feedback.right_motor_rpm);
 
             /* Left encoder fault: zero RPM while right side shows >= 100 RPM */
-            if((0 == raw->left_motor_rpm) && (abs_right_rpm >= 100))
+            if((0 == actuator_motor_feedback.left_motor_rpm) && (abs_right_rpm >= 100))
             {
                 if(0U == actuator_motor_left_rpm_zero_since_ms)
                 {
@@ -240,7 +247,7 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
             }
 
             /* Right encoder fault: zero RPM while left side shows >= 100 RPM */
-            if((0 == raw->right_motor_rpm) && (abs_left_rpm >= 100))
+            if((0 == actuator_motor_feedback.right_motor_rpm) && (abs_left_rpm >= 100))
             {
                 if(0U == actuator_motor_right_rpm_zero_since_ms)
                 {
@@ -263,10 +270,17 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
         actuator_motor_feedback.right_online = APP_FALSE;
     }
 
+#if APP_MOTOR_DRIVER_CHANNELS_SWAPPED
+    actuator_motor_diag.left_raw_angle = raw->right_angle;
+    actuator_motor_diag.right_raw_angle = raw->left_angle;
+    actuator_motor_diag.last_tx_left = raw->last_tx_right;
+    actuator_motor_diag.last_tx_right = raw->last_tx_left;
+#else
     actuator_motor_diag.left_raw_angle = raw->left_angle;
     actuator_motor_diag.right_raw_angle = raw->right_angle;
     actuator_motor_diag.last_tx_left = raw->last_tx_left;
     actuator_motor_diag.last_tx_right = raw->last_tx_right;
+#endif
     actuator_motor_diag.checksum_error_count = raw->checksum_error_count;
     actuator_motor_diag.feedback_range_error_count = raw->feedback_range_error_count;
     actuator_motor_diag.unknown_frame_count = raw->unknown_frame_count;
@@ -295,7 +309,11 @@ static void actuator_motor_send_duty(int16 left_duty, int16 right_duty)
 #endif
     actuator_motor_last_left_duty = left_duty;
     actuator_motor_last_right_duty = right_duty;
+#if APP_MOTOR_DRIVER_CHANNELS_SWAPPED
+    bldc_foc_uart_set_duty(right_duty, left_duty);
+#else
     bldc_foc_uart_set_duty(left_duty, right_duty);
+#endif
     actuator_motor_output_active = ((0 != left_duty) || (0 != right_duty)) ? APP_TRUE : APP_FALSE;
 }
 

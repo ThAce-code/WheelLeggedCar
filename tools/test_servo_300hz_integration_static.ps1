@@ -40,8 +40,13 @@ Require-Pattern $servo 'interrupt_global_disable\(\)' 'Frame flip and direct byp
 Require-Pattern $servo 'servo_motion_step\(' 'The 300 Hz tick must use the production LPF unit.'
 Require-Pattern $servo 'servo_motion_apply_immediate\(' 'Direct-step must synchronize all motion states.'
 
-Require-Pattern $config 'APP_TELEMETRY_PERIOD_MS\s+\(10U\)' 'Telemetry generation must run at 10 ms.'
-Require-Pattern $telemetry 'float vofa_data\[55\]' 'Servo validation telemetry must emit 55 floats.'
+Require-Pattern $config 'APP_TELEMETRY_PERIOD_MS\s+\(20U\)' 'Telemetry generation must run at 20 ms.'
+Require-Pattern $telemetry 'float vofa_data\[72\]' 'Servo validation telemetry must emit 72 floats.'
+Require-Pattern $telemetry 'vofa_data\[33\]\s*=\s*leg->left_command_pose_body_mm\.x_mm' 'Telemetry must expose left physical command X.'
+Require-Pattern $telemetry 'vofa_data\[34\]\s*=\s*leg->left_command_pose_body_mm\.y_mm' 'Telemetry must expose left physical command Y.'
+Require-Pattern $telemetry 'vofa_data\[35\]\s*=\s*leg->right_command_pose_body_mm\.x_mm' 'Telemetry must expose right physical command X.'
+Require-Pattern $telemetry 'vofa_data\[36\]\s*=\s*leg->right_command_pose_body_mm\.y_mm' 'Telemetry must expose right physical command Y.'
+Require-Pattern $telemetry 'vofa_data\[37\]\s*=\s*leg->ik_margin' 'Telemetry must retain IK margin after the pose coordinates.'
 Require-Pattern $telemetry 'vofa_data\[40\]\s*=\s*leg->drive_forward_limit_rpm' 'Telemetry must retain the forward drive limit.'
 Require-Pattern $telemetry 'vofa_data\[41\]\s*=\s*\(float\)leg->drive_allowed' 'Telemetry must retain drive permission.'
 Require-Pattern $telemetry 'vofa_data\[42\]\s*=\s*\(float\)leg->servo_fast_mode' 'Telemetry must expose the active speed profile.'
@@ -54,9 +59,10 @@ Require-Pattern $telemetry 'Cy_SCB_WriteArray\(' 'Telemetry TX must use the nonb
 Reject-Pattern $telemetry 'debug_send_buffer\(' 'Telemetry must not use the blocking debug sender.'
 Reject-Pattern $telemetry 'uart_write_buffer\(' 'Telemetry must not use the blocking UART writer.'
 
-$frameBytes = (55 * 4) + 4
+$frameBytes = (72 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0
-if(($txMs / 10.0) -ge 0.5) {
+$occupancy = $txMs / 20.0
+if($occupancy -ge 0.5) {
     throw 'Telemetry line utilization must remain below 50 percent.'
 }
 

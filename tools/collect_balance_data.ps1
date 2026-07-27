@@ -13,10 +13,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Tail = [byte[]](0x00, 0x00, 0x80, 0x7F)
-$FloatCount = 55
+$FloatCount = 72
 $PayloadLen = $FloatCount * 4
 $FrameLen = $PayloadLen + $Tail.Length
-$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_target_height_mm,leg_height_cmd_est_mm,leg_height_norm,leg_ik_valid,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_y_mm,leg_right_y_mm,leg_height_ref_mm,leg_height_rate_mm_s,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,note"
+$script:balanceTailSeeded = $false
+
+function Reset-BalanceTailLock {
+    $script:balanceTailSeeded = $false
+}
+
+$Fields = "pc_time_s,elapsed_s,sample_index,last_command,time_ms,balance_mode,roll_deg,pitch_deg,yaw_deg,pitch_rate_dps,balance_rpm,feedback_online,left_motor_rpm,right_motor_rpm,left_duty,right_duty,leg_mode,leg_legacy_stance_target_units,leg_legacy_stance_ref_units,leg_legacy_stance_norm,leg_pose_status_flags,leg_ik_valid,leg_left_pose_valid,leg_right_pose_valid,leg_left_pose_source,leg_right_pose_source,leg_output_enable,servo0_output_deg,servo1_output_deg,servo2_output_deg,servo3_output_deg,servo0_target_deg,servo1_target_deg,servo2_target_deg,servo3_target_deg,servo0_filtered_deg,servo1_filtered_deg,servo2_filtered_deg,servo3_filtered_deg,servo_max_error_deg,servo_settled,servo_s7_progress,leg_left_command_x_mm,leg_left_command_y_mm,leg_right_command_x_mm,leg_right_command_y_mm,leg_ik_margin,leg_motion_state,leg_fault_reason,leg_drive_forward_limit_rpm,leg_drive_allowed,servo_fast_mode,servo_direct_bypass,servo_trajectory_mode,servo_s7_remaining_ms,firmware_frame_sequence,telemetry_drop_count,scheduler_missed_tick_count,scheduler_max_gap_ms,servo_tick_count,imu_int_count,imu_invalid_count,imu_age_ms,gyro_y_raw_dps,race_assist_enable,race_assist_level,race_assist_state,race_assist_fault_reason,race_u_request,race_u_actual,requested_accel_rpm_s,forward_target_rpm,forward_ramped_rpm,wheel_speed_measured_rpm,speed_error_rpm,pitch_setpoint_deg,balance_output_limit_rpm,race_turn_scale,left_ik_margin,right_ik_margin,ik_branch_flags,note"
 
 function Parse-CommandSchedule {
     param([string]$Text)
@@ -103,21 +109,28 @@ function Pop-BalanceFrames {
         if($tailIndex -lt 0) {
             if($Buffer.Count -gt ($FrameLen * 4)) {
                 $Buffer.RemoveRange(0, $Buffer.Count - $FrameLen)
+                Reset-BalanceTailLock
             }
             break
         }
 
-        if($tailIndex -ge $PayloadLen) {
-            $payloadStart = $tailIndex - $PayloadLen
+        # The first observed tail is only a synchronization anchor. Afterwards
+        # decode only an adjacent 72-float payload, never by backtracking from
+        # an arbitrary tail that could belong to a legacy or corrupt frame.
+        if($script:balanceTailSeeded -and ($tailIndex -eq $PayloadLen)) {
             $payload = New-Object byte[] $PayloadLen
             for($i = 0; $i -lt $PayloadLen; $i++) {
-                $payload[$i] = $Buffer[$payloadStart + $i]
+                $payload[$i] = $Buffer[$i]
             }
 
             $values = New-Object double[] $FloatCount
             for($i = 0; $i -lt $FloatCount; $i++) {
                 $values[$i] = [BitConverter]::ToSingle($payload, $i * 4)
             }
+
+            $poseStatusFlags = [uint32][Math]::Round($values[16])
+            $leftPoseSource = if(($poseStatusFlags -band (1 -shl 3)) -ne 0) { "measured_calibration" } else { "none" }
+            $rightPoseSource = if(($poseStatusFlags -band (1 -shl 4)) -ne 0) { "mirror_assumption" } else { "none" }
 
             $frames.Add([pscustomobject]@{
                 time_ms = $values[0]
@@ -128,15 +141,20 @@ function Pop-BalanceFrames {
                 pitch_rate_dps = $values[5]
                 balance_rpm = $values[6]
                 feedback_online = $values[7]
-                left_motor_rpm = $values[8]
-                right_motor_rpm = $values[9]
-                left_duty = $values[10]
-                right_duty = $values[11]
+                right_motor_rpm = $values[8]
+                left_motor_rpm = $values[9]
+                right_duty = $values[10]
+                left_duty = $values[11]
                 leg_mode = $values[12]
-                leg_target_height_mm = $values[13]
-                leg_height_cmd_est_mm = $values[14]
-                leg_height_norm = $values[15]
-                leg_ik_valid = $values[16]
+                leg_legacy_stance_target_units = $values[13]
+                leg_legacy_stance_ref_units = $values[14]
+                leg_legacy_stance_norm = $values[15]
+                leg_pose_status_flags = $values[16]
+                leg_ik_valid = [double](($poseStatusFlags -band (1 -shl 0)) -ne 0)
+                leg_left_pose_valid = [double](($poseStatusFlags -band (1 -shl 1)) -ne 0)
+                leg_right_pose_valid = [double](($poseStatusFlags -band (1 -shl 2)) -ne 0)
+                leg_left_pose_source = $leftPoseSource
+                leg_right_pose_source = $rightPoseSource
                 leg_output_enable = $values[17]
                 servo0_output_deg = $values[18]
                 servo1_output_deg = $values[19]
@@ -153,10 +171,10 @@ function Pop-BalanceFrames {
                 servo_max_error_deg = $values[30]
                 servo_settled = $values[31]
                 servo_s7_progress = $values[32]
-                leg_left_y_mm = $values[33]
-                leg_right_y_mm = $values[34]
-                leg_height_ref_mm = $values[35]
-                leg_height_rate_mm_s = $values[36]
+                leg_left_command_x_mm = $values[33]
+                leg_left_command_y_mm = $values[34]
+                leg_right_command_x_mm = $values[35]
+                leg_right_command_y_mm = $values[36]
                 leg_ik_margin = $values[37]
                 leg_motion_state = $values[38]
                 leg_fault_reason = $values[39]
@@ -175,10 +193,28 @@ function Pop-BalanceFrames {
                 imu_invalid_count = $values[52]
                 imu_age_ms = $values[53]
                 gyro_y_raw_dps = $values[54]
+                race_assist_enable = $values[55]
+                race_assist_level = $values[56]
+                race_assist_state = $values[57]
+                race_assist_fault_reason = $values[58]
+                race_u_request = $values[59]
+                race_u_actual = $values[60]
+                requested_accel_rpm_s = $values[61]
+                forward_target_rpm = $values[62]
+                forward_ramped_rpm = $values[63]
+                wheel_speed_measured_rpm = $values[64]
+                speed_error_rpm = $values[65]
+                pitch_setpoint_deg = $values[66]
+                balance_output_limit_rpm = $values[67]
+                race_turn_scale = $values[68]
+                left_ik_margin = $values[69]
+                right_ik_margin = $values[70]
+                ik_branch_flags = $values[71]
             })
         }
 
         $Buffer.RemoveRange(0, $tailIndex + $Tail.Length)
+        $script:balanceTailSeeded = $true
     }
 
     return $frames
@@ -238,6 +274,7 @@ try {
     $serial.Open()
     $writer.WriteLine($Fields)
     $serial.DiscardInBuffer()
+    Reset-BalanceTailLock
     $stopwatch.Start()
 
     Write-Host ("collecting balance telemetry on {0} at {1} baud for {2:F2}s" -f $Port, $Baud, $Duration)
@@ -285,10 +322,15 @@ try {
                     ("{0:F3}" -f $frame.left_duty),
                     ("{0:F3}" -f $frame.right_duty),
                     ("{0:F3}" -f $frame.leg_mode),
-                    ("{0:F3}" -f $frame.leg_target_height_mm),
-                    ("{0:F3}" -f $frame.leg_height_cmd_est_mm),
-                    ("{0:F6}" -f $frame.leg_height_norm),
+                    ("{0:F3}" -f $frame.leg_legacy_stance_target_units),
+                    ("{0:F3}" -f $frame.leg_legacy_stance_ref_units),
+                    ("{0:F6}" -f $frame.leg_legacy_stance_norm),
+                    ("{0:F0}" -f $frame.leg_pose_status_flags),
                     ("{0:F3}" -f $frame.leg_ik_valid),
+                    ("{0:F3}" -f $frame.leg_left_pose_valid),
+                    ("{0:F3}" -f $frame.leg_right_pose_valid),
+                    $frame.leg_left_pose_source,
+                    $frame.leg_right_pose_source,
                     ("{0:F3}" -f $frame.leg_output_enable),
                     ("{0:F6}" -f $frame.servo0_output_deg),
                     ("{0:F6}" -f $frame.servo1_output_deg),
@@ -305,10 +347,10 @@ try {
                     ("{0:F6}" -f $frame.servo_max_error_deg),
                     ("{0:F3}" -f $frame.servo_settled),
                     ("{0:F6}" -f $frame.servo_s7_progress),
-                    ("{0:F3}" -f $frame.leg_left_y_mm),
-                    ("{0:F3}" -f $frame.leg_right_y_mm),
-                    ("{0:F3}" -f $frame.leg_height_ref_mm),
-                    ("{0:F6}" -f $frame.leg_height_rate_mm_s),
+                    ("{0:F3}" -f $frame.leg_left_command_x_mm),
+                    ("{0:F3}" -f $frame.leg_left_command_y_mm),
+                    ("{0:F3}" -f $frame.leg_right_command_x_mm),
+                    ("{0:F3}" -f $frame.leg_right_command_y_mm),
                     ("{0:F6}" -f $frame.leg_ik_margin),
                     ("{0:F3}" -f $frame.leg_motion_state),
                     ("{0:F3}" -f $frame.leg_fault_reason),
@@ -327,6 +369,23 @@ try {
                     ("{0:F3}" -f $frame.imu_invalid_count),
                     ("{0:F3}" -f $frame.imu_age_ms),
                     ("{0:F6}" -f $frame.gyro_y_raw_dps),
+                    ("{0:F0}" -f $frame.race_assist_enable),
+                    ("{0:F0}" -f $frame.race_assist_level),
+                    ("{0:F0}" -f $frame.race_assist_state),
+                    ("{0:F0}" -f $frame.race_assist_fault_reason),
+                    ("{0:F6}" -f $frame.race_u_request),
+                    ("{0:F6}" -f $frame.race_u_actual),
+                    ("{0:F3}" -f $frame.requested_accel_rpm_s),
+                    ("{0:F3}" -f $frame.forward_target_rpm),
+                    ("{0:F3}" -f $frame.forward_ramped_rpm),
+                    ("{0:F3}" -f $frame.wheel_speed_measured_rpm),
+                    ("{0:F3}" -f $frame.speed_error_rpm),
+                    ("{0:F6}" -f $frame.pitch_setpoint_deg),
+                    ("{0:F3}" -f $frame.balance_output_limit_rpm),
+                    ("{0:F6}" -f $frame.race_turn_scale),
+                    ("{0:F6}" -f $frame.left_ik_margin),
+                    ("{0:F6}" -f $frame.right_ik_margin),
+                    ("{0:F0}" -f $frame.ik_branch_flags),
                     (Convert-CsvField $Note)
                 )
                 $writer.WriteLine($row -join ",")

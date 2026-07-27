@@ -36,11 +36,6 @@ typedef enum
     LEG_IK_BRANCH_MINUS = 1
 }leg_ik_branch_enum;
 
-typedef enum
-{
-    LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT = 8
-}leg_physical_workspace_constant_enum;
-
 typedef struct
 {
     float l1_mm;
@@ -48,16 +43,10 @@ typedef struct
     float l3_mm;
     float l4_mm;
     float l5_mm;
-    float x_min_mm;
-    float x_max_mm;
-    float y_min_mm;
-    float y_max_mm;
     float physical_reference_x_mm;
     float physical_reference_y_mm;
     float alpha_reference_deg;
     float beta_reference_deg;
-    float command_direction_a;
-    float command_direction_b;
     float model_reference_x_mm;
     float model_reference_y_mm;
     float model_to_physical_scale;
@@ -65,8 +54,6 @@ typedef struct
     float model_to_physical_m01;
     float model_to_physical_m10;
     float model_to_physical_m11;
-    float physical_workspace[LEG_PHYSICAL_WORKSPACE_VERTEX_COUNT][2];
-    float physical_workspace_inset_mm;
     leg_ik_branch_enum left_alpha_branch;
     leg_ik_branch_enum left_beta_branch;
     leg_ik_branch_enum right_alpha_branch;
@@ -75,19 +62,19 @@ typedef struct
 
 typedef struct
 {
-    float low_height_mm;
-    float high_height_mm;
-    float default_height_mm;
-    float max_height_speed_mm_s;
-    float max_height_accel_mm_s2;
-    float max_height_jerk_mm_s3;
-    float height_position_kp_s;
-    float height_rate_kp_s;
-    float height_settle_error_mm;
-    uint32 height_settle_ms;
-    uint32 fast_height_transition_ms;
+    float legacy_low_units;
+    float legacy_high_units;
+    float legacy_default_units;
+    float legacy_max_rate_units_s;
+    float legacy_max_accel_units_s2;
+    float legacy_max_jerk_units_s3;
+    float legacy_position_kp_s;
+    float legacy_rate_kp_s;
+    float legacy_settle_error_units;
+    uint32 legacy_settle_ms;
+    uint32 fast_stance_transition_ms;
     float ik_min_margin;
-    float safe_support_height_mm;
+    float legacy_safe_support_units;
     float transition_forward_limit_rpm;
     float balance_pitch_kp_low;
     float balance_pitch_kp_high;
@@ -101,15 +88,15 @@ typedef struct
     float chassis_forward_limit_high_rpm;
     float chassis_fast_forward_limit_low_rpm;
     float chassis_fast_forward_limit_high_rpm;
-}leg_height_profile_struct;
+}leg_stance_profile_struct;
 
 typedef struct
 {
     leg_servo_config_struct servo[LEG_SERVO_COUNT];
     leg_kinematics_config_struct kinematics;
-    leg_height_profile_struct height_profile;
-    float  height_min;
-    float  height_max;
+    leg_stance_profile_struct stance_profile;
+    float  legacy_body_min_units;
+    float  legacy_body_max_units;
     float  pitch_limit;
     float  roll_limit;
 }leg_config_struct;
@@ -117,6 +104,6 @@ typedef struct
 const leg_config_struct           *leg_config_get(void);
 const leg_servo_config_struct     *leg_config_get_servo(uint8 leg_id);
 const leg_kinematics_config_struct *leg_config_get_kinematics(void);
-const leg_height_profile_struct   *leg_config_get_height_profile(void);
+const leg_stance_profile_struct   *leg_config_get_stance_profile(void);
 
 #endif

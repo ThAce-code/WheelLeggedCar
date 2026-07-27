@@ -66,18 +66,28 @@ Require-Pattern $leg 'servo_target_deg\[i\]\s*=\s*control_leg_actuator_diag\.tar
 Reject-Pattern $leg 'servo_target_deg\[i\]\s*=\s*control_leg_servo_cmd\.angle_deg\[i\]' 'Planner and actuator snapshots must not be mixed in one telemetry frame.'
 
 # The hardware log must make scheduler skips, servo ISR progress and telemetry
-# backpressure observable while keeping the 10 ms UART frame below 50% usage.
+# backpressure observable while keeping the 20 ms UART frame below 50% usage.
+Require-Pattern $config 'APP_TELEMETRY_PERIOD_MS\s+\(20U\)' 'Telemetry period must be 20 ms.'
+Require-Pattern $config 'APP_CHASSIS_PERIOD_MS\s+\(5U\)' 'Chassis control period must remain 5 ms.'
+Require-Pattern $config 'APP_BALANCE_PERIOD_MS\s+\(5U\)' 'Balance control period must remain 5 ms.'
+Require-Pattern $config 'APP_LEG_CONTROL_PERIOD_MS\s+\(10U\)' 'Leg control period must remain 10 ms.'
+Require-Pattern $config 'APP_MOTOR_PERIOD_MS\s+\(1U\)' 'Motor control period must remain 1 ms.'
+Require-Pattern $config 'APP_SERVO_PWM_FREQ_HZ\s+\(300U\)' 'Servo PWM frequency must remain 300 Hz.'
 Require-Pattern $schedulerH 'app_scheduler_get_missed_tick_count' 'Scheduler must expose merged tick count.'
 Require-Pattern $schedulerH 'app_scheduler_get_max_gap_ms' 'Scheduler must expose its maximum service gap.'
 Require-Pattern $scheduler 'app_scheduler_missed_tick_count\s*\+=' 'Scheduler must count merged 1 ms ticks.'
 Require-Pattern $servoH 'actuator_servo_get_tick_count' 'Servo actuator must expose its 300 Hz ISR tick count.'
-Require-Pattern $telemetry 'float vofa_data\[55\]' 'Timing telemetry must emit 55 floats.'
+Require-Pattern $telemetry 'float vofa_data\[72\]' 'Timing telemetry must emit 72 floats.'
 Require-Pattern $telemetry 'telemetry_drop_count\+\+' 'Telemetry must count frames skipped under backpressure.'
-Require-Pattern $collector '\$FloatCount\s*=\s*55' 'Collector must parse the timing diagnostics frame.'
+Require-Pattern $collector '\$FloatCount\s*=\s*72' 'Collector must parse the timing diagnostics frame.'
+Require-Pattern $collector 'leg_pose_status_flags' 'Collector must retain the packed pose status float.'
+Require-Pattern $collector 'measured_calibration' 'Collector must decode measured-calibration provenance.'
+Require-Pattern $collector 'mirror_assumption' 'Collector must decode mirror-assumption provenance.'
 
-$frameBytes = (55 * 4) + 4
+$frameBytes = (72 * 4) + 4
 $txMs = $frameBytes * 10.0 * 1000.0 / 460800.0
-if(($txMs / 10.0) -ge 0.5) {
+$occupancy = $txMs / 20.0
+if($occupancy -ge 0.5) {
     throw 'Timing telemetry line utilization must remain below 50 percent.'
 }
 
@@ -101,14 +111,14 @@ Require-Pattern $imu 'APP_IMU_GYRO_CAL_RETRY_COUNT' 'IMU initialization must ret
 Require-Pattern $imu 'return SENSOR_IMU_ERR_GYRO_CAL;' 'Persistent gyro calibration failure needs a distinct error code.'
 
 # Drain the 64-byte vendor RX ring at 1 kHz under a short critical section,
-# expire incomplete lines, and stop drive commands after host silence.
+# expire incomplete lines, and preserve explicit drive commands until STOP.
 Require-Pattern $config 'APP_HOST_COMMAND_PERIOD_MS\s+\(1U\)' 'Host RX ring must be drained every millisecond.'
-Require-Pattern $config 'APP_HOST_COMMAND_TIMEOUT_MS\s+\(500U\)' 'Direct motor commands need a host-loss timeout.'
-Require-Pattern $config 'APP_CHASSIS_CMD_TIMEOUT_MS\s+\(500U\)' 'Chassis drive commands need a host-loss timeout.'
+Require-Pattern $config 'APP_HOST_COMMAND_TIMEOUT_MS\s+\(0U\)' 'Direct motor commands must persist until an explicit stop.'
+Require-Pattern $config 'APP_CHASSIS_CMD_TIMEOUT_MS\s+\(0U\)' 'Chassis drive commands must persist until an explicit stop.'
 Require-Pattern $hostSource 'HOST_COMMAND_RX_BUFFER_LEN\s+\(64U\)' 'One host pass must be able to drain the full vendor RX ring.'
 Require-Pattern $hostSource 'interrupt_global_disable\(\)[\s\S]*debug_read_ring_buffer' 'Host FIFO read must be atomic against the UART ISR writer.'
 Require-Pattern $hostSource 'HOST_COMMAND_LINE_TIMEOUT_MS' 'Incomplete command lines must expire.'
-Require-Pattern $chassis 'APP_CHASSIS_CMD_TIMEOUT_MS\s*<\s*\(now_ms - control_chassis_cmd\.last_cmd_ms\)' 'Chassis must stop stale drive commands.'
+Require-Pattern $chassis '#if\s+\(0U\s*!=\s*APP_CHASSIS_CMD_TIMEOUT_MS\)[\s\S]*APP_CHASSIS_CMD_TIMEOUT_MS\s*<\s*\(now_ms - control_chassis_cmd\.last_cmd_ms\)[\s\S]*#endif' 'Zero chassis timeout must disable stale-command stopping.'
 Require-Pattern $hostSource 'if\(0U == lsm6dsv16x_gyro_offset_init\(\)\)[\s\S]*actuator_motor_record_command_error\(APP_FALSE\)[\s\S]*actuator_motor_record_command_error\(APP_TRUE\)' 'IMU_ZERO must report a moving-base calibration failure.'
 
 # All long-running millisecond logic must remain valid across uint32 wrap.

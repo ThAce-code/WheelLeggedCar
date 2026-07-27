@@ -108,6 +108,7 @@ static float control_balance_get_ident_rpm(uint32 now_ms)
 static void control_balance_stop_output(void)
 {
     control_balance_diag.balance_rpm = 0.0f;
+    control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
     control_balance_diag.output_left_rpm = 0.0f;
     control_balance_diag.output_right_rpm = 0.0f;
     control_balance_diag.output_enable = APP_FALSE;
@@ -132,6 +133,7 @@ void control_balance_init(void)
     control_balance_diag.chassis_left_rpm = 0.0f;
     control_balance_diag.chassis_right_rpm = 0.0f;
     control_balance_diag.balance_rpm = 0.0f;
+    control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
     control_balance_diag.output_left_rpm = 0.0f;
     control_balance_diag.output_right_rpm = 0.0f;
     control_balance_pitch_kp = APP_BALANCE_PITCH_KP;
@@ -173,7 +175,7 @@ void control_balance_init(void)
     control_balance_diag.speed_term_rpm = 0.0f;
     control_balance_diag.pos_term_rpm = 0.0f;
     control_balance_diag.ff_term_rpm = 0.0f;
-    control_balance_diag.leg_height_norm = 0.0f;
+    control_balance_diag.legacy_stance_norm = 0.0f;
     control_balance_diag.balance_pitch_kp_eff = control_balance_pitch_kp;
     control_balance_diag.balance_pitch_rate_kd_eff = control_balance_pitch_rate_kd;
     control_balance_diag.balance_wheel_speed_ks_eff = control_balance_wheel_speed_ks;
@@ -195,6 +197,7 @@ void control_balance_update(uint32 now_ms)
     float balance_rpm;
     float ident_rpm;
     float pitch_setpoint_deg;
+    float balance_output_limit_rpm;
     float output_left_rpm;
     float output_right_rpm;
     const motor_rpm_loop_diag_struct *rpm_diag;
@@ -219,7 +222,7 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.pitch_deg = imu->pitch;
     control_balance_diag.chassis_left_rpm = -chassis->turn_rpm;
     control_balance_diag.chassis_right_rpm = chassis->turn_rpm;
-    control_balance_diag.drive_forward_target_rpm = chassis->forward_target_rpm;
+    control_balance_diag.drive_forward_target_rpm = chassis->forward_ramped_rpm;
     control_balance_diag.drive_forward_actual_rpm = chassis->forward_actual_rpm;
     control_balance_diag.drive_speed_pitch_offset_deg = chassis->pitch_offset_deg;
     control_balance_diag.drive_turn_target_dps = chassis->turn_target_dps;
@@ -271,6 +274,7 @@ void control_balance_update(uint32 now_ms)
     {
         control_balance_diag.safety_blocked = APP_TRUE;
         control_balance_diag.balance_rpm = 0.0f;
+        control_balance_diag.balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
         control_balance_diag.output_left_rpm = 0.0f;
         control_balance_diag.output_right_rpm = 0.0f;
         control_balance_diag.output_enable = APP_FALSE;
@@ -297,6 +301,14 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == control_balance_is_finite(imu->pitch)) ||
        (APP_FALSE == control_balance_is_finite(pitch_rate_dps)) ||
        (APP_FALSE == control_balance_is_finite(wheel_speed_rpm)) ||
+       ((LEG_MOTION_RACE_ASSIST == leg->motion_state) &&
+        ((APP_TRUE != leg->ik_valid) ||
+         (APP_TRUE != leg->output_enable) ||
+         (APP_TRUE != leg->drive_allowed))) ||
+       ((LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) &&
+        ((APP_TRUE != leg->held_command_valid) ||
+         (APP_TRUE != leg->output_enable) ||
+         (APP_TRUE != leg->drive_allowed))) ||
        (APP_BALANCE_TEST_PITCH_LIMIT_DEG < control_balance_absf(imu->pitch)))
     {
         control_balance_diag.safety_blocked = APP_TRUE;
@@ -313,43 +325,53 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.wheel_pos_rev = control_balance_wheel_pos_rev;
 
     {
-        const leg_height_profile_struct *height_profile;
-        float height_norm;
+        const leg_stance_profile_struct *stance_profile;
+        float legacy_stance_norm;
         float pitch_kp_eff;
         float pitch_rate_kd_eff;
         float wheel_speed_ks_base_eff;
         float pitch_setpoint_base_eff;
 
-        height_profile = leg_config_get_height_profile();
-        if(height_profile->high_height_mm > height_profile->low_height_mm)
+        stance_profile = leg_config_get_stance_profile();
+        if(stance_profile->legacy_high_units > stance_profile->legacy_low_units)
         {
-            height_norm = (leg->height_ref_mm - height_profile->low_height_mm) /
-                          (height_profile->high_height_mm - height_profile->low_height_mm);
+            legacy_stance_norm =
+                (leg->legacy_stance_ref_units - stance_profile->legacy_low_units) /
+                (stance_profile->legacy_high_units - stance_profile->legacy_low_units);
         }
         else
         {
-            height_norm = 0.0f;
+            legacy_stance_norm = 0.0f;
         }
-        height_norm = control_balance_clamp01(height_norm);
+        legacy_stance_norm = control_balance_clamp01(legacy_stance_norm);
+        if((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+           (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state))
+        {
+            /* The low race pose is Cartesian IK; legacy units are stale here. */
+            legacy_stance_norm = 0.0f;
+        }
 
-        if(((LEG_MOTION_TRANSITION == leg->motion_state) ||
-            (LEG_MOTION_STABLE == leg->motion_state)) &&
-           (APP_TRUE == leg->ik_valid) &&
+        if(((((LEG_MOTION_TRANSITION == leg->motion_state) ||
+              (LEG_MOTION_STABLE == leg->motion_state) ||
+              (LEG_MOTION_RACE_ASSIST == leg->motion_state)) &&
+             (APP_TRUE == leg->ik_valid)) ||
+            ((LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) &&
+             (APP_TRUE == leg->held_command_valid))) &&
            (APP_TRUE == leg->output_enable) &&
            (APP_TRUE == leg->drive_allowed))
         {
-            pitch_kp_eff = control_balance_lerp(height_profile->balance_pitch_kp_low,
-                                                height_profile->balance_pitch_kp_high,
-                                                height_norm);
-            pitch_rate_kd_eff = control_balance_lerp(height_profile->balance_pitch_rate_kd_low,
-                                                     height_profile->balance_pitch_rate_kd_high,
-                                                     height_norm);
-            wheel_speed_ks_base_eff = control_balance_lerp(height_profile->balance_wheel_speed_ks_low,
-                                                           height_profile->balance_wheel_speed_ks_high,
-                                                           height_norm);
-            pitch_setpoint_base_eff = control_balance_lerp(height_profile->balance_pitch_setpoint_low_deg,
-                                                           height_profile->balance_pitch_setpoint_high_deg,
-                                                           height_norm);
+            pitch_kp_eff = control_balance_lerp(stance_profile->balance_pitch_kp_low,
+                                                stance_profile->balance_pitch_kp_high,
+                                                legacy_stance_norm);
+            pitch_rate_kd_eff = control_balance_lerp(stance_profile->balance_pitch_rate_kd_low,
+                                                     stance_profile->balance_pitch_rate_kd_high,
+                                                     legacy_stance_norm);
+            wheel_speed_ks_base_eff = control_balance_lerp(stance_profile->balance_wheel_speed_ks_low,
+                                                           stance_profile->balance_wheel_speed_ks_high,
+                                                           legacy_stance_norm);
+            pitch_setpoint_base_eff = control_balance_lerp(stance_profile->balance_pitch_setpoint_low_deg,
+                                                           stance_profile->balance_pitch_setpoint_high_deg,
+                                                           legacy_stance_norm);
         }
         else
         {
@@ -370,11 +392,12 @@ void control_balance_update(uint32 now_ms)
 
         pitch_term_rpm = pitch_kp_eff * (imu->pitch - pitch_setpoint_deg);
         rate_term_rpm = pitch_rate_kd_eff * pitch_rate_dps;
-        speed_term_rpm = effective_wheel_speed_ks * wheel_speed_rpm;
+        /* Wheel RPM is positive vehicle-forward; positive Ks is damping magnitude. */
+        speed_term_rpm = -effective_wheel_speed_ks * wheel_speed_rpm;
         pos_term_rpm = control_balance_wheel_pos_kp * control_balance_wheel_pos_rev;
         ff_term_rpm = chassis->speed_ff_rpm;
 
-        control_balance_diag.leg_height_norm = height_norm;
+        control_balance_diag.legacy_stance_norm = legacy_stance_norm;
         control_balance_diag.balance_pitch_kp_eff = pitch_kp_eff;
         control_balance_diag.balance_pitch_rate_kd_eff = pitch_rate_kd_eff;
         control_balance_diag.balance_wheel_speed_ks_eff = wheel_speed_ks_base_eff;
@@ -390,7 +413,17 @@ void control_balance_update(uint32 now_ms)
                   ff_term_rpm;
     ident_rpm = control_balance_get_ident_rpm(now_ms);
     balance_rpm += ident_rpm;
-    balance_rpm = control_balance_limit_abs(balance_rpm, APP_BALANCE_RPM_LIMIT);
+    balance_output_limit_rpm = chassis->race_balance_limit_rpm;
+    if((APP_FALSE == control_balance_is_finite(balance_output_limit_rpm)) ||
+       (0.0f >= balance_output_limit_rpm))
+    {
+        balance_output_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
+    }
+    if(APP_BALANCE_RPM_LIMIT < balance_output_limit_rpm)
+    {
+        balance_output_limit_rpm = APP_BALANCE_RPM_LIMIT;
+    }
+    balance_rpm = control_balance_limit_abs(balance_rpm, balance_output_limit_rpm);
 
     output_left_rpm = balance_rpm - chassis->turn_rpm;
     output_right_rpm = balance_rpm + chassis->turn_rpm;
@@ -405,6 +438,7 @@ void control_balance_update(uint32 now_ms)
        (APP_FALSE == control_balance_is_finite(speed_term_rpm)) ||
        (APP_FALSE == control_balance_is_finite(pos_term_rpm)) ||
        (APP_FALSE == control_balance_is_finite(ff_term_rpm)) ||
+       (APP_FALSE == control_balance_is_finite(balance_output_limit_rpm)) ||
        (APP_FALSE == control_balance_is_finite(balance_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_left_rpm)) ||
        (APP_FALSE == control_balance_is_finite(output_right_rpm)))
@@ -422,6 +456,7 @@ void control_balance_update(uint32 now_ms)
     control_balance_diag.pos_term_rpm = pos_term_rpm;
     control_balance_diag.ff_term_rpm = ff_term_rpm;
     control_balance_diag.balance_rpm = balance_rpm;
+    control_balance_diag.balance_output_limit_rpm = balance_output_limit_rpm;
     control_balance_diag.output_left_rpm = output_left_rpm;
     control_balance_diag.output_right_rpm = output_right_rpm;
     control_balance_diag.output_enable = APP_TRUE;

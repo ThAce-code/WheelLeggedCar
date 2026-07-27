@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
 * File: telemetry.c
-* Description: VOFA+ telemetry with fixed GNSS, balance, and motor profiles.
-*              The 84-byte GNSS frame takes about 1.82 ms at 460800 baud / 8N1 every 20 ms.
+* Description: VOFA+ telemetry with fixed GNSS, balance/race, and motor profiles.
+*              At 460800 baud / 8N1, the largest 72-float frame takes about 6.34 ms every 20 ms.
 *********************************************************************************************************************/
 
 #include "telemetry.h"
@@ -10,6 +10,7 @@
 #include "actuator_servo.h"
 #include "app_scheduler.h"
 #include "control_balance.h"
+#include "control_chassis.h"
 #include "control_leg.h"
 #include "gnss_types.h"
 #include "intercore_control.h"
@@ -19,7 +20,7 @@ static const uint8 telemetry_tail[4] = {0x00, 0x00, 0x80, 0x7F};
 #if (APP_TELEMETRY_PROFILE == APP_TELEMETRY_PROFILE_GNSS)
 static float vofa_data[20];
 #elif APP_TELEMETRY_BALANCE_ENABLE
-static float vofa_data[55];
+static float vofa_data[72];
 #else
 static float vofa_data[8];
 #endif
@@ -48,8 +49,10 @@ void telemetry_update(uint32 now_ms)
     uint8 gps_available;
 #elif APP_TELEMETRY_BALANCE_ENABLE
     const balance_diag_struct *balance;
+    const chassis_output_struct *chassis;
     const leg_diag_struct *leg;
     const imu_state_struct *imu;
+    uint32 pose_status_flags;
 #endif
 
     if(APP_TRUE == telemetry_tx_busy)
@@ -92,8 +95,30 @@ void telemetry_update(uint32 now_ms)
     telemetry_frame_sequence++;
 #elif APP_TELEMETRY_BALANCE_ENABLE
     balance = control_balance_get_diag();
+    chassis = control_chassis_get_output();
     leg = control_leg_get_diag();
     imu = sensor_imu_get_state();
+    pose_status_flags = 0U;
+    if(APP_TRUE == leg->ik_valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_IK_VALID;
+    }
+    if(APP_TRUE == leg->left_command_pose_body_mm.valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_LEFT_VALID;
+    }
+    if(APP_TRUE == leg->right_command_pose_body_mm.valid)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_RIGHT_VALID;
+    }
+    if(LEG_POSE_SOURCE_MEASURED_CALIBRATION == leg->left_command_pose_body_mm.source)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_LEFT_MEASURED;
+    }
+    if(LEG_POSE_SOURCE_MIRROR_ASSUMPTION == leg->right_command_pose_body_mm.source)
+    {
+        pose_status_flags |= LEG_POSE_STATUS_RIGHT_MIRROR;
+    }
 
     /* 0-11: core motor / balance / IMU */
     vofa_data[0]  = (float)now_ms;
@@ -104,17 +129,18 @@ void telemetry_update(uint32 now_ms)
     vofa_data[5]  = balance->pitch_rate_dps;
     vofa_data[6]  = balance->balance_rpm;
     vofa_data[7]  = (float)(wheel->online && wheel->left_online && wheel->right_online);
-    vofa_data[8]  = rpm_diag->left_motor_rpm;
-    vofa_data[9]  = rpm_diag->right_motor_rpm;
-    vofa_data[10] = rpm_diag->left_duty;
-    vofa_data[11] = rpm_diag->right_duty;
+    /* Installed-car wire contract: channel 2 (I9/I11) is physical left. */
+    vofa_data[8]  = rpm_diag->right_motor_rpm;
+    vofa_data[9]  = rpm_diag->left_motor_rpm;
+    vofa_data[10] = rpm_diag->right_duty;
+    vofa_data[11] = rpm_diag->left_duty;
 
-    /* 12-17: leg height / IK */
+    /* 12-17: legacy leg stance / IK */
     vofa_data[12] = (float)leg->mode;
-    vofa_data[13] = leg->target_height_mm;
-    vofa_data[14] = leg->actual_height_mm;
-    vofa_data[15] = leg->height_norm;
-    vofa_data[16] = (float)leg->ik_valid;
+    vofa_data[13] = leg->legacy_stance_target_units;
+    vofa_data[14] = leg->legacy_stance_ref_units;
+    vofa_data[15] = leg->legacy_stance_norm;
+    vofa_data[16] = (float)pose_status_flags;
     vofa_data[17] = (float)leg->output_enable;
 
     /* 18-21: servo output commands (open-loop PWM) */
@@ -140,14 +166,14 @@ void telemetry_update(uint32 now_ms)
     vofa_data[31] = (float)leg->servo_settled;
     vofa_data[32] = leg->servo_s7_progress;
 
-    /* 33-34: IK target Y (height) for LXY validation */
-    vofa_data[33] = leg->left_y_mm;
-    vofa_data[34] = leg->right_y_mm;
-
-    /* 35-39: leg motion state */
-    vofa_data[35] = leg->height_ref_mm;
-    vofa_data[36] = leg->height_rate_mm_s;
+    /* 33-37: physical command poses and IK margin */
+    vofa_data[33] = leg->left_command_pose_body_mm.x_mm;
+    vofa_data[34] = leg->left_command_pose_body_mm.y_mm;
+    vofa_data[35] = leg->right_command_pose_body_mm.x_mm;
+    vofa_data[36] = leg->right_command_pose_body_mm.y_mm;
     vofa_data[37] = leg->ik_margin;
+
+    /* 38-39: leg motion state */
     vofa_data[38] = (float)leg->motion_state;
     vofa_data[39] = (float)leg->fault_reason;
 
@@ -169,6 +195,25 @@ void telemetry_update(uint32 now_ms)
     vofa_data[52] = (float)sensor_imu_get_invalid_sample_count();
     vofa_data[53] = (float)(now_ms - imu->timestamp_ms);
     vofa_data[54] = imu->gyro_y_dps;
+
+    /* 55-71: race-assist and bounded-drive diagnostics from this scheduler snapshot */
+    vofa_data[55] = (float)chassis->race_assist_enable;
+    vofa_data[56] = (float)chassis->race_assist_level;
+    vofa_data[57] = (float)chassis->race_assist_state;
+    vofa_data[58] = (float)chassis->race_assist_fault_reason;
+    vofa_data[59] = chassis->race_u_request;
+    vofa_data[60] = leg->race_assist_actual;
+    vofa_data[61] = chassis->requested_accel_rpm_s;
+    vofa_data[62] = chassis->forward_target_rpm;
+    vofa_data[63] = chassis->forward_ramped_rpm;
+    vofa_data[64] = chassis->wheel_speed_measured_rpm;
+    vofa_data[65] = chassis->speed_error_rpm;
+    vofa_data[66] = balance->pitch_setpoint_deg;
+    vofa_data[67] = balance->balance_output_limit_rpm;
+    vofa_data[68] = chassis->race_turn_scale;
+    vofa_data[69] = leg->left_ik_margin;
+    vofa_data[70] = leg->right_ik_margin;
+    vofa_data[71] = (float)leg->ik_branch_flags;
     telemetry_frame_sequence++;
 #else
     vofa_data[0] = (float)now_ms;

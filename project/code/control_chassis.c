@@ -6,6 +6,7 @@
 #include "control_chassis.h"
 #include "app_config.h"
 #include "control_leg.h"
+#include "control_race_assist.h"
 #include "actuator_motor.h"
 #include "sensor_imu.h"
 
@@ -77,6 +78,31 @@ static float control_chassis_lerp(float low, float high, float blend)
     return low + ((high - low) * blend);
 }
 
+static uint8 control_chassis_race_low_pose_ready(const leg_diag_struct *leg)
+{
+    if((NULL == leg) ||
+       (APP_TRUE != leg->servo_settled) ||
+       (APP_TRUE != leg->output_enable) ||
+       (APP_TRUE != leg->left_command_pose_body_mm.valid) ||
+       (APP_TRUE != leg->right_command_pose_body_mm.valid) ||
+       (APP_FALSE == control_chassis_is_finite(leg->left_command_pose_body_mm.x_mm)) ||
+       (APP_FALSE == control_chassis_is_finite(leg->left_command_pose_body_mm.y_mm)) ||
+       (APP_FALSE == control_chassis_is_finite(leg->right_command_pose_body_mm.x_mm)) ||
+       (APP_FALSE == control_chassis_is_finite(leg->right_command_pose_body_mm.y_mm)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_chassis_absf(leg->left_command_pose_body_mm.x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_chassis_absf(leg->left_command_pose_body_mm.y_mm - APP_RACE_ASSIST_ZERO_Y_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_chassis_absf(leg->right_command_pose_body_mm.x_mm - APP_RACE_ASSIST_ZERO_X_MM)) ||
+       (APP_RACE_ASSIST_POSE_TOLERANCE_MM <
+        control_chassis_absf(leg->right_command_pose_body_mm.y_mm - APP_RACE_ASSIST_ZERO_Y_MM)))
+    {
+        return APP_FALSE;
+    }
+    return APP_TRUE;
+}
+
 static float control_chassis_smoothstep(float edge0, float edge1, float value)
 {
     float t;
@@ -107,16 +133,18 @@ static float control_chassis_ramp_toward(float current, float target, float max_
 }
 
 static void control_chassis_resolve_leg_motion_policy(const leg_diag_struct *leg,
-                                                      const leg_height_profile_struct *height_profile,
-                                                      float configured_forward_limit_rpm,
-                                                      float configured_fast_forward_limit_rpm,
+                                                       const leg_stance_profile_struct *stance_profile,
+                                                       const race_assist_output_struct *race_output,
+                                                       float configured_forward_limit_rpm,
+                                                       float configured_fast_forward_limit_rpm,
                                                       uint8 fast_requested,
                                                       float *forward_limit_rpm,
                                                       float *fast_forward_limit_rpm,
                                                       uint8 *effective_fast_enable)
 {
     if((NULL == leg) ||
-       (NULL == height_profile) ||
+       (NULL == stance_profile) ||
+       (NULL == race_output) ||
        (NULL == forward_limit_rpm) ||
        (NULL == fast_forward_limit_rpm) ||
        (NULL == effective_fast_enable))
@@ -124,7 +152,12 @@ static void control_chassis_resolve_leg_motion_policy(const leg_diag_struct *leg
         return;
     }
 
-    if((LEG_MOTION_FAULT == leg->motion_state) || (APP_FALSE == leg->drive_allowed))
+    if((LEG_MOTION_FAULT == leg->motion_state) ||
+       (APP_FALSE == leg->drive_allowed) ||
+       (RACE_ASSIST_FAULT_HOLD == race_output->state) ||
+       (((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+         (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state)) &&
+        (APP_FALSE == leg->race_path_valid)))
     {
         *forward_limit_rpm = 0.0f;
         *fast_forward_limit_rpm = 0.0f;
@@ -132,9 +165,20 @@ static void control_chassis_resolve_leg_motion_policy(const leg_diag_struct *leg
     }
     else if(LEG_MOTION_TRANSITION == leg->motion_state)
     {
-        *forward_limit_rpm = height_profile->transition_forward_limit_rpm;
-        *fast_forward_limit_rpm = height_profile->transition_forward_limit_rpm;
+        *forward_limit_rpm = stance_profile->transition_forward_limit_rpm;
+        *fast_forward_limit_rpm = stance_profile->transition_forward_limit_rpm;
         *effective_fast_enable = APP_FALSE;
+    }
+    else if((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+            (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state))
+    {
+        *forward_limit_rpm = (APP_TRUE == race_output->enable) ?
+                             race_output->forward_limit_rpm :
+                             APP_CHASSIS_FORWARD_RPM_LIMIT;
+        *fast_forward_limit_rpm = (APP_TRUE == race_output->enable) ?
+                                  race_output->forward_limit_rpm :
+                                  APP_CHASSIS_FAST_FORWARD_RPM_LIMIT;
+        *effective_fast_enable = fast_requested;
     }
     else
     {
@@ -149,6 +193,7 @@ static void control_chassis_clear_output(void)
     control_chassis_output.pitch_offset_deg = 0.0f;
     control_chassis_output.turn_rpm = 0.0f;
     control_chassis_output.forward_target_rpm = 0.0f;
+    control_chassis_output.forward_ramped_rpm = 0.0f;
     control_chassis_output.forward_actual_rpm = 0.0f;
     control_chassis_output.turn_target_dps = 0.0f;
     control_chassis_output.gyro_z_dps = 0.0f;
@@ -162,10 +207,21 @@ static void control_chassis_clear_output(void)
     control_chassis_output.speed_integral = 0.0f;
     control_chassis_output.speed_pitch_limit_deg = APP_CHASSIS_SPEED_PITCH_LIMIT_DEG;
     control_chassis_output.speed_ff_rpm = 0.0f;
-    control_chassis_output.forward_limit_eff_rpm = APP_CHASSIS_FORWARD_RPM_LIMIT;
-    control_chassis_output.fast_forward_limit_eff_rpm = APP_CHASSIS_FAST_FORWARD_RPM_LIMIT;
+    /* Cleared output is fail-closed; balance retains its validated normal cap. */
+    control_chassis_output.forward_limit_eff_rpm = 0.0f;
+    control_chassis_output.fast_forward_limit_eff_rpm = 0.0f;
+    control_chassis_output.wheel_speed_measured_rpm = 0.0f;
+    control_chassis_output.speed_error_rpm = 0.0f;
+    control_chassis_output.requested_accel_rpm_s = 0.0f;
+    control_chassis_output.race_u_request = 0.0f;
+    control_chassis_output.race_balance_limit_rpm = APP_BALANCE_DEFAULT_RUNTIME_RPM_LIMIT;
+    control_chassis_output.race_turn_scale = 0.0f;
     control_chassis_output.imu_age_ms = 0U;
     control_chassis_output.wheel_age_ms = 0U;
+    control_chassis_output.race_assist_enable = APP_FALSE;
+    control_chassis_output.race_assist_level = 0U;
+    control_chassis_output.race_assist_state = (uint8)RACE_ASSIST_DISABLED;
+    control_chassis_output.race_assist_fault_reason = (uint8)RACE_ASSIST_FAULT_NONE;
     control_chassis_output.enable = APP_FALSE;
 }
 
@@ -192,6 +248,7 @@ void control_chassis_init(void)
     control_chassis_cmd.last_update_ms = 0;
 
     control_chassis_reset_turn_filter();
+    control_race_assist_init();
     control_chassis_clear_output();
 }
 
@@ -202,6 +259,7 @@ void control_chassis_update(uint32 now_ms)
     float target_forward_rpm;
     float target_turn_dps;
     float forward_max_delta;
+    float forward_before_ramp_rpm;
     float turn_max_delta;
     float speed_error_rpm;
     float speed_pitch_offset_deg;
@@ -214,22 +272,29 @@ void control_chassis_update(uint32 now_ms)
     float turn_unsat_rpm;
     uint8 turn_saturated;
     float forward_limit_rpm;
-    float height_forward_limit_rpm;
-    float height_fast_forward_limit_rpm;
+    float stance_forward_limit_rpm;
+    float stance_fast_forward_limit_rpm;
     float raw_fast_blend;
     float speed_pitch_limit_deg;
     uint8 effective_fast_enable = APP_FALSE;
     uint32 imu_age_ms;
     uint32 wheel_age_ms;
     const wheel_feedback_struct *wheel_feedback;
+    const leg_diag_struct *leg;
+    const leg_stance_profile_struct *stance_profile;
+    const race_assist_output_struct *race_output;
+    race_assist_input_struct race_input;
+    uint8 low_pose_ready;
     float dt_s;
 
+#if (0U != APP_CHASSIS_CMD_TIMEOUT_MS)
     if((APP_TRUE == control_chassis_cmd.enable) &&
        (0U != control_chassis_cmd.last_cmd_ms) &&
        (APP_CHASSIS_CMD_TIMEOUT_MS < (now_ms - control_chassis_cmd.last_cmd_ms)))
     {
         control_chassis_stop(now_ms);
     }
+#endif
 
     if(0U == control_chassis_cmd.last_update_ms)
     {
@@ -251,6 +316,7 @@ void control_chassis_update(uint32 now_ms)
     rpm_diag = actuator_motor_get_motor_rpm_loop_diag();
     imu = sensor_imu_get_state();
     wheel_feedback = actuator_motor_get_feedback();
+    race_output = control_race_assist_get_output();
     imu_age_ms = now_ms - imu->timestamp_ms;
     wheel_age_ms = wheel_feedback->age_ms;
 
@@ -261,34 +327,36 @@ void control_chassis_update(uint32 now_ms)
     }
 
     {
-        const leg_diag_struct *leg;
-        const leg_height_profile_struct *height_profile;
-        float height_norm;
+        float legacy_stance_norm;
 
         leg = control_leg_get_diag();
-        height_profile = leg_config_get_height_profile();
-        height_norm = control_chassis_limit_abs(leg->height_norm, 1.0f);
-        height_forward_limit_rpm =
-            control_chassis_lerp(height_profile->chassis_forward_limit_low_rpm,
-                                 height_profile->chassis_forward_limit_high_rpm,
-                                 height_norm);
-        height_fast_forward_limit_rpm =
-            control_chassis_lerp(height_profile->chassis_fast_forward_limit_low_rpm,
-                                 height_profile->chassis_fast_forward_limit_high_rpm,
-                                 height_norm);
+        stance_profile = leg_config_get_stance_profile();
+        legacy_stance_norm = ((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+                              (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) ||
+                              (APP_TRUE == race_output->enable)) ?
+                             0.0f : control_chassis_limit_abs(leg->legacy_stance_norm, 1.0f);
+        stance_forward_limit_rpm =
+            control_chassis_lerp(stance_profile->chassis_forward_limit_low_rpm,
+                                 stance_profile->chassis_forward_limit_high_rpm,
+                                 legacy_stance_norm);
+        stance_fast_forward_limit_rpm =
+            control_chassis_lerp(stance_profile->chassis_fast_forward_limit_low_rpm,
+                                 stance_profile->chassis_fast_forward_limit_high_rpm,
+                                 legacy_stance_norm);
 
         control_chassis_resolve_leg_motion_policy(leg,
-                                                  height_profile,
-                                                  height_forward_limit_rpm,
-                                                  height_fast_forward_limit_rpm,
+                                                  stance_profile,
+                                                  race_output,
+                                                  stance_forward_limit_rpm,
+                                                  stance_fast_forward_limit_rpm,
                                                   control_chassis_cmd.fast_enable,
-                                                  &height_forward_limit_rpm,
-                                                  &height_fast_forward_limit_rpm,
+                                                  &stance_forward_limit_rpm,
+                                                  &stance_fast_forward_limit_rpm,
                                                   &effective_fast_enable);
 
         forward_limit_rpm = (APP_TRUE == effective_fast_enable) ?
-                            height_fast_forward_limit_rpm :
-                            height_forward_limit_rpm;
+                            stance_fast_forward_limit_rpm :
+                            stance_forward_limit_rpm;
     }
 
     target_forward_rpm = control_chassis_limit_abs(control_chassis_cmd.target_forward_rpm,
@@ -299,17 +367,102 @@ void control_chassis_update(uint32 now_ms)
     forward_max_delta = APP_CHASSIS_FORWARD_RAMP_RPM_S * dt_s;
     turn_max_delta = APP_CHASSIS_TURN_RATE_RAMP_DPS_S * dt_s;
 
+    forward_before_ramp_rpm = control_chassis_cmd.actual_forward_rpm;
     control_chassis_cmd.actual_forward_rpm =
-        control_chassis_ramp_toward(control_chassis_cmd.actual_forward_rpm,
+        control_chassis_ramp_toward(forward_before_ramp_rpm,
                                     target_forward_rpm,
                                     forward_max_delta);
+
+    avg_wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);
+    low_pose_ready = control_chassis_race_low_pose_ready(leg);
+    race_input.target_rpm = control_chassis_cmd.target_forward_rpm;
+    race_input.ramped_rpm = control_chassis_cmd.actual_forward_rpm;
+    race_input.measured_rpm = avg_wheel_speed_rpm;
+    race_input.pitch_deg = imu->pitch;
+    race_input.pitch_rate_dps = imu->pitch_rate_dps;
+    race_input.leg_u_actual = leg->race_assist_actual;
+    race_input.dt_s = dt_s;
+    race_input.fast_enable = control_chassis_cmd.fast_enable;
+    race_input.feedback_healthy =
+        ((APP_TRUE == imu->healthy) &&
+         (APP_TRUE == wheel_feedback->online) &&
+         (APP_TRUE == wheel_feedback->left_online) &&
+         (APP_TRUE == wheel_feedback->right_online) &&
+         (APP_CHASSIS_IMU_MAX_AGE_MS >= imu_age_ms) &&
+         (APP_CHASSIS_WHEEL_MAX_AGE_MS >= wheel_age_ms)) ? APP_TRUE : APP_FALSE;
+    race_input.low_pose_ready = low_pose_ready;
+    race_input.leg_path_fault =
+        ((LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) ||
+         ((LEG_MOTION_RACE_ASSIST == leg->motion_state) &&
+          (APP_FALSE == leg->race_path_valid))) ? APP_TRUE : APP_FALSE;
+    control_race_assist_update(&race_input);
+    race_output = control_race_assist_get_output();
+
+    if(APP_TRUE == race_output->leg_command_enable)
+    {
+        if(APP_TRUE != control_leg_set_race_assist_request(race_output->u_request,
+                                                           race_output->dx_mm,
+                                                           race_output->dy_mm,
+                                                           now_ms))
+        {
+            control_race_assist_report_leg_path_fault();
+            control_race_assist_update(&race_input);
+            race_output = control_race_assist_get_output();
+        }
+    }
+    else if((RACE_ASSIST_DISABLED == race_output->state) &&
+            (LEG_MODE_RACE_ASSIST == (leg_mode_enum)leg->mode) &&
+            (APP_RACE_ASSIST_REQUEST_DEADBAND >=
+             control_chassis_absf(leg->race_assist_actual)))
+    {
+        control_leg_disable_race_assist(now_ms);
+    }
+
+    if(RACE_ASSIST_FAULT_HOLD == race_output->state)
+    {
+        control_chassis_cmd.target_forward_rpm = 0.0f;
+        control_chassis_cmd.actual_forward_rpm =
+            control_chassis_ramp_toward(forward_before_ramp_rpm,
+                                        0.0f,
+                                        forward_max_delta);
+        control_chassis_cmd.fast_blend = 0.0f;
+        control_chassis_cmd.speed_ff_rpm = 0.0f;
+        control_chassis_cmd.speed_pitch_limit_deg = APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG;
+        stance_forward_limit_rpm = 0.0f;
+        stance_fast_forward_limit_rpm = 0.0f;
+        effective_fast_enable = APP_FALSE;
+    }
+
+    if(RACE_ASSIST_RECENTER == race_output->state)
+    {
+        control_chassis_cmd.target_forward_rpm =
+            control_chassis_limit_abs(control_chassis_cmd.target_forward_rpm,
+                                      race_output->forward_limit_rpm);
+        control_chassis_cmd.actual_forward_rpm =
+            control_chassis_ramp_toward(forward_before_ramp_rpm,
+                                        control_chassis_cmd.target_forward_rpm,
+                                        forward_max_delta);
+        stance_forward_limit_rpm = race_output->forward_limit_rpm;
+        stance_fast_forward_limit_rpm = race_output->forward_limit_rpm;
+        effective_fast_enable = APP_FALSE;
+    }
+
+    if(RACE_ASSIST_FAULT_HOLD == race_output->state)
+    {
+        target_turn_dps = 0.0f;
+    }
+    else if((APP_TRUE == race_output->enable) ||
+            (RACE_ASSIST_RECENTER == race_output->state))
+    {
+        target_turn_dps *= race_output->turn_scale;
+    }
     control_chassis_cmd.actual_turn_dps =
         control_chassis_ramp_toward(control_chassis_cmd.actual_turn_dps,
                                     target_turn_dps,
                                     turn_max_delta);
 
     raw_fast_blend = control_chassis_smoothstep(APP_CHASSIS_FAST_BLEND_START_RPM,
-                                                 APP_CHASSIS_FAST_BLEND_FULL_RPM,
+                                                  APP_CHASSIS_FAST_BLEND_FULL_RPM,
                                                  control_chassis_absf(control_chassis_cmd.actual_forward_rpm));
     if(APP_FALSE == effective_fast_enable)
     {
@@ -321,10 +474,25 @@ void control_chassis_update(uint32 now_ms)
                                     raw_fast_blend,
                                     APP_CHASSIS_FAST_BLEND_RAMP_S * dt_s);
 
-    speed_pitch_limit_deg =
-        control_chassis_lerp(APP_CHASSIS_SPEED_PITCH_LIMIT_DEG,
-                             APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG,
-                             control_chassis_cmd.fast_blend);
+    if((RACE_ASSIST_FAULT_HOLD == race_output->state) ||
+       (RACE_ASSIST_RECENTER == race_output->state))
+    {
+        speed_pitch_limit_deg = APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG;
+    }
+    else if(APP_TRUE == race_output->enable)
+    {
+        speed_pitch_limit_deg =
+            control_chassis_lerp(APP_CHASSIS_SPEED_PITCH_LIMIT_DEG,
+                                 APP_RACE_ASSIST_PITCH_OFFSET_LIMIT_DEG,
+                                 race_output->speed_blend);
+    }
+    else
+    {
+        speed_pitch_limit_deg =
+            control_chassis_lerp(APP_CHASSIS_SPEED_PITCH_LIMIT_DEG,
+                                 APP_CHASSIS_FAST_SPEED_PITCH_LIMIT_DEG,
+                                 control_chassis_cmd.fast_blend);
+    }
     control_chassis_cmd.speed_pitch_limit_deg = speed_pitch_limit_deg;
 
     control_chassis_cmd.speed_ff_rpm =
@@ -353,7 +521,6 @@ void control_chassis_update(uint32 now_ms)
         return;
     }
 
-    avg_wheel_speed_rpm = 0.5f * (rpm_diag->left_motor_rpm + rpm_diag->right_motor_rpm);
     speed_error_rpm = control_chassis_cmd.actual_forward_rpm - avg_wheel_speed_rpm;
     control_chassis_cmd.speed_integral += speed_error_rpm * dt_s;
     control_chassis_cmd.speed_integral =
@@ -425,7 +592,8 @@ void control_chassis_update(uint32 now_ms)
 
     control_chassis_output.pitch_offset_deg = speed_pitch_offset_deg;
     control_chassis_output.turn_rpm = turn_rpm;
-    control_chassis_output.forward_target_rpm = control_chassis_cmd.actual_forward_rpm;
+    control_chassis_output.forward_target_rpm = control_chassis_cmd.target_forward_rpm;
+    control_chassis_output.forward_ramped_rpm = control_chassis_cmd.actual_forward_rpm;
     control_chassis_output.forward_actual_rpm = avg_wheel_speed_rpm;
     control_chassis_output.turn_target_dps = control_chassis_cmd.actual_turn_dps;
     control_chassis_output.gyro_z_dps = gyro_z_filtered_dps;
@@ -439,10 +607,20 @@ void control_chassis_update(uint32 now_ms)
     control_chassis_output.speed_integral = control_chassis_cmd.speed_integral;
     control_chassis_output.speed_pitch_limit_deg = control_chassis_cmd.speed_pitch_limit_deg;
     control_chassis_output.speed_ff_rpm = control_chassis_cmd.speed_ff_rpm;
-    control_chassis_output.forward_limit_eff_rpm = height_forward_limit_rpm;
-    control_chassis_output.fast_forward_limit_eff_rpm = height_fast_forward_limit_rpm;
+    control_chassis_output.forward_limit_eff_rpm = stance_forward_limit_rpm;
+    control_chassis_output.fast_forward_limit_eff_rpm = stance_fast_forward_limit_rpm;
+    control_chassis_output.wheel_speed_measured_rpm = avg_wheel_speed_rpm;
+    control_chassis_output.speed_error_rpm = race_output->speed_error_rpm;
+    control_chassis_output.requested_accel_rpm_s = race_output->requested_accel_rpm_s;
+    control_chassis_output.race_u_request = race_output->u_request;
+    control_chassis_output.race_balance_limit_rpm = race_output->balance_limit_rpm;
+    control_chassis_output.race_turn_scale = race_output->turn_scale;
     control_chassis_output.imu_age_ms = imu_age_ms;
     control_chassis_output.wheel_age_ms = wheel_age_ms;
+    control_chassis_output.race_assist_enable = race_output->enable;
+    control_chassis_output.race_assist_level = race_output->level;
+    control_chassis_output.race_assist_state = (uint8)race_output->state;
+    control_chassis_output.race_assist_fault_reason = (uint8)race_output->fault_reason;
     control_chassis_output.enable = APP_TRUE;
 
     if((APP_FALSE == control_chassis_cmd.enable) &&
@@ -472,36 +650,42 @@ void control_chassis_set_cmd(float forward_rpm, float turn_rpm, uint8 enable, ui
 
     {
         const leg_diag_struct *leg;
-        const leg_height_profile_struct *height_profile;
-        float height_forward_limit_rpm;
-        float height_fast_forward_limit_rpm;
-        float height_norm;
+        const leg_stance_profile_struct *stance_profile;
+        float stance_forward_limit_rpm;
+        float stance_fast_forward_limit_rpm;
+        float legacy_stance_norm;
         uint8 effective_fast_enable = APP_FALSE;
+        const race_assist_output_struct *race_output;
 
         leg = control_leg_get_diag();
-        height_profile = leg_config_get_height_profile();
-        height_norm = control_chassis_limit_abs(leg->height_norm, 1.0f);
-        height_forward_limit_rpm =
-            control_chassis_lerp(height_profile->chassis_forward_limit_low_rpm,
-                                 height_profile->chassis_forward_limit_high_rpm,
-                                 height_norm);
-        height_fast_forward_limit_rpm =
-            control_chassis_lerp(height_profile->chassis_fast_forward_limit_low_rpm,
-                                 height_profile->chassis_fast_forward_limit_high_rpm,
-                                 height_norm);
+        stance_profile = leg_config_get_stance_profile();
+        race_output = control_race_assist_get_output();
+        legacy_stance_norm = ((LEG_MOTION_RACE_ASSIST == leg->motion_state) ||
+                              (LEG_MOTION_RACE_FAULT_HOLD == leg->motion_state) ||
+                              (APP_TRUE == race_output->enable)) ?
+                             0.0f : control_chassis_limit_abs(leg->legacy_stance_norm, 1.0f);
+        stance_forward_limit_rpm =
+            control_chassis_lerp(stance_profile->chassis_forward_limit_low_rpm,
+                                 stance_profile->chassis_forward_limit_high_rpm,
+                                 legacy_stance_norm);
+        stance_fast_forward_limit_rpm =
+            control_chassis_lerp(stance_profile->chassis_fast_forward_limit_low_rpm,
+                                 stance_profile->chassis_fast_forward_limit_high_rpm,
+                                 legacy_stance_norm);
 
         control_chassis_resolve_leg_motion_policy(leg,
-                                                  height_profile,
-                                                  height_forward_limit_rpm,
-                                                  height_fast_forward_limit_rpm,
+                                                  stance_profile,
+                                                  race_output,
+                                                  stance_forward_limit_rpm,
+                                                  stance_fast_forward_limit_rpm,
                                                   control_chassis_cmd.fast_enable,
-                                                  &height_forward_limit_rpm,
-                                                  &height_fast_forward_limit_rpm,
+                                                  &stance_forward_limit_rpm,
+                                                  &stance_fast_forward_limit_rpm,
                                                   &effective_fast_enable);
 
         forward_limit_rpm = (APP_TRUE == effective_fast_enable) ?
-                            height_fast_forward_limit_rpm :
-                            height_forward_limit_rpm;
+                            stance_fast_forward_limit_rpm :
+                            stance_forward_limit_rpm;
     }
 
     control_chassis_cmd.target_forward_rpm = control_chassis_limit_abs(forward_rpm,
@@ -585,7 +769,20 @@ void control_chassis_set_fast_enable(uint8 enable)
     /* When disabling fast mode, only disarm the flag.  The update loop
        forces raw_fast_blend to 0 when fast_enable is false, so fast_blend,
        speed_ff_rpm, and speed_pitch_limit_deg ramp down smoothly via
-       control_chassis_ramp_toward instead of a hard gain jump. */
+        control_chassis_ramp_toward instead of a hard gain jump. */
+}
+
+uint8 control_chassis_set_race_assist_level(uint8 level, uint32 now_ms)
+{
+    (void)now_ms;
+    return control_race_assist_set_level(level);
+}
+
+uint8 control_chassis_set_race_assist_gains(float accel_gain,
+                                            float error_gain,
+                                            float hold_bias)
+{
+    return control_race_assist_set_gains(accel_gain, error_gain, hold_bias);
 }
 
 const chassis_cmd_struct *control_chassis_get_cmd(void)

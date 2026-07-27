@@ -1252,6 +1252,9 @@
                 <name>$PROJ_DIR$\..\..\code\control_chassis.c</name>
             </file>
             <file>
+                <name>$PROJ_DIR$\..\..\code\control_race_assist.c</name>
+            </file>
+            <file>
                 <name>$PROJ_DIR$\..\..\code\control_chassis.h</name>
             </file>
             <file>

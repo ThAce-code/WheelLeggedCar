@@ -50,6 +50,35 @@ function Write-NumericHarness {
 #include "leg_kinematics.h"
 #include "leg_config.h"
 #include <math.h>
+#include <stdio.h>
+
+static int check_model_reachable_commands(void)
+{
+    static const float commands[][2] =
+    {
+        {40.0f, 140.0f}, {45.0f, 135.0f},
+        {50.0f, 130.0f}, {60.0f, 120.0f}
+    };
+    uint32 i;
+    for(i = 0U; i < (sizeof(commands) / sizeof(commands[0])); i++)
+    {
+        float x_mm;
+        float y_mm;
+        leg_ik_result_struct left;
+        leg_ik_result_struct right;
+        if((APP_TRUE != leg_kinematics_forward_command(APP_FALSE,
+                                                       commands[i][0], commands[i][1],
+                                                       &x_mm, &y_mm)) ||
+           (APP_TRUE != leg_kinematics_target_valid(x_mm, y_mm)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_FALSE, x_mm, y_mm, NULL, &left)) ||
+           (APP_TRUE != leg_kinematics_solve(APP_TRUE, x_mm, y_mm, NULL, &right)))
+        {
+            printf("model-reachable command rejected at index %u\n", (unsigned int)i);
+            return 1;
+        }
+    }
+    return 0;
+}
 
 int main(void)
 {
@@ -77,10 +106,10 @@ int main(void)
     {
         return 1;
     }
-    if((fabsf(reference_cmd[LEG_SERVO_FL] - leg_config_get_servo(LEG_SERVO_FL)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_FR] - leg_config_get_servo(LEG_SERVO_FR)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_RL] - leg_config_get_servo(LEG_SERVO_RL)->neutral_deg) > 0.001f) ||
-       (fabsf(reference_cmd[LEG_SERVO_RR] - leg_config_get_servo(LEG_SERVO_RR)->neutral_deg) > 0.001f))
+    if((fabsf(reference_cmd[LEG_SERVO_FL] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_FR] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_RL] - 90.0f) > 0.001f) ||
+       (fabsf(reference_cmd[LEG_SERVO_RR] - 90.0f) > 0.001f))
     {
         return 2;
     }
@@ -99,43 +128,30 @@ int main(void)
             return (int)(10U + i);
         }
     }
-    if(APP_TRUE == leg_kinematics_target_valid(0.0f, 55.0f))
+    if(0 != check_model_reachable_commands())
     {
-        return 20;
+        return 30;
+    }
+    if((APP_TRUE == leg_kinematics_target_valid(NAN, 47.3567f)) ||
+       (APP_TRUE == leg_kinematics_target_valid(INFINITY, 47.3567f)) ||
+       (APP_TRUE == leg_kinematics_target_valid(1000.0f, 1000.0f)))
+    {
+        return 31;
     }
     return 0;
 }
 '@ | Set-Content (Join-Path $Path "test_leg_ik_zero_calibration.c") -NoNewline
 }
 
-function Test-PhysicalHullPoint {
-    param([double]$X, [double]$Y)
-
-    $hull = @(
-        @(-40.620, 47.370), @(-30.910, 39.630),
-        @(-20.380, 32.170), @(-15.040, 47.600),
-        @(-22.030, 88.490), @(-31.420, 74.120),
-        @(-37.940, 59.340), @(-39.580, 53.010)
-    )
-    for($i = 0; $i -lt $hull.Count; $i++) {
-        $first = $hull[$i]
-        $second = $hull[($i + 1) % $hull.Count]
-        $edgeX = $second[0] - $first[0]
-        $edgeY = $second[1] - $first[1]
-        $length = [math]::Sqrt($edgeX * $edgeX + $edgeY * $edgeY)
-        $distance = ($edgeX * ($Y - $first[1]) - $edgeY * ($X - $first[0])) / $length
-        if($distance -lt 2.0) {
-            return $false
-        }
-    }
-    return $true
-}
-
 Assert-Contains "project/code/leg_config.h" "ik_offset_deg" "Missing per-servo IK offset configuration."
-Assert-Contains "project/code/leg_config.h" "physical_workspace" "Missing calibrated physical IK workspace configuration."
-Assert-Contains "project/code/leg_config.h" "physical_workspace_inset_mm" "Missing physical workspace safety inset."
+Assert-Contains "project/code/leg_config.c" '\{0,\s*90\.0f,\s*90\.0f' "FL safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{1,\s*90\.0f,\s*90\.0f' "FR safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{2,\s*90\.0f,\s*90\.0f' "RL safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\{3,\s*90\.0f,\s*90\.0f' "RR safe and neutral must be literal 90 degrees."
+Assert-Contains "project/code/leg_config.c" '\.physical_reference_x_mm\s*=\s*-20\.766667f' "LIKREF physical X missing."
+Assert-Contains "project/code/leg_config.c" '\.physical_reference_y_mm\s*=\s*47\.356667f' "LIKREF physical Y missing."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_target_valid" "Missing physical target validation API."
-Assert-Contains "project/code/control_leg.c" "leg_kinematics_target_valid" "LXY validation must enforce the calibrated physical hull."
+Assert-Contains "project/code/control_leg.c" "leg_kinematics_target_valid" "LXY validation must enforce model reachability."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_reference_pose" "Missing reference-pose mapping API."
 Assert-Contains "project/code/leg_kinematics.h" "leg_kinematics_map_target_pose" "Missing target-pose mapping API."
 Assert-Contains "project/code/control_leg.h" "control_leg_set_ik_reference" "Missing reference-pose controller API."
@@ -148,17 +164,18 @@ Assert-Contains "project/code/host_command.c" "'L' == line\[0\].*'X' == line\[1\
 Assert-Contains "project/code/host_command.c" "control_leg_set_ik_reference" "LIKREF must enter the reference controller mode."
 Assert-Contains "project/code/host_command.c" "control_leg_set_xy" "LXY must enter the restricted XY controller mode."
 Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF" "Hardware procedure must include LIKREF."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-20.7667,47.3567" "Hardware procedure must include the measured reference XY check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55" "Hardware procedure must explicitly identify the rejected uncalibrated target."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-20.7667,51.0" "Hardware procedure must include higher physical Y check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,-18.0,47.3567" "Hardware procedure must include the forward physical X check."
-Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "contracted" "Hardware procedure must describe the calibrated hull inset."
-
-if(-not (Test-PhysicalHullPoint -X -20.7667 -Y 47.3567)) { throw "Physical reference must be inside the inset hull." }
-if(-not (Test-PhysicalHullPoint -X -18.0 -Y 47.3567)) { throw "Forward test point must be inside the inset hull." }
-if(-not (Test-PhysicalHullPoint -X -23.5 -Y 47.3567)) { throw "Rearward test point must be inside the inset hull." }
-if(Test-PhysicalHullPoint -X 0.0 -Y 55.0) { throw "Uncalibrated X=0 target must be rejected." }
-if(Test-PhysicalHullPoint -X -40.620 -Y 47.370) { throw "A hull vertex must be rejected by the 2 mm inset." }
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "BODY_WHEEL" "Hardware procedure must name the public physical frame."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LIKREF = \(-20\.766667, 47\.356667\)" "Hardware procedure must record the exact P0 reference."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "absolute.*BODY_WHEEL.*millimetres" "LXY must be documented as an absolute physical command."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "model-reachable" "Hardware procedure must define model reachability."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "0.02" "Hardware procedure must state the minimum IK margin."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "servo limits" "Hardware procedure must require mapped servo limits."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,0,55[\s\S]*accepted only\s+when[\s\S]*model-reachable" "The model-reachable LXY,0,55 command must not be pre-rejected."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "LXY,1000,1000.*must be rejected" "The truly unreachable LXY example must remain fail-closed."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "model/command example" "Hardware procedure must label the low command as a model example."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "motor-disabled" "Hardware procedure must require motor-disabled acceptance."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "Target X.*Measured X.*Error X.*Pose-status flags.*Servo outputs" "Hardware procedure must record physical-coordinate acceptance evidence."
+Assert-Contains "docs/leg-ik-zero-calibration-hardware-test.md" "right leg[\s\S]*measured independently" "Hardware procedure must gate right-leg provenance on independent measurement."
 
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("leg-ik-zero-" + [Guid]::NewGuid().ToString())
 $originalPath = $null

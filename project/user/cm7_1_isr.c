@@ -35,6 +35,7 @@
 
 
 #include "zf_common_headfile.h"
+#include "camera_frame_consumer.h"
 // **************************** PIT中断函数 ****************************
 void pit0_ch0_isr()
 {
@@ -60,10 +61,67 @@ void pit0_ch1_isr()
 void pit0_ch2_isr()
 {
     pit_isr_flag_clear(PIT_CH2);
-	
-	
-	
-	
+    camera_frame_consumer_tick_1ms();
+}
+
+void pit0_ch10_isr()
+{
+    pit_isr_flag_clear(PIT_CH10);
+}
+
+void pit0_ch11_isr()
+{
+    pit_isr_flag_clear(PIT_CH11);
+}
+
+void pit0_ch12_isr()
+{
+    pit_isr_flag_clear(PIT_CH12);
+}
+
+void pit0_ch13_isr()
+{
+    pit_isr_flag_clear(PIT_CH13);
+}
+
+void pit0_ch14_isr()
+{
+    pit_isr_flag_clear(PIT_CH14);
+}
+
+void pit0_ch15_isr()
+{
+    pit_isr_flag_clear(PIT_CH15);
+}
+
+void pit0_ch16_isr()
+{
+    pit_isr_flag_clear(PIT_CH16);
+}
+
+void pit0_ch17_isr()
+{
+    pit_isr_flag_clear(PIT_CH17);
+}
+
+void pit0_ch18_isr()
+{
+    pit_isr_flag_clear(PIT_CH18);
+}
+
+void pit0_ch19_isr()
+{
+    pit_isr_flag_clear(PIT_CH19);
+}
+
+void pit0_ch20_isr()
+{
+    pit_isr_flag_clear(PIT_CH20);
+}
+
+void pit0_ch21_isr()
+{
+    pit_isr_flag_clear(PIT_CH21);
 }
 // **************************** PIT中断函数 ****************************
 
@@ -269,28 +327,6 @@ void gpio_23_exti_isr()
 
 // **************************** 串口中断函数 ****************************
 // 串口0默认作为调试串口
-void uart0_isr (void)
-{
-    if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_0)) & CY_SCB_UART_RX_NOT_EMPTY)            // 串口0接收中断
-    {
-        Cy_SCB_ClearRxInterrupt(get_scb_module(UART_0), CY_SCB_UART_RX_NOT_EMPTY);              // 清除接收中断标志位
-        
-#if DEBUG_UART_USE_INTERRUPT                        				                // 如果开启 debug 串口中断
-        debug_interrupr_handler();                  				                // 调用 debug 串口接收处理函数 数据会被 debug 环形缓冲区读取
-#endif                                              				                // 如果修改了 DEBUG_UART_INDEX 那这段代码需要放到对应的串口中断去
-      
-        
-        
-    }
-    else if(Cy_SCB_GetTxInterruptMask(get_scb_module(UART_0)) & CY_SCB_UART_TX_DONE)            // 串口0发送中断
-    {           
-        Cy_SCB_ClearTxInterrupt(get_scb_module(UART_0), CY_SCB_UART_TX_DONE);                   // 清除接收中断标志位
-        
-        
-        
-    }
-}
-
 void uart1_isr (void)
 {
     if(Cy_SCB_GetRxInterruptMask(get_scb_module(UART_1)) & CY_SCB_UART_RX_NOT_EMPTY)            // 串口1接收中断

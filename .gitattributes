@@ -1,0 +1,7 @@
+# These source-matched Seekfree files are hash-locked to the approved E9 reference.
+libraries/zf_device/zf_device_mt9v03x.c -text -whitespace
+libraries/zf_device/zf_device_mt9v03x.h -text -whitespace
+libraries/zf_components/seekfree_assistant.c -text -whitespace
+libraries/zf_components/seekfree_assistant.h -text -whitespace
+libraries/doc/GPL-3.0.txt -text
+libraries/doc/GPL-3.0.txt -whitespace

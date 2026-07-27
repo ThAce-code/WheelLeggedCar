@@ -69,7 +69,13 @@ typedef struct
     cy_en_intr_t                uart_irqn;
 }uart_config_struct;
 
+#if CY_CORE_CM7_1
+void (*uart_isr_func[7])() = {0, uart1_isr, uart2_isr, uart3_isr, uart4_isr, 0, 0};
+#elif CY_CORE_CM7_0
 void (*uart_isr_func[7])() = {uart0_isr, uart1_isr, uart2_isr, uart3_isr, uart4_isr, uart5_isr, uart6_isr};
+#else
+void (*uart_isr_func[7])() = {uart0_isr, uart1_isr, uart2_isr, uart3_isr, uart4_isr, 0, 0};
+#endif
 cy_stc_scb_uart_context_t  uart_context[7] = {0}; 
 volatile stc_SCB_t* scb_module[7] = {SCB0, SCB5, SCB4, SCB3, SCB2, SCB7, SCB6};
 
@@ -579,6 +585,11 @@ void uart_sbus_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pi
 	
     zf_assert((uint8)uart_n == (uint8)(tx_pin / 0x10) ? 1 : 0);
     zf_assert((uint8)uart_n == (uint8)(rx_pin / 0x10) ? 1 : 0);
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
 	
     uart_config_struct          uart_pin_config                 = {0};
     cy_stc_gpio_pin_config_t    gpio_pin_config                 = {0};
@@ -643,6 +654,11 @@ void uart_init (uart_index_enum uart_n, uint32 baud, uart_tx_pin_enum tx_pin, ua
 	
     zf_assert((uint8)uart_n == (uint8)(tx_pin / 0x10) ? 1 : 0);
     zf_assert((uint8)uart_n == (uint8)(rx_pin / 0x10) ? 1 : 0);
+    if(0 == uart_isr_func[uart_n])
+    {
+        zf_assert(0U);
+        return;
+    }
     
     uart_config_struct          uart_pin_config                 = {0};
     cy_stc_gpio_pin_config_t    gpio_pin_config                 = {0};

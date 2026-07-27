@@ -16,6 +16,12 @@
 #include "control_balance.h"
 #include "host_command.h"
 #include "telemetry.h"
+#include "motion_command_router.h"
+#include "intercore_control.h"
+#include "single_gap_config.h"
+#if (SINGLE_GAP_ENABLE == 1U)
+#include "single_gap_pose_source.h"
+#endif
 
 uint8 app_init(void)
 {
@@ -23,6 +29,17 @@ uint8 app_init(void)
 
     app_state_init();
     app_safety_init();
+    motion_command_router_init();
+    if(0U == intercore_control_init())
+    {
+        result |= 0x08U;
+    }
+#if (SINGLE_GAP_ENABLE == 1U)
+    if(0U == single_gap_pose_source_init())
+    {
+        result |= 0x10U;
+    }
+#endif
     app_scheduler_init();
     host_command_init();
     control_chassis_init();

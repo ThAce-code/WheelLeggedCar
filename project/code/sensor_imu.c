@@ -27,14 +27,13 @@ static void sensor_imu_copy_angle(uint32 now_ms)
 
     angle = lsm6dsv16x_get_angle_data();
     sensor_imu_state.timestamp_ms = now_ms;
-    /* IMU chip is rotated 90 deg on PCB: chip roll = car pitch, chip pitch = car roll */
-    sensor_imu_state.roll = angle->pitch;
-    sensor_imu_state.pitch = angle->roll;
+    sensor_imu_state.roll = angle->roll;
+    sensor_imu_state.pitch = angle->pitch;
     sensor_imu_state.yaw = angle->yaw;
-    sensor_imu_state.gyro_x_dps = angle->gyro_y;
-    sensor_imu_state.gyro_y_dps = angle->gyro_x;
+    sensor_imu_state.gyro_x_dps = angle->gyro_x;
+    sensor_imu_state.gyro_y_dps = angle->gyro_y;
     sensor_imu_state.gyro_z_dps = angle->gyro_z;
-    sensor_imu_state.pitch_rate_dps = angle->gyro_x;
+    sensor_imu_state.pitch_rate_dps = angle->gyro_y;
     sensor_imu_state.quat_w = angle->quat_w;
     sensor_imu_state.quat_x = angle->quat_x;
     sensor_imu_state.quat_y = angle->quat_y;

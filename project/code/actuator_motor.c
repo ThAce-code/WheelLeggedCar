@@ -272,33 +272,6 @@ static void actuator_motor_refresh_feedback(uint32 now_ms)
     actuator_motor_copy_ascii_diag(raw->last_unknown_ascii);
 }
 
-static float actuator_motor_limit(float value)
-{
-    float limit;
-
-    limit = APP_MOTOR_CMD_LIMIT;
-    if((float)APP_BLDC_DUTY_LIMIT < limit)
-    {
-        limit = (float)APP_BLDC_DUTY_LIMIT;
-    }
-#if APP_BLDC_SAFE_START_ENABLE
-    if(APP_BLDC_SAFE_START_LIMIT < limit)
-    {
-        limit = APP_BLDC_SAFE_START_LIMIT;
-    }
-#endif
-
-    if(limit < value)
-    {
-        return limit;
-    }
-    if((-limit) > value)
-    {
-        return -limit;
-    }
-    return value;
-}
-
 static int16 actuator_motor_float_to_duty(float value)
 {
     if(0.0f <= value)
@@ -328,13 +301,6 @@ static void actuator_motor_send_duty_periodic(uint32 now_ms, int16 left_duty, in
         actuator_motor_last_send_ms = now_ms;
         actuator_motor_send_duty(left_duty, right_duty);
     }
-}
-
-static void actuator_motor_send_current(void)
-{
-    bldc_foc_uart_set_duty(actuator_motor_float_to_duty(actuator_motor_cmd.left_target_motor_rpm),
-                           actuator_motor_float_to_duty(actuator_motor_cmd.right_target_motor_rpm));
-    actuator_motor_output_active = APP_TRUE;
 }
 
 void actuator_motor_init(void)
@@ -689,6 +655,7 @@ void actuator_motor_update(uint32 now_ms)
     return;
 #endif
 
+#if !APP_MOTOR_RPM_LOOP_ENABLE
     if(APP_FALSE == actuator_motor_cmd.enable)
     {
         if(APP_TRUE == actuator_motor_output_active)
@@ -704,6 +671,7 @@ void actuator_motor_update(uint32 now_ms)
         actuator_motor_send_duty(actuator_motor_float_to_duty(actuator_motor_cmd.left_target_motor_rpm),
                                  actuator_motor_float_to_duty(actuator_motor_cmd.right_target_motor_rpm));
     }
+#endif
 }
 
 void actuator_motor_stop(void)

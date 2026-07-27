@@ -131,6 +131,58 @@ static uint8 host_command_parse_two_numbers(const char *text, float *first, floa
     return APP_TRUE;
 }
 
+static uint8 host_command_parse_three_numbers(const char *text, float *first, float *second, float *third)
+{
+    char number_text[16];
+    float values[3];
+    uint8 value_index = 0;
+    uint8 number_index = 0;
+    uint8 read_index = 0;
+
+    while('\0' != text[read_index])
+    {
+        if(',' == text[read_index])
+        {
+            if((0U == number_index) || (2U <= value_index))
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = '\0';
+            if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+            {
+                return APP_FALSE;
+            }
+            value_index++;
+            number_index = 0;
+        }
+        else
+        {
+            if((sizeof(number_text) - 1U) <= number_index)
+            {
+                return APP_FALSE;
+            }
+            number_text[number_index] = text[read_index];
+            number_index++;
+        }
+        read_index++;
+    }
+
+    if((0U == number_index) || (2U != value_index))
+    {
+        return APP_FALSE;
+    }
+    number_text[number_index] = '\0';
+    if(APP_FALSE == host_command_parse_number(number_text, &values[value_index]))
+    {
+        return APP_FALSE;
+    }
+
+    *first = values[0];
+    *second = values[1];
+    *third = values[2];
+    return APP_TRUE;
+}
+
 static uint8 host_command_parse_four_numbers(const char *text, float *first, float *second, float *third, float *fourth)
 {
     char number_text[16];
@@ -247,6 +299,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     float kp;
     float ki;
     float kd;
+    float drive_turn_kp;
     float ks;
     float pos_kp;
     float period_ms_f;
@@ -267,6 +320,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
     if(APP_TRUE == host_command_match_stop(line))
     {
         control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+        control_chassis_set_fast_enable(APP_FALSE);
         control_chassis_stop(now_ms);
         control_balance_set_mode(BALANCE_MODE_OFF);
         actuator_motor_set_mode_stop();
@@ -309,6 +363,26 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
     }
 
+    if(('B' == line[0]) && ('D' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_three_numbers(&line[3], &kp, &ki, &drive_turn_kp)))
+    {
+        if(APP_TRUE == control_chassis_set_drive_gain(kp, ki, drive_turn_kp))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
+    if(('B' == line[0]) && ('T' == line[1]) && (',' == line[2]) &&
+       (APP_TRUE == host_command_parse_two_numbers(&line[3], &kp, &ki)))
+    {
+        if(APP_TRUE == control_chassis_set_turn_gain(kp, ki))
+        {
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+    }
+
     if(('B' == line[0]) && ('L' == line[1]) && (',' == line[2]) &&
        (APP_TRUE == host_command_parse_four_numbers(&line[3], &kp, &ki, &ks, &pos_kp)))
     {
@@ -335,6 +409,7 @@ static void host_command_process_line(char *line, uint32 now_ms)
         if(0.0f == value)
         {
             control_balance_set_ident_excitation(0.0f, 0U, now_ms);
+            control_chassis_set_fast_enable(APP_FALSE);
             control_chassis_stop(now_ms);
             control_balance_set_mode(BALANCE_MODE_OFF);
             actuator_motor_record_command_error(APP_FALSE);
@@ -342,13 +417,22 @@ static void host_command_process_line(char *line, uint32 now_ms)
         }
         if(1.0f == value)
         {
+            control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_STANDBY);
             actuator_motor_record_command_error(APP_FALSE);
             return;
         }
         if(2.0f == value)
         {
+            control_chassis_set_fast_enable(APP_FALSE);
             control_balance_set_mode(BALANCE_MODE_BALANCE_TEST);
+            actuator_motor_record_command_error(APP_FALSE);
+            return;
+        }
+        if(3.0f == value)
+        {
+            control_chassis_set_fast_enable(APP_TRUE);
+            control_balance_set_mode(BALANCE_MODE_BALANCE_FAST);
             actuator_motor_record_command_error(APP_FALSE);
             return;
         }

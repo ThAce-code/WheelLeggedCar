@@ -43,7 +43,9 @@ void app_scheduler_tick_1ms(void)
 
 void app_scheduler_run_pending(void)
 {
+#if (APP_IMU_USE_INT1 != 1U)
     static uint32 imu_last_ms = 0;
+#endif
     static uint32 safety_last_ms = 0;
     static uint32 motor_last_ms = 0;
     static uint32 telemetry_last_ms = 0;
@@ -70,7 +72,6 @@ void app_scheduler_run_pending(void)
     if(APP_TRUE == sensor_imu_take_data_ready())
     {
         sensor_imu_update(now_ms);
-        imu_last_ms = now_ms;
     }
 #else
     if(APP_TRUE == app_task_elapsed(now_ms, &imu_last_ms, APP_IMU_PERIOD_MS))
